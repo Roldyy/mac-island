@@ -12,7 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var island: IslandController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        migrateVorssaintIfNeeded()
+        migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
+        ClipboardFeature.start()
         let island = IslandController { IslandRootView() }
         island.show()
         self.island = island
