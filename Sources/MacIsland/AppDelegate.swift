@@ -1,6 +1,10 @@
 import AgentsFeature
 import AppKit
 import ClipboardFeature
+import FinderFeature
+import DockFeature
+import DisplayFeature
+import AudioFeature
 import KeepAwakeFeature
 import NowPlayingFeature
 import ShelfFeature
@@ -56,6 +60,7 @@ struct IslandRootView: View {
     private let tabs: [IslandTab] = [
         TerminalFeature.tab(), AgentsFeature.tab(), ClipboardFeature.tab(),
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
+        FinderFeature.tab(), DockFeature.tab(), DisplayFeature.tab(), AudioFeature.tab(),
     ]
 
     var body: some View {

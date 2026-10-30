@@ -24,10 +24,15 @@ let package = Package(
         .target(name: "ShelfFeature", dependencies: ["IslandKit"], path: "Sources/Features/Shelf"),
         .target(name: "KeepAwakeFeature", dependencies: ["IslandKit"], path: "Sources/Features/KeepAwake"),
         .target(name: "NowPlayingFeature", dependencies: ["IslandKit"], path: "Sources/Features/NowPlaying"),
+        .target(name: "FinderFeature", dependencies: ["IslandKit"], path: "Sources/Features/Finder"),
+        .target(name: "DockFeature", dependencies: ["IslandKit"], path: "Sources/Features/Dock"),
+        .target(name: "DisplayFeature", dependencies: ["IslandKit"], path: "Sources/Features/Display"),
+        .target(name: "AudioFeature", dependencies: ["IslandKit"], path: "Sources/Features/Audio"),
 
         .executableTarget(name: "MacIsland", dependencies: [
             "IslandKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
+            "FinderFeature", "DockFeature", "DisplayFeature", "AudioFeature",
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
@@ -39,5 +44,9 @@ let package = Package(
         .testTarget(name: "ShelfFeatureTests", dependencies: ["ShelfFeature"], path: "Tests/ShelfTests"),
         .testTarget(name: "KeepAwakeFeatureTests", dependencies: ["KeepAwakeFeature"], path: "Tests/KeepAwakeTests"),
         .testTarget(name: "NowPlayingFeatureTests", dependencies: ["NowPlayingFeature"], path: "Tests/NowPlayingTests"),
+        .testTarget(name: "FinderFeatureTests", dependencies: ["FinderFeature"], path: "Tests/FinderTests"),
+        .testTarget(name: "DockFeatureTests", dependencies: ["DockFeature"], path: "Tests/DockTests"),
+        .testTarget(name: "DisplayFeatureTests", dependencies: ["DisplayFeature"], path: "Tests/DisplayTests"),
+        .testTarget(name: "AudioFeatureTests", dependencies: ["AudioFeature"], path: "Tests/AudioTests"),
     ]
 )
