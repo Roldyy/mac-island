@@ -163,3 +163,30 @@ import Testing
         #expect(s.entries[0].copiedAt == t)
     }
 }
+
+@Suite struct ClipboardHistoryStorePinTests {
+    @Test func unpinDoesNotTrimButNextInsertDoes() {
+        let s = ClipboardHistoryStore(directory: makeTempDir(), limit: 50)
+        s.addText("old", source: nil)
+        s.togglePin(id: s.entries[0].id)
+        for i in 0..<50 { s.addText("n\(i)", source: nil) }
+        #expect(s.entries.count == 51)
+        s.togglePin(id: s.entries.last!.id)                 // unpin "old": 51 unpinned
+        #expect(s.entries.contains { $0.text == "old" })
+        #expect(s.entries.count == 51)
+        s.addText("fresh", source: nil)                     // a real insert trims normally
+        #expect(s.entries.filter { !$0.pinned }.count == 50)
+        #expect(!s.entries.contains { $0.text == "old" })
+    }
+
+    @Test func loadedFilesEntryLabelIsRebuiltFromPaths() throws {
+        let dir = makeTempDir()
+        let json = """
+        [{"id":"F1","kind":"files","text":"EVIL label","filePaths":["/tmp/a.txt","/tmp/b.txt"],"copiedAt":1.0}]
+        """
+        try json.write(to: dir.appendingPathComponent("ClipboardHistory.json"), atomically: true, encoding: .utf8)
+        let s = ClipboardHistoryStore(directory: dir, limit: 50)
+        s.load()
+        #expect(s.entries.first?.text == "a.txt, b.txt")
+    }
+}

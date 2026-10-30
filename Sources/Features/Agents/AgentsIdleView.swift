@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// Compact summary for the closed island: month tokens and cost.
-public struct AgentsIdleView: View {
+struct AgentsIdleView: View {
     @State private var model = AgentsUsageModel.shared
 
-    public init() {}
+    init() {}
 
-    public var body: some View {
+    var body: some View {
         let s = model.summary
         HStack(spacing: 6) {
             Image(systemName: "sparkles").foregroundStyle(.white.opacity(0.7))

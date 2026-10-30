@@ -181,4 +181,50 @@ private func permissions(_ url: URL) -> Int {
         #expect(b.defaults.object(forKey: "notchSize") == nil)
         #expect(b.defaults.bool(forKey: VorssaintMigrator.doneKey) == false)
     }
+
+    @Test func directorySymlinkIsNeitherFollowedNorCopiedAndIsListed() throws {
+        let b = try Bench(); defer { b.cleanup() }
+        let outside = b.root.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try "secret".write(to: outside.appendingPathComponent("leak.txt"), atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(
+            at: b.sourceSupport.appendingPathComponent("ClipboardImages/linked"), withDestinationURL: outside)
+        try FileManager.default.createSymbolicLink(
+            at: b.sourceSupport.appendingPathComponent("Scratchpad.json"),
+            withDestinationURL: outside.appendingPathComponent("leak.txt"))
+        try b.write("img", to: "ClipboardImages/a.png")
+        let originalMode = permissions(outside)
+
+        let report = try b.migrator(["notchSize": "compact"]).run()
+
+        #expect(report.skippedLinks.sorted() == ["ClipboardImages/linked", "Scratchpad.json"])
+        #expect(report.copiedFiles.contains("ClipboardImages/a.png"))
+        #expect(!report.copiedFiles.contains { $0.contains("leak") || $0.contains("linked") })
+        let fm = FileManager.default
+        let data = b.destSupport.appendingPathComponent("Data")
+        #expect(!fm.fileExists(atPath: data.appendingPathComponent("ClipboardImages/linked").path))
+        #expect(!fm.fileExists(atPath: data.appendingPathComponent("Scratchpad.json").path))
+        let backupSupport = try #require(report.backupURL).appendingPathComponent("support")
+        #expect(!fm.fileExists(atPath: backupSupport.appendingPathComponent("ClipboardImages/linked").path))
+        #expect(permissions(outside) == originalMode)
+        #expect(permissions(try #require(report.backupURL)) == 0o700)
+    }
+
+    @Test func failureAfterBackupReportsWhatWasWritten() throws {
+        let b = try Bench(); defer { b.cleanup() }
+        try b.write("{}", to: "Scratchpad.json")
+        // A plain file where the Data directory must go: backup succeeds, the data step fails.
+        try FileManager.default.createDirectory(at: b.destSupport, withIntermediateDirectories: true)
+        try "block".write(to: b.destSupport.appendingPathComponent("Data"), atomically: true, encoding: .utf8)
+
+        do {
+            _ = try b.migrator(["notchSize": "compact", "clipboardHistoryLimit": 50]).run()
+            Issue.record("expected a throw")
+        } catch let MigrationError.partial(backup, keys, _) {
+            let url = try #require(backup)
+            #expect(FileManager.default.fileExists(atPath: url.appendingPathComponent("preferences.plist").path))
+            #expect(keys == 2)
+        }
+        #expect(b.defaults.bool(forKey: VorssaintMigrator.doneKey) == false)
+    }
 }

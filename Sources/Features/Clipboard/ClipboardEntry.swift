@@ -33,6 +33,11 @@ struct ClipboardEntry: Identifiable, Equatable, Sendable, Codable {
         case imageFile, imageHash, imageWidth, imageHeight, pinned
     }
 
+    /// Display label of a files entry, always rebuilt from the paths (a loaded `text` is not trusted).
+    static func fileLabel(for paths: [String]) -> String {
+        paths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+    }
+
     /// A file name that stays inside the images folder.
     static func isSafeFileName(_ name: String) -> Bool {
         !name.isEmpty && name != "." && name != ".." && !name.contains("/") && !name.contains("\0")
@@ -56,6 +61,8 @@ struct ClipboardEntry: Identifiable, Equatable, Sendable, Codable {
         self.imageWidth = (try? c.decodeIfPresent(Int.self, forKey: .imageWidth)) ?? nil
         self.imageHeight = (try? c.decodeIfPresent(Int.self, forKey: .imageHeight)) ?? nil
         self.pinned = ((try? c.decodeIfPresent(Bool.self, forKey: .pinned)) ?? nil) ?? false
+
+        if kind == .files { self.text = Self.fileLabel(for: filePaths) }
 
         // An entry that cannot be shown or restored is skipped by the lossy loader.
         func invalid(_ why: String) -> DecodingError {

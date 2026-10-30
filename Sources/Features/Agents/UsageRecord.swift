@@ -35,6 +35,8 @@ struct UsageLoadResult: Sendable {
     var records: [UsageRecord] = []
     var malformedLines = 0
     var fileCount = 0
+    /// Files actually decoded this pass (the rest came from the cache).
+    var parsedFileCount = 0
 }
 
 protocol UsageSource: Sendable {

@@ -31,4 +31,11 @@ import Testing
         #expect(PasteboardFilter.imageAllowed(byteCount: 10 * 1_048_576))
         #expect(!PasteboardFilter.imageAllowed(byteCount: 10 * 1_048_576 + 1))
     }
+
+    @Test func legacyMarkersAreBlocked() {
+        #expect(!PasteboardFilter.shouldRecord(types: ["public.utf8-plain-text", "com.agilebits.onepassword"],
+                                               frontmostBundleID: nil, excluded: []))
+        #expect(!PasteboardFilter.shouldRecord(types: ["de.petermaurer.TransientPasteboardType"],
+                                               frontmostBundleID: nil, excluded: []))
+    }
 }

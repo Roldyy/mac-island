@@ -21,6 +21,8 @@ final class PasteboardWatcher {
 
     var settings: () -> ClipboardSettings = { ClipboardSettings() }
     var frontmostBundleID: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+    /// Test seam: runs between reading the pasteboard and re-checking it.
+    var afterCaptureRead: () -> Void = {}
     var onChange: (_ changeCount: Int, _ capture: PasteboardCapture?, _ source: String?) -> Void = { _, _, _ in }
 
     init(pasteboard: NSPasteboard = .general) {
@@ -58,7 +60,17 @@ final class PasteboardWatcher {
         let source = frontmostBundleID()
         let s = settings()
         let allowed = PasteboardFilter.shouldRecord(types: types, frontmostBundleID: source, excluded: s.excludedBundleIDs)
-        onChange(count, allowed && s.historyEnabled ? capture() : nil, source)
+        var result = allowed && s.historyEnabled ? capture() : nil
+        afterCaptureRead()
+        // The pasteboard may have changed while we read it (or the item gained a concealed
+        // marker): never record what is no longer what we looked at.
+        if result != nil {
+            let stillSame = pasteboard.changeCount == count
+            let stillAllowed = PasteboardFilter.shouldRecord(types: pasteboardTypes(), frontmostBundleID: source,
+                                                             excluded: s.excludedBundleIDs)
+            if !stillSame || !stillAllowed { result = nil }
+        }
+        onChange(count, result, source)
     }
 
     private func pasteboardTypes() -> [String] {

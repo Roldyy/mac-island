@@ -35,9 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSLog("MacIsland: migrated %d keys, %d unknown (names logged below)",
                       report.migratedKeys.count, report.unknownKeys.count)
                 for key in report.unknownKeys { NSLog("MacIsland: unmapped Vorssaint key: %@", key) }
+                for link in report.skippedLinks { NSLog("MacIsland: skipped symbolic link: %@", link) }
             }
         } catch {
-            NSLog("MacIsland: migration aborted, nothing was changed: %@", "\(error)")
+            // `MigrationError.partial` states what was already written (backup path, key count).
+            NSLog("MacIsland: migration did not finish: %@", "\(error)")
         }
     }
 }
@@ -70,6 +72,8 @@ struct IslandRootView: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(.white.opacity(selected == tab.id ? 1 : 0.6))
                         }
+                        Spacer(minLength: 8)
+                        ClaudeStatusPill(model: TerminalFeature.claudeStatus())  // hidden while idle
                     }
                     .padding(.top, 38)  // clear of the notch
                     .padding(.bottom, 8)

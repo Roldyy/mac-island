@@ -78,6 +78,57 @@ import Testing
         #expect(result.records.first { $0.messageID == "m1" }?.outputTokens == 9)
     }
 
+    private func makeDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("agents-cache-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    @Test func secondPassOverUnchangedFilesParsesNothing() throws {
+        let dir = try makeDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Self.line(id: "m1").write(to: dir.appendingPathComponent("a.jsonl"), atomically: true, encoding: .utf8)
+        try Self.line(id: "m2").write(to: dir.appendingPathComponent("b.jsonl"), atomically: true, encoding: .utf8)
+        let source = ClaudeUsageSource(directory: dir)
+        let first = source.load(modifiedSince: nil)
+        #expect(first.parsedFileCount == 2)
+        let second = source.load(modifiedSince: nil)
+        #expect(second.parsedFileCount == 0)
+        #expect(source.cache.parseCount == 2)
+        #expect(second.fileCount == 2)
+        #expect(second.records == first.records)
+    }
+
+    @Test func modifiedFileIsReparsedAndDedupeHoldsAcrossCachedAndFresh() throws {
+        let dir = try makeDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let a = dir.appendingPathComponent("a.jsonl"), b = dir.appendingPathComponent("b.jsonl")
+        try Self.line(id: "m1", output: 5).write(to: a, atomically: true, encoding: .utf8)
+        try Self.line(id: "m2", output: 1).write(to: b, atomically: true, encoding: .utf8)
+        let source = ClaudeUsageSource(directory: dir)
+        _ = source.load(modifiedSince: nil)
+        // b grows a bigger copy of m1 (cached a.jsonl must still merge with fresh b.jsonl).
+        try [Self.line(id: "m2", output: 1), Self.line(id: "m1", output: 99)].joined(separator: "\n")
+            .write(to: b, atomically: true, encoding: .utf8)
+        let r = source.load(modifiedSince: nil)
+        #expect(r.parsedFileCount == 1)
+        #expect(r.records.count == 2)
+        #expect(r.records.first { $0.messageID == "m1" }?.outputTokens == 99)
+    }
+
+    @Test func modifiedSinceSkipsOldFiles() throws {
+        let dir = try makeDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let old = dir.appendingPathComponent("old.jsonl"), fresh = dir.appendingPathComponent("new.jsonl")
+        try Self.line(id: "old").write(to: old, atomically: true, encoding: .utf8)
+        try Self.line(id: "new").write(to: fresh, atomically: true, encoding: .utf8)
+        let longAgo = Date(timeIntervalSinceNow: -90 * 86_400)
+        try FileManager.default.setAttributes([.modificationDate: longAgo], ofItemAtPath: old.path)
+        let r = ClaudeUsageSource(directory: dir).load(modifiedSince: Date(timeIntervalSinceNow: -86_400))
+        #expect(r.fileCount == 1)
+        #expect(r.records.map(\.messageID) == ["new"])
+    }
+
     @Test func missingDirectoryYieldsEmpty() {
         let r = ClaudeUsageSource(directory: URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")).load(modifiedSince: nil)
         #expect(r.records.isEmpty && r.fileCount == 0)

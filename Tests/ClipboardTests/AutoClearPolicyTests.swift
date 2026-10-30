@@ -2,9 +2,15 @@ import Testing
 @testable import ClipboardFeature
 
 @Suite struct AutoClearPolicyTests {
-    @Test func clearsOnlyWhenUnchanged() {
-        #expect(AutoClearPolicy.shouldClear(expectedChangeCount: 7, currentChangeCount: 7))
-        #expect(!AutoClearPolicy.shouldClear(expectedChangeCount: 7, currentChangeCount: 8))
+    @Test func clearsOnlyWhenNothingNewWasCopied() {
+        // Behaviour, not a restatement of the implementation: a later copy bumps the count.
+        var count = 7
+        let expected = count
+        #expect(AutoClearPolicy.shouldClear(expectedChangeCount: expected, currentChangeCount: count))
+        count += 1
+        #expect(!AutoClearPolicy.shouldClear(expectedChangeCount: expected, currentChangeCount: count))
+        count -= 2   // never clear a pasteboard whose count is not the one we scheduled for
+        #expect(!AutoClearPolicy.shouldClear(expectedChangeCount: expected, currentChangeCount: count))
     }
 
     @Test func zeroOrNegativeDelayDisables() {

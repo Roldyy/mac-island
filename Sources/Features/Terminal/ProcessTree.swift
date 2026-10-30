@@ -3,12 +3,12 @@ import Foundation
 
 /// Lists the descendants of a pid and recognises a Claude Code process among them.
 /// Only executable names and argv basenames are read; full command lines are never kept or logged.
-public enum ProcessTree {
+enum ProcessTree {
     // MARK: Pure matching
 
     /// `name` is the kernel process name, `argvBasenames` the basenames of argv[0] and argv[1] (when known).
     /// Claude is either a binary titled `claude`, or `node` running a script called `claude`.
-    public static func isClaude(name: String, argvBasenames: [String]) -> Bool {
+    static func isClaude(name: String, argvBasenames: [String]) -> Bool {
         if name == "claude" { return true }
         if argvBasenames.first == "claude" { return true }
         if name == "node" || argvBasenames.first == "node" {
@@ -19,7 +19,7 @@ public enum ProcessTree {
 
     /// Extracts the basenames of the first two argv entries from a `KERN_PROCARGS2` buffer:
     /// `int32 argc`, executable path, NUL padding, then the argv strings. Everything else is dropped.
-    public static func argvBasenames(fromProcArgs data: [UInt8], limit: Int = 2) -> [String] {
+    static func argvBasenames(fromProcArgs data: [UInt8], limit: Int = 2) -> [String] {
         guard data.count > MemoryLayout<Int32>.size else { return [] }
         let argc = data.prefix(4).withUnsafeBytes { Int($0.load(as: Int32.self)) }
         var i = 4
@@ -41,7 +41,7 @@ public enum ProcessTree {
     // MARK: System queries
 
     /// All descendants of `pid` (children, grandchildren, ...), excluding `pid` itself.
-    public static func descendants(of pid: pid_t) -> [pid_t] {
+    static func descendants(of pid: pid_t) -> [pid_t] {
         var result: [pid_t] = []
         var queue = [pid]
         var seen: Set<pid_t> = [pid]
@@ -55,7 +55,7 @@ public enum ProcessTree {
     }
 
     /// True when a descendant of `pid` is Claude Code.
-    public static func containsClaude(below pid: pid_t) -> Bool {
+    static func containsClaude(below pid: pid_t) -> Bool {
         for child in descendants(of: pid) {
             let procName = name(of: child)
             if procName == "claude" { return true }
@@ -79,7 +79,7 @@ public enum ProcessTree {
         return String(cString: buffer)
     }
 
-    private static func argvBasenames(of pid: pid_t) -> [String] {
+    static func argvBasenames(of pid: pid_t) -> [String] {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return [] }

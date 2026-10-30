@@ -5,13 +5,13 @@ import SwiftTerm
 /// One persistent shell for the whole app. Started lazily on first display, it outlives the island:
 /// the host view re-attaches the same `ActivityTerminalView`. If the shell exits, the next display restarts it.
 @MainActor
-public final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
-    public static let shared = TerminalSession()
+final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
+    static let shared = TerminalSession()
 
     private var terminalView: ActivityTerminalView?
     private var exited = false
 
-    public var hasSession: Bool { terminalView != nil && !exited }
+    var hasSession: Bool { terminalView != nil && !exited }
     var lastOutputAt: Date { terminalView?.lastOutputAt ?? .distantPast }
     var shellPid: pid_t { terminalView?.process.shellPid ?? 0 }
 
@@ -42,11 +42,11 @@ public final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
 
     // MARK: LocalProcessTerminalViewDelegate
 
-    public nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-    public nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
-    public nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+    nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
+    nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
+    nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
 
-    public nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
+    nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
         MainActor.assumeIsolated { exited = true }
     }
 }

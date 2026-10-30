@@ -20,7 +20,13 @@ struct ClipboardSettings {
         guard let n = number("clipboardHistoryLimit") else { return Self.defaultLimit }
         return min(Self.maxLimit, max(1, Int(n)))
     }
-    var autoClearDelay: TimeInterval { max(0, number("clipboardAutoClearDelaySeconds") ?? 0) }
+    /// The old app kept a separate on/off boolean next to the delay; absent means off, so a
+    /// migrated delay alone never wipes the pasteboard.
+    var autoClearEnabled: Bool { (defaults.object(forKey: "clipboardAutoClearOnDelay") as? Bool) ?? false }
+    var autoClearDelay: TimeInterval {
+        guard autoClearEnabled else { return 0 }
+        return max(0, number("clipboardAutoClearDelaySeconds") ?? 0)
+    }
     var historyEnabled: Bool { (defaults.object(forKey: "clipboardHistoryEnabled") as? Bool) ?? true }
     var pastePlainEnabled: Bool { (defaults.object(forKey: "pastePlainEnabled") as? Bool) ?? true }
     var pastePlainShortcut: HotkeyShortcut {

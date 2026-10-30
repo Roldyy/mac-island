@@ -59,8 +59,7 @@ final class ClipboardHistoryStore {
     func addFiles(_ paths: [String], source: String?) -> Bool {
         guard !paths.isEmpty else { return false }
         if let top = entries.first, top.kind == .files, top.filePaths == paths { return false }
-        let label = paths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
-        insert(ClipboardEntry(kind: .files, text: label, filePaths: paths, sourceBundleID: source, copiedAt: now()))
+        insert(ClipboardEntry(kind: .files, text: ClipboardEntry.fileLabel(for: paths), filePaths: paths, sourceBundleID: source, copiedAt: now()))
         return true
     }
 
@@ -94,7 +93,8 @@ final class ClipboardHistoryStore {
     func togglePin(id: String) {
         guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[i].pinned.toggle()
-        trim()
+        // No trim here: unpinning must never delete an old entry (and its image file) as a side
+        // effect. The next real insert trims normally.
         save()
     }
 

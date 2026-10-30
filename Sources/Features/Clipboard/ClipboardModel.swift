@@ -17,7 +17,7 @@ final class ClipboardModel {
     private(set) var entries: [ClipboardEntry] = []
     private(set) var pads: [ScratchPad] = []
     private(set) var selectedPadID = ""
-    private(set) var accessibilityTrusted = PlainPasteHotkeyService.accessibilityTrusted
+    private(set) var accessibilityTrusted = false
     private(set) var plainPasteStatus = ""
 
     @ObservationIgnored private let store: ClipboardHistoryStore
@@ -26,13 +26,20 @@ final class ClipboardModel {
     @ObservationIgnored private let settings: () -> ClipboardSettings
     @ObservationIgnored private let watcher: PasteboardWatcher
     @ObservationIgnored private let autoClear: AutoClearScheduler
+    @ObservationIgnored private let accessibilityCheck: () -> Bool
+    @ObservationIgnored private let sendPaste: () -> Void
     @ObservationIgnored private let hotkey = PlainPasteHotkeyService()
     @ObservationIgnored private var started = false
     @ObservationIgnored private var padSaveTask: Task<Void, Never>?
     @ObservationIgnored private var thumbnails: [String: NSImage] = [:]
 
     init(dataDirectory: URL, pasteboard: NSPasteboard = .general,
-         settings: @escaping () -> ClipboardSettings = { ClipboardSettings() }) {
+         settings: @escaping () -> ClipboardSettings = { ClipboardSettings() },
+         accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
+         sendPaste: @escaping () -> Void = { PlainPasteHotkeyService.postCommandV() }) {
+        self.accessibilityCheck = accessibilityTrusted
+        self.accessibilityTrusted = accessibilityTrusted()
+        self.sendPaste = sendPaste
         self.pasteboard = pasteboard
         self.settings = settings
         store = ClipboardHistoryStore(directory: dataDirectory, limit: settings().historyLimit)
@@ -125,7 +132,7 @@ final class ClipboardModel {
     // MARK: - Plain paste
 
     func refreshAccessibility() {
-        accessibilityTrusted = PlainPasteHotkeyService.accessibilityTrusted
+        accessibilityTrusted = accessibilityCheck()
         updatePlainPasteStatus()
     }
 
@@ -138,9 +145,17 @@ final class ClipboardModel {
 
     @ObservationIgnored private var hotkeyRegistered = false
 
-    private func plainPasteTriggered() {
+    @discardableResult
+    func plainPasteTriggered() -> PlainPasteOutcome {
         refreshAccessibility()
-        _ = PlainPasteHotkeyService.performPlainPaste(pasteboard: pasteboard) { [watcher] in watcher.syncToCurrent() }
+        return PlainPasteHotkeyService.performPlainPaste(
+            pasteboard: pasteboard, accessibilityTrusted: accessibilityCheck, sendPaste: sendPaste
+        ) { [watcher, autoClear, pasteboard, settings] in
+            // The rewrite is ours: do not record it back, and re-arm auto-clear on the NEW count
+            // so the old timer (bound to the previous count) cannot fire on, or be skipped for, it.
+            watcher.syncToCurrent()
+            autoClear.schedule(delaySeconds: settings().autoClearDelay, expectedChangeCount: pasteboard.changeCount)
+        }
     }
 
     private func updatePlainPasteStatus() {

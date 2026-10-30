@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// What a feature module hands to the island: one tab with its view.
-/// The contract is frozen for wave A; a feature only ever adds a `tab()` factory.
+/// The contract is frozen for wave A: a feature exposes `tab()` plus its documented extras
+/// (`claudeStatus()`, `idleView()`, `start()`); everything else stays internal to its module.
 public struct IslandTab: Identifiable {
     public let id: String
     public let title: String

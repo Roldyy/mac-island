@@ -2,10 +2,13 @@ import Foundation
 import Testing
 @testable import ClipboardFeature
 
-@Suite struct ClipboardSettingsTests {
+/// A class so `deinit` runs after each test and removes the defaults domains it created.
+@Suite final class ClipboardSettingsTests {
+    private var made: [TempDefaults] = []
     func defaults() -> UserDefaults {
-        let d = UserDefaults(suiteName: "clip-test-\(UUID().uuidString)")!
-        return d
+        let t = TempDefaults()
+        made.append(t)
+        return t.defaults
     }
 
     @Test func defaultsWhenEmpty() {
@@ -22,6 +25,7 @@ import Testing
         let d = defaults()
         d.set(20, forKey: "clipboardHistoryLimit")
         d.set(20.0, forKey: "clipboardAutoClearDelaySeconds")
+        d.set(true, forKey: "clipboardAutoClearOnDelay")
         d.set(false, forKey: "pastePlainEnabled")
         d.set("control+shift:v", forKey: "pastePlainShortcut")
         d.set(false, forKey: "clipboardHistoryEnabled")
@@ -43,7 +47,18 @@ import Testing
         #expect(ClipboardSettings(defaults: d).historyLimit == 500)
         d.set("garbage", forKey: "pastePlainShortcut")
         #expect(ClipboardSettings(defaults: d).pastePlainShortcut == .default)
+        d.set(true, forKey: "clipboardAutoClearOnDelay")
         d.set(-3, forKey: "clipboardAutoClearDelaySeconds")
         #expect(ClipboardSettings(defaults: d).autoClearDelay == 0)
+    }
+
+    @Test func autoClearNeedsTheGate() {
+        let d = defaults()
+        d.set(20.0, forKey: "clipboardAutoClearDelaySeconds")   // migrated delay, gate key absent
+        #expect(ClipboardSettings(defaults: d).autoClearDelay == 0)
+        d.set(false, forKey: "clipboardAutoClearOnDelay")
+        #expect(ClipboardSettings(defaults: d).autoClearDelay == 0)
+        d.set(true, forKey: "clipboardAutoClearOnDelay")
+        #expect(ClipboardSettings(defaults: d).autoClearDelay == 20)
     }
 }

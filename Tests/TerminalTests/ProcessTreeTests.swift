@@ -39,6 +39,15 @@ import Testing
         #expect(ProcessTree.argvBasenames(fromProcArgs: [1, 0]).isEmpty)
     }
 
+    @Test func argvBasenamesOfRealChild() throws {
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = ["5"]
+        try child.run()
+        defer { child.terminate() }
+        #expect(ProcessTree.argvBasenames(of: child.processIdentifier) == ["sleep", "5"])
+    }
+
     @Test func descendantsExcludeSelfAndFindChild() throws {
         let child = Process()
         child.executableURL = URL(fileURLWithPath: "/bin/sleep")
