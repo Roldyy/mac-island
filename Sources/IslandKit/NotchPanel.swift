@@ -15,7 +15,8 @@ public final class NotchPanel: NSPanel {
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
         isFloatingPanel = true
-        level = .statusBar
+        // Above the menu bar and above other notch overlays (Vorssaint, Glasswave) while they coexist.
+        level = .screenSaver
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false
@@ -32,12 +33,10 @@ public final class IslandController {
     public var openSize = CGSize(width: 640, height: 360)
 
     private let screen: NSScreen
-    private var tracking: NSTrackingArea?
     private var isOpen = false
     private var closeWork: DispatchWorkItem?
 
     public let state = IslandState()
-    private lazy var hoverTarget = HoverTarget(controller: self)
 
     /// `content` reads `IslandState` from the environment to know whether the island is open.
     public init<Content: View>(screen: NSScreen? = nil, @ViewBuilder content: () -> Content) {
@@ -45,8 +44,13 @@ public final class IslandController {
             ?? NSScreen.main ?? NSScreen.screens[0]
         panel.contentView = NSHostingView(
             rootView: content().environmentObject(state))
-        panel.setFrame(idleGeometry.frame, display: false)
+        panel.setFrame(idleFrame, display: false)
     }
+
+    /// Visible "wings" on each side of the notch: the notch itself has no pixels to draw on.
+    private let wing: CGFloat = 16
+    private var idleFrame: CGRect { idleGeometry.frame.insetBy(dx: -wing, dy: 0) }
+    private var monitors: [Any] = []
 
     private var idleGeometry: NotchGeometry {
         NotchGeometry.idle(
@@ -56,7 +60,12 @@ public final class IslandController {
 
     public func show() {
         panel.orderFrontRegardless()
-        installTracking()
+        installHoverMonitors()
+        let g = idleGeometry
+        NSLog("IslandKit: screen=%@ frame=%@ safeTop=%f hasNotch=%d idle=%@ panelFrame=%@ visible=%d level=%d",
+              screen.localizedName, NSStringFromRect(screen.frame), screen.safeAreaInsets.top,
+              g.hasNotch ? 1 : 0, NSStringFromRect(g.frame), NSStringFromRect(panel.frame),
+              panel.isVisible ? 1 : 0, panel.level.rawValue)
     }
 
     public func open() {
@@ -70,7 +79,6 @@ public final class IslandController {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().setFrame(target, display: true)
         }
-        installTracking()
     }
 
     public func close() {
@@ -82,9 +90,8 @@ public final class IslandController {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.16
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().setFrame(idleGeometry.frame, display: true)
+            panel.animator().setFrame(idleFrame, display: true)
         }
-        installTracking()
     }
 
     /// Called by content that needs typing (note, search, terminal) after a click.
@@ -95,18 +102,38 @@ public final class IslandController {
 
     // MARK: - Hover
 
-    private func installTracking() {
-        guard let view = panel.contentView else { return }
-        if let tracking { view.removeTrackingArea(tracking) }
-        let area = NSTrackingArea(
-            rect: view.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: hoverTarget, userInfo: nil)
-        view.addTrackingArea(area)
-        tracking = area
+    /// Mouse position is read globally: it keeps working when another window sits on top of the
+    /// island and it does not depend on the notch area receiving events.
+    private func installHoverMonitors() {
+        guard monitors.isEmpty else { return }
+        let handler: (NSEvent) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated { self?.pointerMoved() }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: handler) {
+            monitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved, handler: { event in
+            handler(event)
+            return event
+        }) {
+            monitors.append(local)
+        }
+    }
+
+    private var pointerInside = false
+
+    private func pointerMoved() {
+        // Open: stay open over the whole panel. Closed: react to the wings and the notch strip.
+        var zone = isOpen ? panel.frame : idleFrame
+        zone.size.height += 2  // reach the very top edge, where the pointer stops
+        let inside = zone.contains(NSEvent.mouseLocation)
+        guard inside != pointerInside else { return }
+        pointerInside = inside
+        hoverChanged(inside: inside)
     }
 
     fileprivate func hoverChanged(inside: Bool) {
+        NSLog("IslandKit: hover %@", inside ? "enter" : "exit")
         closeWork?.cancel()
         if inside {
             open()
@@ -127,15 +154,3 @@ public final class IslandState: ObservableObject {
     @Published public var isOpen = false
 }
 
-private final class HoverTarget: NSObject {
-    weak var controller: IslandController?
-    init(controller: IslandController) { self.controller = controller }
-
-    @objc func mouseEntered(with event: NSEvent) {
-        MainActor.assumeIsolated { controller?.hoverChanged(inside: true) }
-    }
-
-    @objc func mouseExited(with event: NSEvent) {
-        MainActor.assumeIsolated { controller?.hoverChanged(inside: false) }
-    }
-}

@@ -45,7 +45,8 @@ struct IslandRootView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: state.isOpen ? 22 : 10, style: .continuous)
-                .fill(.black)
+                .fill(ProcessInfo.processInfo.environment["MIS_DEBUG"] != nil && !state.isOpen
+                      ? Color.red : Color.black)
             if state.isOpen {
                 Text("Mac Island")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
