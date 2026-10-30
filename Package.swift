@@ -9,7 +9,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "SettingsKit"),
+        .target(name: "IslandKit"),
+        .executableTarget(name: "MacIsland", dependencies: ["IslandKit", "SettingsKit"]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
         .testTarget(name: "SettingsKitTests", dependencies: ["SettingsKit"]),
+        .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),
     ]
 )
