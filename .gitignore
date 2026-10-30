@@ -1,0 +1,21 @@
+# build
+.build/
+*.app
+*.dmg
+dist/
+DerivedData/
+.swiftpm/
+
+# personal data: never in this repo
+Backups/
+*.plist.bak
+*Vorssaint*Settings*.plist
+ClipboardHistory.json
+ClipboardImages/
+Scratchpad.json
+tasks/private/
+.env*
+*.p12
+*.key
+*.pem
+.DS_Store
