@@ -74,17 +74,15 @@ func proc(_ id: UInt32, pid: Int32, _ bundle: String, running: Bool = true) -> A
 /// A throwaway defaults suite whose persistent domain, and plist file, are removed on deinit.
 /// Hold it in a stored property of the suite (one instance per test) so it outlives the test body.
 final class TempDefaults {
-    let suite = "AudioTests-\(UUID().uuidString)"
+    // An absolute path in the temp directory: the plist never reaches ~/Library/Preferences.
+    let suite = NSTemporaryDirectory() + "AudioTests-\(UUID().uuidString)"
     let defaults: UserDefaults
 
     init() { defaults = UserDefaults(suiteName: suite)! }
 
     deinit {
         defaults.removePersistentDomain(forName: suite)
-        // cfprefsd may flush the plist after the removal: make sure no file stays behind.
-        let file = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Preferences/\(suite).plist")
-        try? FileManager.default.removeItem(at: file)
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
     }
 }
 

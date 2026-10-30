@@ -6,15 +6,12 @@ final class TempDefaults {
     let suite: String
     let defaults: UserDefaults
     init() {
-        suite = "display-test-\(UUID().uuidString)"
+        suite = NSTemporaryDirectory() + "display-test-\(UUID().uuidString)"  // temp path: no file in ~/Library/Preferences
         defaults = UserDefaults(suiteName: suite)!
     }
     deinit {
         defaults.removePersistentDomain(forName: suite)
-        // cfprefsd may flush the plist after the removal: make sure no file stays behind.
-        let file = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Preferences/\(suite).plist")
-        try? FileManager.default.removeItem(at: file)
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
     }
 }
 

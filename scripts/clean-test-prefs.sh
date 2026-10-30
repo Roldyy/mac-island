@@ -6,7 +6,7 @@
 set -euo pipefail
 
 dir="$HOME/Library/Preferences"
-prefixes='clip-test|mis-tests|ka-ctrl|keepawake-test|np-test|shelf-test|display-test|AudioTests|dock-prev|dock-settings|dock-click|finder|be\.roldy\.macisland\.tests\.[a-z]+'
+prefixes='clip-test|mis-tests|ka-ctrl|keepawake-test|np-test|shelf-test|display-test|AudioTests|dock-prev|dock-settings|dock-click|finder|monitor-test|be\.roldy\.macisland\.tests\.[a-z]+'
 uuid='[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
 
 names="$(ls "$dir" | grep -E "^(${prefixes})-?.*${uuid}.*\.plist$" || true)"

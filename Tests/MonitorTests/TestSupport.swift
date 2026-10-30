@@ -6,10 +6,13 @@ final class TempDefaults {
     let suite: String
     let defaults: UserDefaults
     init() {
-        suite = "monitor-test-\(UUID().uuidString)"
+        suite = NSTemporaryDirectory() + "monitor-test-\(UUID().uuidString)"  // temp path: no file in ~/Library/Preferences
         defaults = UserDefaults(suiteName: suite)!
     }
-    deinit { defaults.removePersistentDomain(forName: suite) }
+    deinit {
+        defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
+    }
 }
 
 /// Replays a script of CPU tick sets, repeating the last one.
