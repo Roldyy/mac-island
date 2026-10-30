@@ -1,6 +1,9 @@
 import AgentsFeature
 import AppKit
 import ClipboardFeature
+import CommandBarFeature
+import FansFeature
+import MonitorFeature
 import FinderFeature
 import DockFeature
 import DisplayFeature
@@ -66,6 +69,7 @@ struct IslandRootView: View {
         TerminalFeature.tab(), AgentsFeature.tab(), ClipboardFeature.tab(),
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
         FinderFeature.tab(), DockFeature.tab(), DisplayFeature.tab(), AudioFeature.tab(),
+        FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
     ]
 
     var body: some View {

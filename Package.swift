@@ -16,6 +16,12 @@ let package = Package(
         .target(name: "IslandKit"),
 
         // Features: one module per lane, disjoint write surfaces.
+        // Fan control: pure shared policy + XPC contract, the root helper, and the UI client.
+        .target(name: "FanShared", path: "Sources/FanShared"),
+        .executableTarget(name: "FanHelper", dependencies: ["FanShared"], path: "Sources/FanHelper"),
+        .target(name: "FansFeature", dependencies: ["IslandKit", "FanShared"], path: "Sources/Features/Fans"),
+        .target(name: "MonitorFeature", dependencies: ["IslandKit"], path: "Sources/Features/Monitor"),
+        .target(name: "CommandBarFeature", dependencies: ["IslandKit"], path: "Sources/Features/CommandBar"),
         .target(name: "TerminalFeature", dependencies: [
             "IslandKit", .product(name: "SwiftTerm", package: "SwiftTerm"),
         ], path: "Sources/Features/Terminal"),
@@ -32,6 +38,7 @@ let package = Package(
         .executableTarget(name: "MacIsland", dependencies: [
             "IslandKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
+            "FansFeature", "MonitorFeature", "CommandBarFeature",
             "FinderFeature", "DockFeature", "DisplayFeature", "AudioFeature",
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
@@ -41,6 +48,10 @@ let package = Package(
         .testTarget(name: "TerminalFeatureTests", dependencies: ["TerminalFeature"], path: "Tests/TerminalTests"),
         .testTarget(name: "AgentsFeatureTests", dependencies: ["AgentsFeature"], path: "Tests/AgentsTests"),
         .testTarget(name: "ClipboardFeatureTests", dependencies: ["ClipboardFeature"], path: "Tests/ClipboardTests"),
+        .testTarget(name: "FanSharedTests", dependencies: ["FanShared"], path: "Tests/FanSharedTests"),
+        .testTarget(name: "FansFeatureTests", dependencies: ["FansFeature"], path: "Tests/FansTests"),
+        .testTarget(name: "MonitorFeatureTests", dependencies: ["MonitorFeature"], path: "Tests/MonitorTests"),
+        .testTarget(name: "CommandBarFeatureTests", dependencies: ["CommandBarFeature"], path: "Tests/CommandBarTests"),
         .testTarget(name: "ShelfFeatureTests", dependencies: ["ShelfFeature"], path: "Tests/ShelfTests"),
         .testTarget(name: "KeepAwakeFeatureTests", dependencies: ["KeepAwakeFeature"], path: "Tests/KeepAwakeTests"),
         .testTarget(name: "NowPlayingFeatureTests", dependencies: ["NowPlayingFeature"], path: "Tests/NowPlayingTests"),
