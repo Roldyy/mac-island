@@ -14,10 +14,12 @@ private final class Spy {
     }
 }
 
-@Suite struct ModelTests {
+@Suite final class ModelTests {
+    let bag = DefaultsBag()
+
     @MainActor private func make(_ sources: [any ResultSource], spy: Spy, defaults: UserDefaults? = nil,
                                  dir: URL = makeTempDir()) -> (CommandBarModel, HabitStore, CommandBarSettings) {
-        let settings = CommandBarSettings(defaults: defaults ?? makeDefaults())
+        let settings = CommandBarSettings(defaults: defaults ?? bag.makeDefaults())
         let habits = HabitStore(directory: dir)
         return (CommandBarModel(sources: sources, habits: habits, settings: { settings }, actions: spy.actions),
                 habits, settings)

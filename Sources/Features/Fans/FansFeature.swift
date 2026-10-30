@@ -7,6 +7,11 @@ public enum FansFeature {
     @MainActor static let shared = FansModel.live()
     @MainActor private static var terminationObserver: NSObjectProtocol?
 
+    /// True while the helper holds the fans in manual mode for this app, so the shell can show an
+    /// indicator when the island is closed. Reads the `@Observable` model: a SwiftUI view that
+    /// reads it in `body` is updated when it changes.
+    @MainActor public static var isManualActive: Bool { shared.manualActive }
+
     @MainActor public static func tab() -> IslandTab {
         IslandTab(id: "fans", title: "Ventilos", systemImage: "fan") {
             AnyView(FansView(model: shared))

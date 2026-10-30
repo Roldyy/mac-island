@@ -8,7 +8,7 @@ enum HelperInstallStatus: Equatable, Sendable {
     case notRegistered
     /// Registered, waiting for the user in System Settings > General > Login Items.
     case requiresApproval
-    /// Approved: launchd starts the helper when the app connects.
+    /// Approved: launchd runs the helper (started at load, kept alive, relaunched after a crash).
     case enabled
     /// The plist is not in `Contents/Library/LaunchDaemons` (unbundled build, `swift run`).
     case notFound

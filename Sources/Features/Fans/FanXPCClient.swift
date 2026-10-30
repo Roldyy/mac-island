@@ -4,8 +4,9 @@ import Foundation
 /// NSXPC client of the root helper.
 ///
 /// - `.privileged`: the helper is a launchd daemon in the system bootstrap.
-/// - `setCodeSigningRequirement` (macOS 13+): the app only talks to a helper signed by team
-///   U3TUL63HHK with identifier `be.roldy.macisland.fanhelper`; anything else invalidates.
+/// - `setCodeSigningRequirement` (macOS 13+): the app only talks to a helper signed with a
+///   Developer ID Application certificate of team U3TUL63HHK, identifier
+///   `be.roldy.macisland.fanhelper` (`FanHelperContract.helperRequirement`); anything else invalidates.
 /// - Reconnect: after an interruption (helper exited or crashed) or an invalidation, `hello` is
 ///   sent again with `ReconnectBackoff` while the feature is started. Sending it is also what
 ///   makes launchd relaunch a crashed helper, whose startup recovery restores automatic mode.

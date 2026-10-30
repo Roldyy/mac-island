@@ -15,11 +15,24 @@ public enum FanHelperContract {
     public static let protocolVersion = 1
 
     /// What the helper requires of a connecting client (`NSXPCListener.setConnectionCodeSigningRequirement`).
-    public static let clientRequirement =
-        #"anchor apple generic and certificate leaf[subject.OU] = "U3TUL63HHK" and identifier "be.roldy.macisland""#
+    public static let clientRequirement = developerIDRequirement(identifier: appIdentifier)
     /// What the app requires of the helper it talks to (`NSXPCConnection.setCodeSigningRequirement`).
-    public static let helperRequirement =
-        #"anchor apple generic and certificate leaf[subject.OU] = "U3TUL63HHK" and identifier "be.roldy.macisland.fanhelper""#
+    public static let helperRequirement = developerIDRequirement(identifier: helperIdentifier)
+
+    /// One requirement for both ends, only the identifier differs: Apple-anchored, team
+    /// U3TUL63HHK, and Developer ID Application only, through the Developer ID CA intermediate
+    /// (`certificate 1[field.1.2.840.113635.100.6.2.6]`) and the Developer ID Application leaf
+    /// (`certificate leaf[field.1.2.840.113635.100.6.1.13]`). Without the two OID clauses an
+    /// Apple Development certificate of the same team would also pass.
+    ///
+    /// Consequence, intended: a dev build (`swift run`, Apple Development or ad-hoc signed) cannot
+    /// drive the helper. The helper refuses the app, the app refuses the helper, manual control
+    /// stays off; read-only monitoring does not need the helper and keeps working.
+    private static func developerIDRequirement(identifier: String) -> String {
+        #"anchor apple generic and certificate leaf[subject.OU] = "\#(teamID)" and identifier "\#(identifier)""#
+            + " and certificate 1[field.1.2.840.113635.100.6.2.6] exists"
+            + " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
+    }
 
     /// The app sends a heartbeat this often while manual control is active.
     public static let heartbeatInterval: TimeInterval = 2

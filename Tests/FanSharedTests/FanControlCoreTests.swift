@@ -63,13 +63,68 @@ import Testing
         #expect(smc.number("F0Tg") == 3000)
     }
 
+    /// A setTarget on a hot machine restores at once, inside the request, not on the next tick.
     @Test func hotMachineForcesAutomaticInsteadOfManual() {
         let core = makeCore()
+        #expect(core.perform(.setTarget(fan: 0, rpm: 3000), client: 1).status == .applied)
+        #expect(smc.number("F0Md") == 1)
+        #expect(smc.number("Ftst") == 1)
         thermal.snapshot = ThermalSnapshot(maxCelsius: 99, pressure: .nominal)
-        let r = core.perform(.setTarget(fan: 0, rpm: 3000), client: 1)
+        clock.advance(2)
+        smc.clearWrites()
+        let r = core.perform(.setTarget(fan: 0, rpm: 5000), client: 1)
+        // No tick() before these checks.
         #expect(r.status == .forcedAutomatic)
+        #expect(r.reason == "thermal")
         #expect(smc.number("F0Md") == 0)
+        #expect(smc.number("Ftst") == 0)
+        #expect(!core.isManualActive)
+        #expect(core.lastRestoreReason == .thermal)
         #expect(!smc.writes.contains { $0.key == "F0Tg" })
+    }
+
+    // MARK: - A restore the SMC refuses is never reported as done
+
+    @Test func tickReportsARestoreOnlyOnceItSucceeded() {
+        let core = makeCore()
+        _ = core.perform(.setTarget(fan: 0, rpm: 3000), client: 1)
+        smc.failingWrites = ["F0Md"]   // the SMC refuses the restore
+        #expect(!core.restoreAutomatic(.clientRequest))
+        #expect(core.tick() == nil)
+        #expect(core.tick() == nil)
+        #expect(core.restorePending)
+        #expect(smc.number("F0Md") == 1)
+        smc.failingWrites = []
+        #expect(core.tick() == .clientRequest)
+        #expect(!core.restorePending)
+        #expect(core.tick() == nil)
+    }
+
+    @Test func aRefusedWatchdogRestoreIsNotReported() {
+        let core = makeCore(timeout: 8)
+        _ = core.perform(.setTarget(fan: 0, rpm: 3000), client: 1)
+        smc.failingWrites = ["F0Md"]
+        clock.advance(9)
+        #expect(core.tick() == nil)
+        #expect(core.restorePending)
+        #expect(core.lastRestoreReason == .watchdog)
+        #expect(smc.number("F0Md") == 1)
+        smc.failingWrites = []
+        #expect(core.tick() == .watchdog)
+        #expect(smc.number("F0Md") == 0)
+    }
+
+    @Test func aRefusedThermalRestoreIsNotReported() {
+        let core = makeCore()
+        _ = core.perform(.setTarget(fan: 0, rpm: 3000), client: 1)
+        smc.failingWrites = ["F0Md"]
+        thermal.snapshot = ThermalSnapshot(maxCelsius: 99, pressure: .nominal)
+        #expect(core.tick() == nil)
+        #expect(core.restorePending)
+        #expect(core.lastRestoreReason == .thermal)
+        smc.failingWrites = []
+        #expect(core.tick() == .thermal)
+        #expect(smc.number("F0Md") == 0)
     }
 
     @Test func thermalOverrideWhileManualRestoresOnTick() {

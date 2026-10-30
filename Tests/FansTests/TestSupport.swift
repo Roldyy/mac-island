@@ -9,8 +9,12 @@ final class FakeHelperClient: FanHelperClient, @unchecked Sendable {
     private var _blockingAutomatic = 0
     private var _heartbeats = 0
     private var _disconnects = 0
+    private var held: [CheckedContinuation<Void, Never>] = []
+    private var heldWaiter: CheckedContinuation<Void, Never>?
     var reachable = true
     var heartbeatAnswer = true
+    /// When true, a `setTarget` stays in flight until `releaseHeld()` (late-reply tests).
+    var holdSetTarget = false
     var state = FanState(protocolVersion: 1, fans: [], maxTemperatureCelsius: 60, manualActive: false)
     var result: (FanCommand) -> FanCommandResult = { command in
         switch command {
@@ -30,8 +34,40 @@ final class FakeHelperClient: FanHelperClient, @unchecked Sendable {
 
     func perform(_ command: FanCommand) async throws -> FanCommandResult {
         withLock { _commands.append(command) }
+        if case .setTarget = command, holdSetTarget {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                var waiter: CheckedContinuation<Void, Never>?
+                withLock {
+                    held.append(c)
+                    waiter = heldWaiter
+                    heldWaiter = nil
+                }
+                waiter?.resume()
+            }
+        }
         guard reachable else { throw FanClientError.timeout }
         return result(command)
+    }
+
+    /// Returns once a held `setTarget` is in flight.
+    func waitUntilHeld() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            var ready = false
+            withLock {
+                if held.isEmpty { heldWaiter = c } else { ready = true }
+            }
+            if ready { c.resume() }
+        }
+    }
+
+    /// Lets every held `setTarget` reply.
+    func releaseHeld() {
+        var all: [CheckedContinuation<Void, Never>] = []
+        withLock {
+            all = held
+            held.removeAll()
+        }
+        all.forEach { $0.resume() }
     }
 
     func heartbeat() async -> Bool {

@@ -5,6 +5,12 @@ import SwiftUI
 /// disabled unless the helper is approved and reachable; the install and approval buttons stay
 /// usable because they are how the user gets there.
 struct ManualControlSection: View {
+    /// Manual mode survives closing the island: it ends on the button, on quit, or when hot.
+    static let warning = """
+        Forcer les ventilateurs court-circuite la régulation de macOS. Ils restent forcés jusqu'à \
+        « Retour automatique », jusqu'à ce que l'app quitte ou que le Mac chauffe (au-delà de 95 °C).
+        """
+
     let model: FansModel
 
     var body: some View {
@@ -15,10 +21,7 @@ struct ManualControlSection: View {
 
             HelperStatusRow(model: model)
 
-            Label("""
-                Forcer les ventilateurs court-circuite la régulation de macOS. Retour automatique \
-                si l'app quitte, si l'onglet se ferme, sans signal pendant 8 s ou au-delà de 95 °C.
-                """, systemImage: "exclamationmark.triangle.fill")
+            Label(Self.warning, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
                 .foregroundStyle(.yellow)
                 .fixedSize(horizontal: false, vertical: true)

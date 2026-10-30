@@ -64,23 +64,22 @@ public final class FanControlCore {
         return watchdog.heartbeat(now: clock.now())
     }
 
-    /// Called every `FanHelperContract.tickInterval`. Returns the reason when it restored automatic.
+    /// Called every `FanHelperContract.tickInterval`. Returns the reason only when it restored
+    /// automatic and the restore succeeded. A restore the SMC refuses returns nil and leaves
+    /// `restorePending` set (retried on the next tick): the caller logs that as a failure.
     @discardableResult
     public func tick() -> RestoreReason? {
+        let reason: RestoreReason
         if restorePending {
-            let reason = pendingReason ?? .writeFailed
-            restoreAutomatic(reason)
-            return reason
+            reason = pendingReason ?? .writeFailed
+        } else if watchdog.expired(now: clock.now()) {
+            reason = .watchdog
+        } else if isManualActive, policy.mustForceAutomatic(thermal()) {
+            reason = .thermal
+        } else {
+            return nil
         }
-        if watchdog.expired(now: clock.now()) {
-            restoreAutomatic(.watchdog)
-            return .watchdog
-        }
-        if isManualActive, policy.mustForceAutomatic(thermal()) {
-            restoreAutomatic(.thermal)
-            return .thermal
-        }
-        return nil
+        return restoreAutomatic(reason) ? reason : nil
     }
 
     /// XPC connection of `client` was invalidated or interrupted (app quit, crashed or was killed).

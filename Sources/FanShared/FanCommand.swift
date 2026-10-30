@@ -20,7 +20,8 @@ public struct FanCommandResult: Codable, Equatable, Sendable {
     public var fan: Int?
     public var appliedRPM: Double?
     /// Machine code: unknownFan, invalidLimits, invalidRequest, rateLimited, thermal, writeFailed,
-    /// notConfirmed, restorePending, unsupportedKey.
+    /// notConfirmed, restorePending, unsupportedKey, protocolVersion (manual request before a
+    /// matching `hello`, set by the helper's connection, not by `FanControlCore`).
     public var reason: String?
     public var retryAfter: Double?
 

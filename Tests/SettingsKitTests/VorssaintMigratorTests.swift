@@ -18,7 +18,9 @@ private struct Bench {
         try FileManager.default.createDirectory(
             at: sourceSupport.appendingPathComponent("ClipboardImages"),
             withIntermediateDirectories: true)
-        suite = "mis-tests-\(UUID().uuidString)"
+        // An absolute path inside the temp root: the plist stays out of ~/Library/Preferences and
+        // disappears with `root` in cleanup().
+        suite = root.appendingPathComponent("prefs").path
         defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
     }

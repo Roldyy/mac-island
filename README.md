@@ -64,6 +64,8 @@ The terminal runs inside Mac Island, so a command you run there inherits the per
 
 Reading fan speeds works without any extra setup. Changing them needs a small helper that runs as root. You install it yourself from the Ventilos tab and approve it in System Settings, under Login Items. The helper only accepts commands from the signed Mac Island app, and the app only talks to the signed helper. The helper never goes below the manufacturer minimum speed, returns to automatic mode when the app stops responding for a few seconds, and forces automatic mode when the Mac gets hot.
 
+Manual mode stays on until you press "Retour automatique", quit the app, or the Mac gets hot, even when the island is closed. An indicator in the island tells you when it is on. Once approved, the helper keeps running idle, and launchd restarts it after a crash so it can put the fans back to automatic. Only builds signed with a Developer ID can drive the helper, so a local `make install` build can read fan speeds but not change them.
+
 Writing fan speeds has not been confirmed on the M4 family. It may not work on your Mac. Use the self-test first: `/Applications/Mac\ Island.app/Contents/MacOS/FanHelper --self-test-read-only`.
 
 ## Coming from Vorssaint

@@ -10,9 +10,46 @@ import Testing
         #expect(FanHelperContract.appIdentifier == "be.roldy.macisland")
         #expect(FanHelperContract.daemonPlistName == "be.roldy.macisland.fanhelper.plist")
         #expect(FanHelperContract.protocolVersion == 1)
-        #expect(FanHelperContract.clientRequirement ==
-                #"anchor apple generic and certificate leaf[subject.OU] = "U3TUL63HHK" and identifier "be.roldy.macisland""#)
+        #expect(FanHelperContract.clientRequirement == #"""
+            anchor apple generic and certificate leaf[subject.OU] = "U3TUL63HHK" and identifier "be.roldy.macisland" \#
+            and certificate 1[field.1.2.840.113635.100.6.2.6] exists \#
+            and certificate leaf[field.1.2.840.113635.100.6.1.13] exists
+            """#)
+        #expect(FanHelperContract.helperRequirement == #"""
+            anchor apple generic and certificate leaf[subject.OU] = "U3TUL63HHK" and identifier "be.roldy.macisland.fanhelper" \#
+            and certificate 1[field.1.2.840.113635.100.6.2.6] exists \#
+            and certificate leaf[field.1.2.840.113635.100.6.1.13] exists
+            """#)
         #expect(FanShared.helperLabel == FanHelperContract.machServiceName)
+    }
+
+    /// Developer ID Application only: the Developer ID CA intermediate (1.2.840.113635.100.6.2.6)
+    /// and the Developer ID Application leaf (1.2.840.113635.100.6.1.13). An Apple Development
+    /// certificate of the same team fails both, so a dev build cannot drive the helper.
+    @Test func requirementsAcceptDeveloperIDApplicationOnly() throws {
+        let pairs = [(FanHelperContract.clientRequirement, FanHelperContract.appIdentifier),
+                     (FanHelperContract.helperRequirement, FanHelperContract.helperIdentifier)]
+        for (text, identifier) in pairs {
+            let clauses = [
+                "anchor apple generic",
+                #"certificate leaf[subject.OU] = "U3TUL63HHK""#,
+                #"identifier "\#(identifier)""#,
+                "certificate 1[field.1.2.840.113635.100.6.2.6] exists",
+                "certificate leaf[field.1.2.840.113635.100.6.1.13] exists",
+            ]
+            for clause in clauses { #expect(text.contains(clause), "missing: \(clause)") }
+            #expect(!text.contains(" or "), "an alternative would widen the requirement")
+
+            // The Security framework reads both OID clauses as presence tests.
+            var requirement: SecRequirement?
+            try #require(SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess)
+            var canonical: CFString?
+            try #require(SecRequirementCopyString(try #require(requirement), [], &canonical) == errSecSuccess)
+            let parsed = try #require(canonical) as String
+            #expect(parsed.contains("certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */"), "\(parsed)")
+            #expect(parsed.contains("certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */"), "\(parsed)")
+            #expect(parsed.contains(#"identifier "\#(identifier)""#))
+        }
     }
 
     @Test func watchdogOutlastsSeveralMissedHeartbeats() {

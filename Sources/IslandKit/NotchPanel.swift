@@ -32,22 +32,52 @@ public final class IslandController {
     public let panel = NotchPanel()
     public var openSize = CGSize(width: 640, height: 360)
 
-    private let screen: NSScreen
+    private var screen: NSScreen
+    private let followsScreenChanges: Bool
+    private var screenObserver: NSObjectProtocol?
     private var isOpen = false
     private var closeWork: DispatchWorkItem?
 
     public let state = IslandState()
 
+    /// The built-in notched screen when it is active, otherwise the main screen.
+    private static func preferredScreen() -> NSScreen {
+        NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+    }
+
     /// `content` reads `IslandState` from the environment to know whether the island is open.
     public init<Content: View>(screen: NSScreen? = nil, @ViewBuilder content: () -> Content) {
-        self.screen = screen ?? NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
-            ?? NSScreen.main ?? NSScreen.screens[0]
+        self.screen = screen ?? Self.preferredScreen()
+        self.followsScreenChanges = screen == nil
         let actions = IslandActions(
             focusKeyboard: { [weak self] in self?.focusKeyboard() },
             close: { [weak self] in self?.close() })
         panel.contentView = NSHostingView(
             rootView: content().environmentObject(state).environment(\.islandActions, actions))
         panel.setFrame(idleFrame, display: false)
+        if followsScreenChanges {
+            // Lid closed or opened, a display plugged in or removed, a new primary display.
+            screenObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.screensChanged() }
+            }
+        }
+    }
+
+    deinit {
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+    }
+
+    private func screensChanged() {
+        screen = Self.preferredScreen()
+        let frame = isOpen
+            ? NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame)
+            : idleFrame
+        panel.setFrame(frame, display: true)
+        pointerInside = false
+        NSLog("IslandKit: screens changed, now on %@ (notch=%d)", screen.localizedName,
+              idleGeometry.hasNotch ? 1 : 0)
     }
 
     /// Visible "wings" on each side of the notch: the notch itself has no pixels to draw on.

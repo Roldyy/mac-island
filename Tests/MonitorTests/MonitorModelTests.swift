@@ -172,14 +172,19 @@ import Testing
         #expect(r.model.currentAlert?.metric == .memory)
     }
 
+    /// start() refreshes the (read-only) status itself: a relaunch must not drop notifications the user enabled.
     @Test func systemNotificationPostedOnlyWhenBundledAuthorizedAndEnabled() async {
         let r = Rig(cpuScript: script(percentages: Array(repeating: 95, count: 10)))
         r.model.alertsEnabled = true
         r.model.sustainedSeconds = 2
         r.model.systemNotificationsEnabled = true
-        await r.model.refreshNotificationStatus()
+        r.model.start()
+        for _ in 0..<200 where r.model.notificationStatus != .authorized { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(r.model.notificationStatus == .authorized)
+        #expect(r.notifier.requests == 0)
         r.model.tick()
         r.tick(); r.tick(); r.tick()
+        r.model.stop()
         #expect(r.notifier.posted.count == 1)
         #expect(r.model.currentAlert != nil)  // the in-island notice is always shown too
     }

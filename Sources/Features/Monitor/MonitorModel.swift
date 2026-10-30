@@ -103,6 +103,8 @@ final class MonitorModel {
         guard !started else { return }
         started = true
         reschedule()
+        // Read-only (never prompts): without it a relaunch forgets the permission the user already gave.
+        Task { [weak self] in await self?.refreshNotificationStatus() }
     }
 
     /// Idempotent.

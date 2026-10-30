@@ -22,7 +22,8 @@ struct CommandBarView: View {
                     .onKeyPress(.upArrow) { model.move(-1); return .handled }
                     .onKeyPress(.escape) { onClose(); return .handled }
                     .onKeyPress(keys: [.return]) { press in
-                        if model.activate(reveal: press.modifiers.contains(.command)) { onClose() }
+                        let reveal = press.modifiers.contains(.command)
+                        Task { if await model.submit(reveal: reveal) { onClose() } }
                         return .handled
                     }
             }

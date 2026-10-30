@@ -11,17 +11,25 @@ nonisolated(unsafe) var exitRestoreHook: (() -> Void)?
 /// Automatic mode is restored: on watchdog expiry (no heartbeat for 8 s), on thermal override,
 /// when the owning client's connection is invalidated or interrupted, on SIGTERM / SIGINT /
 /// SIGHUP, at `exit`, and at the next start after a crash (`recoverAtStartup`). A SIGKILL or a
-/// crash of the helper itself cannot run code: fans stay as they were until launchd starts the
-/// helper again (the app's reconnect does that) or the Mac restarts.
+/// crash of the helper itself cannot run code, but the daemon plist has `KeepAlive` =
+/// `{SuccessfulExit = false}` and `ThrottleInterval` = 10: launchd relaunches a helper that died
+/// on a signal or a non-zero exit within about 10 s, and `recoverAtStartup` restores automatic
+/// without the app. Exit code 0 means "do not restart" (see `main.swift`).
 final class HelperDaemon: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
+    /// While a restore keeps failing, the failure is logged at most this often (ticks are 1 s).
+    private static let restoreFailureLogInterval: TimeInterval = 10
+
     let core: FanControlCore
     private let queue = DispatchQueue(label: "be.roldy.macisland.fanhelper.core")
     private let queueKey = DispatchSpecificKey<Bool>()
     private let listener = NSXPCListener(machServiceName: FanHelperContract.machServiceName)
     private let logger = Logger(subsystem: FanHelperContract.machServiceName, category: "helper")
+    private let clock = SystemUptimeClock()
     private var timer: DispatchSourceTimer?
     private var signalSources: [DispatchSourceSignal] = []
     private var nextClientID = 0
+    /// Touched on `queue` only, like `core`.
+    private var restoreFailureLog = LogThrottle(interval: HelperDaemon.restoreFailureLogInterval)
 
     init(reader: AppleSMCReadOnlyClient, writer: AppleSMCWriter) {
         let policy = FanSafetyPolicy()
@@ -91,7 +99,10 @@ final class HelperDaemon: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
                 guard let self else { exit(0) }
                 let ok = self.core.restoreAutomatic(.shutdown)
                 self.logger.notice("signal \(sig, privacy: .public): automatic \(ok ? "restored" : "FAILED", privacy: .public)")
-                exit(0)   // atexit runs the restore again: idempotent, no SMC write when nothing is manual
+                // atexit runs the restore again: idempotent, no SMC write when nothing is manual.
+                // 0 = launchd does not restart; after a failed restore exit 1 so a still-loaded
+                // job is relaunched and its startup recovery retries.
+                exit(ok ? 0 : 1)
             }
             source.resume()
             signalSources.append(source)
@@ -103,8 +114,19 @@ final class HelperDaemon: NSObject, NSXPCListenerDelegate, @unchecked Sendable {
         t.schedule(deadline: .now() + FanHelperContract.tickInterval,
                    repeating: FanHelperContract.tickInterval, leeway: .milliseconds(100))
         t.setEventHandler { [weak self] in
-            guard let self, let reason = self.core.tick() else { return }
-            self.logger.notice("restored automatic: \(reason.rawValue, privacy: .public)")
+            guard let self else { return }
+            if let reason = self.core.tick() {
+                self.restoreFailureLog.reset()
+                self.logger.notice("restored automatic: \(reason.rawValue, privacy: .public)")
+            } else if self.core.restorePending {
+                // The SMC refused the restore: fans may still be manual. Retried every tick,
+                // logged once per 10 s.
+                guard self.restoreFailureLog.allow(now: self.clock.now()) else { return }
+                let reason = self.core.lastRestoreReason?.rawValue ?? "unknown"
+                self.logger.error("restore FAILED (\(reason, privacy: .public)): fans may still be manual, retrying every second")
+            } else {
+                self.restoreFailureLog.reset()   // the next failure, if any, is logged at once
+            }
         }
         t.resume()
         timer = t

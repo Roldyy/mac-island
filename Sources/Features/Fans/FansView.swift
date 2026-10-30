@@ -2,7 +2,8 @@ import IslandKit
 import SwiftUI
 
 /// The tab: read-only monitoring on top, manual control below, separated and gated.
-/// Black island, system font, nothing happens on hover.
+/// Black island, system font, nothing happens on hover. Leaving the view only stops the
+/// monitoring loop: manual mode and its heartbeat belong to the model, not to the view.
 struct FansView: View {
     @Bindable var model: FansModel
 
@@ -27,9 +28,6 @@ struct FansView: View {
         .task {
             await model.appeared()
             await model.monitor()
-        }
-        .onDisappear {
-            Task { await model.viewClosed() }
         }
     }
 }

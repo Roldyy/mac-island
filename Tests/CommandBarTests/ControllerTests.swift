@@ -24,11 +24,13 @@ private final class FakePresenter: CommandBarPresenting {
     func hide() { isVisible = false; hides += 1 }
 }
 
-@Suite struct ControllerTests {
-    @MainActor private func make(defaults: UserDefaults = makeDefaults())
+@Suite final class ControllerTests {
+    let bag = DefaultsBag()
+
+    @MainActor private func make(defaults: UserDefaults? = nil)
         -> (CommandBarController, FakeRegistrar, FakePresenter, CommandBarSettings, HabitStore) {
         let reg = FakeRegistrar(), pres = FakePresenter()
-        let settings = CommandBarSettings(defaults: defaults)
+        let settings = CommandBarSettings(defaults: defaults ?? bag.makeDefaults())
         let habits = HabitStore(directory: makeTempDir())
         return (CommandBarController(settings: settings, registrar: reg, presenter: pres, habits: habits),
                 reg, pres, settings, habits)
@@ -56,7 +58,7 @@ private final class FakePresenter: CommandBarPresenting {
     }
 
     @Test @MainActor func disabledSettingMeansNoRegistration() {
-        let d = makeDefaults()
+        let d = bag.makeDefaults()
         let (c, reg, _, s, _) = make(defaults: d)
         s.enabled = false
         c.start()
@@ -82,7 +84,7 @@ private final class FakePresenter: CommandBarPresenting {
     }
 
     @Test @MainActor func applyHotkeyValidatesPersistsAndReRegisters() {
-        let d = makeDefaults()
+        let d = bag.makeDefaults()
         let (c, reg, _, _, _) = make(defaults: d)
         c.start()
         #expect(!c.applyHotkey("nonsense"))

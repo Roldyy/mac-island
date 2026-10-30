@@ -29,6 +29,8 @@ final class CommandBarModel {
     private(set) var results: [BarResult] = []
     var selectedIndex = 0
 
+    /// The query `results` answers; nil until a refresh has landed. Return compares it to `query`.
+    @ObservationIgnored private var resultsQuery: String?
     @ObservationIgnored private let sources: [any ResultSource]
     @ObservationIgnored private let habits: HabitStore
     @ObservationIgnored private let settings: () -> CommandBarSettings
@@ -46,6 +48,7 @@ final class CommandBarModel {
     func reset() {
         query = ""
         results = []
+        resultsQuery = nil
         selectedIndex = 0
     }
 
@@ -78,6 +81,7 @@ final class CommandBarModel {
     private func apply(_ pool: [BarResult], _ q: String) {
         let weights = settings().habitsEnabled ? habits.weights(now: Date()) : .none
         let previous = results.indices.contains(selectedIndex) ? results[selectedIndex].id : nil
+        resultsQuery = q
         results = ResultRanker.rank(pool, query: q, habits: weights, now: Date(), limit: Self.rowLimit)
         selectedIndex = previous.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
     }
@@ -85,6 +89,13 @@ final class CommandBarModel {
     func move(_ delta: Int) {
         guard !results.isEmpty else { return }
         selectedIndex = min(results.count - 1, max(0, selectedIndex + delta))
+    }
+
+    /// Return from the field: when the rows belong to an older query (the debounce has not fired yet),
+    /// search the current one right now, then act on its top row.
+    func submit(reveal: Bool) async -> Bool {
+        if resultsQuery != query { await refresh() }
+        return activate(reveal: reveal)
     }
 
     /// Enter runs the selected row; with `reveal`, Cmd+Enter shows it in Finder instead.

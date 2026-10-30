@@ -13,7 +13,8 @@ final class CommandBarPanel: NSPanel {
         super.init(contentRect: CGRect(origin: .zero, size: PanelGeometry.size),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isFloatingPanel = true
-        level = .floating
+        // Above the open island (NotchPanel sits at .screenSaver), or the bar hides behind it.
+        level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
         backgroundColor = .clear
         isOpaque = false
         hasShadow = true

@@ -1,8 +1,10 @@
+import IslandKit
 import SwiftUI
 
 /// The "Commandes" tab: hotkey, enabled flag, habits and sources.
 struct CommandBarSettingsView: View {
     @Bindable var controller: CommandBarController
+    @Environment(\.islandActions) private var actions
 
     private static let sourceLabels: [(id: String, label: String)] = [
         ("apps", "Applications"), ("files", "Fichiers (par nom)"), ("calculator", "Calculatrice"),
@@ -32,12 +34,18 @@ struct CommandBarSettingsView: View {
                         .frame(maxWidth: 220)
                         .accessibilityLabel("Raccourci, format option+espace")
                         .onSubmit { controller.applyHotkey(controller.hotkeyDraft) }
+                        // The panel only takes the keyboard on click, or typing goes to the frontmost app.
+                        .simultaneousGesture(TapGesture().onEnded { actions.focusKeyboard() })
                     Button("Appliquer") { controller.applyHotkey(controller.hotkeyDraft) }
                         .accessibilityHint("Enregistre le raccourci saisi")
                     if controller.hotkeyInvalid {
                         Text("Raccourci invalide").foregroundStyle(.orange)
                     }
                 }
+
+                Text("Les raccourcis utilisent les positions physiques des touches (clavier US) : sur AZERTY, la touche marqu\u{00E9}e A correspond \u{00E0} Q.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
 
                 Divider().overlay(.white.opacity(0.12))
 

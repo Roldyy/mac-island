@@ -1,9 +1,14 @@
 import FanShared
 import Foundation
 
-// Root fan helper. Started on demand by launchd through its MachServices entry, registered by the
-// app with SMAppService.daemon(plistName:). It is the only process that writes the SMC.
+// Root fan helper, registered by the app with SMAppService.daemon(plistName:) and run by launchd
+// (MachServices + KeepAlive {SuccessfulExit = false}). It is the only process that writes the SMC.
 // Never run it by hand during development.
+//
+// Exit codes are read by launchd: 0 means "do not restart" (clean stop, e.g. after SIGTERM, with
+// automatic restored). Anything else, or death by a signal, makes launchd relaunch the helper
+// within ThrottleInterval (10 s), and the new instance's startup recovery restores automatic.
+// So never exit 0 on a path that may leave a fan manual.
 
 if CommandLine.arguments.contains("--self-test-read-only") {
     exit(HelperSelfTestCommand.run())

@@ -193,19 +193,72 @@ import Testing
         await model.connectTask?.value
     }
 
-    @Test func closingTheTabInManualModeSendsAutomatic() async {
+    /// Product decision: manual mode outlives the island closing. Ends only on "Retour
+    /// automatique", quit, the helper's watchdog, connection loss or a thermal override.
+    @Test func closingTheTabKeepsManualModeAndTheHeartbeat() async {
         let model = await ready()
         model.targets[1] = 5000
         await model.commitTarget(fan: 1)
-        await model.viewClosed()
-        #expect(client.commands.last == .allAutomatic)
+        // What FansView runs while it is on screen; SwiftUI cancels it when the view goes away.
+        let viewTask = Task { await model.appeared(); await model.monitor() }
+        await Task.yield()
+        viewTask.cancel()
+        await viewTask.value
+        #expect(client.commands == [.setTarget(fan: 1, rpm: 5000)])
+        #expect(model.manualActive)
+        #expect(heartbeat.isRunning)
+        await heartbeat.fire()
+        #expect(client.heartbeats == 1)
+        #expect(model.manualActive)
+        // Quitting still ends it.
+        model.stop()
+        #expect(client.blockingAutomatic == 1)
         #expect(!model.manualActive)
+        #expect(!heartbeat.isRunning)
     }
 
-    @Test func closingTheTabInAutomaticModeSendsNothing() async {
+    // MARK: - Late replies (a setTarget still in flight when the user leaves manual mode)
+
+    @Test func aLateAppliedReplyAfterReturnToAutomaticDoesNotReenterManual() async {
         let model = await ready()
-        await model.viewClosed()
-        #expect(client.commands.isEmpty)
+        client.holdSetTarget = true
+        model.targets[0] = 4000
+        let commit = Task { await model.commitTarget(fan: 0) }
+        await client.waitUntilHeld()
+        await model.returnToAutomatic()
+        client.releaseHeld()
+        await commit.value
+        #expect(client.commands == [.setTarget(fan: 0, rpm: 4000), .allAutomatic])
+        #expect(!model.manualActive)
+        #expect(!heartbeat.isRunning)
+        #expect(model.statusMessage == "Ventilateurs en mode automatique.")
+    }
+
+    @Test func aLateAppliedReplyAfterStopDoesNotReenterManual() async {
+        let model = await ready()
+        client.holdSetTarget = true
+        model.targets[0] = 4000
+        let commit = Task { await model.commitTarget(fan: 0) }
+        await client.waitUntilHeld()
+        model.stop()
+        client.releaseHeld()
+        await commit.value
+        #expect(client.blockingAutomatic == 1)
+        #expect(!model.manualActive)
+        #expect(!heartbeat.isRunning)
+        #expect(heartbeat.startCount == 0)
+    }
+
+    @Test func aReplyNotOverriddenStillEntersManual() async {
+        let model = await ready()
+        client.holdSetTarget = true
+        model.targets[0] = 4000
+        let commit = Task { await model.commitTarget(fan: 0) }
+        await client.waitUntilHeld()
+        client.releaseHeld()
+        await commit.value
+        #expect(model.manualActive)
+        #expect(heartbeat.isRunning)
     }
 
     @Test func deinitInManualModeSendsAutomatic() async {

@@ -5,10 +5,12 @@ import Observation
 /// State of the Fans tab. Monitoring reads the SMC directly (no helper); manual control goes
 /// through the root helper and is available only when it is approved and reachable.
 ///
-/// Every way out of manual mode sends automatic: "Retour automatique", closing the tab,
-/// `stop()` (app quit), the model's release (`ManualReleaseGuard`), a refused heartbeat. If the
-/// app crashes, none of that runs: the helper's watchdog (8 s without heartbeat) and its
-/// connection-invalidation handler restore automatic on their own.
+/// Manual mode outlives the view: closing the island or the tab keeps the fans forced, and the
+/// heartbeat is a model-level timer that runs while manual is active, whatever is on screen.
+/// Manual mode ends on: "Retour automatique", `stop()` (app quit), the model's release
+/// (`ManualReleaseGuard`), a refused heartbeat (the helper's thermal override or watchdog), or
+/// the connection dropping. If the app crashes or hangs, none of that runs: the helper's
+/// watchdog (8 s without heartbeat) and its connection-invalidation handler restore automatic.
 @MainActor
 @Observable
 final class FansModel {
@@ -30,6 +32,11 @@ final class FansModel {
     @ObservationIgnored private let releaseGuard: ManualReleaseGuard
     @ObservationIgnored private let callbacks = PendingTasks()
     @ObservationIgnored private var started = false
+    /// Bumped by every explicit way back to automatic ("Retour automatique", `stop()`). A
+    /// `setTarget` reply from an earlier epoch is dropped: the user already overrode it, and
+    /// since one XPC connection delivers messages in order the helper ran that automatic after
+    /// the target, so it is automatic too.
+    @ObservationIgnored private var automaticEpoch = 0
 
     init(source: FanReadingSource, client: FanHelperClient, installer: FanHelperInstalling,
          heartbeat: HeartbeatScheduling) {
@@ -70,18 +77,13 @@ final class FansModel {
     func stop() {
         guard started else { return }
         started = false
+        automaticEpoch += 1
         connectTask?.cancel()
         heartbeat.stop()
         if manualActive || helperReachable { client.sendAllAutomaticBlocking(timeout: 0.5) }
         endManual()
         client.disconnect()
         helperReachable = false
-    }
-
-    /// The tab went away: manual mode does not outlive it.
-    func viewClosed() async {
-        guard manualActive else { return }
-        await returnToAutomatic()
     }
 
     /// Called when the tab appears: picks up an approval given in System Settings meanwhile.
@@ -165,14 +167,21 @@ final class FansModel {
         guard manualAvailable, let range = range(for: fan), let wanted = targets[fan],
               let rpm = policy.clamp(wanted.rounded(), to: FanLimits(minRPM: range.lowerBound, maxRPM: range.upperBound))
         else { return }
+        let epoch = automaticEpoch
+        let result: FanCommandResult
         do {
-            handle(try await client.perform(.setTarget(fan: fan, rpm: rpm)))
+            result = try await client.perform(.setTarget(fan: fan, rpm: rpm))
         } catch {
-            statusMessage = "Helper injoignable : commande non envoyée."
+            if epoch == automaticEpoch { statusMessage = "Helper injoignable : commande non envoyée." }
+            return
         }
+        // "Retour automatique" or stop() went out while this request was in flight.
+        guard epoch == automaticEpoch else { return }
+        handle(result)
     }
 
     func returnToAutomatic() async {
+        automaticEpoch += 1
         heartbeat.stop()
         do {
             handle(try await client.perform(.allAutomatic))

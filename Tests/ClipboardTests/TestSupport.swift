@@ -40,13 +40,17 @@ func posix(_ url: URL) -> Int? {
 /// A private, uniquely named pasteboard. Never the general one.
 func makePasteboard() -> NSPasteboard { NSPasteboard(name: .init(UUID().uuidString)) }
 
-/// A throwaway defaults suite whose persistent domain is removed when the handle is released.
+/// A throwaway defaults suite. The suite name is an absolute path in the temp directory, so its plist
+/// never reaches ~/Library/Preferences, and both the domain and the file go when the handle is released.
 final class TempDefaults {
     let suite: String
     let defaults: UserDefaults
     init() {
-        suite = "clip-test-\(UUID().uuidString)"
+        suite = NSTemporaryDirectory() + "clip-test-\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suite)!
     }
-    deinit { defaults.removePersistentDomain(forName: suite) }
+    deinit {
+        defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
+    }
 }
