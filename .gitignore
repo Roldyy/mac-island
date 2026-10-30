@@ -19,3 +19,7 @@ tasks/private/
 *.key
 *.pem
 .DS_Store
+
+# App bundle and DMG output
+build/
+Resources/AppIcon.iconset/

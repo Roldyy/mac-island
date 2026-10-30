@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>be.roldy.macisland</string>
+    <key>CFBundleName</key>
+    <string>Mac Island</string>
+    <key>CFBundleDisplayName</key>
+    <string>Mac Island</string>
+    <key>CFBundleExecutable</key>
+    <string>MacIsland</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@BUILD@</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License. See LICENSE.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Mac Island reads what is playing in Spotify and Music, and which items are selected in Finder for cut and paste.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Mac Island lowers or raises the volume of a single app. It never records or stores audio.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Mac Island lists your latest finished downloads so you can drag them out of the island.</string>
+</dict>
+</plist>
