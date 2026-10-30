@@ -32,6 +32,14 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
         return view
     }
 
+    /// Wipe the scrollback, then send Ctrl+L so the shell clears the screen and redraws its prompt.
+    /// Same effect as pressing Ctrl+L: a foreground program receives the keystroke too.
+    func clear() {
+        guard let view = terminalView, !exited else { return }
+        view.getTerminal().clearScrollback()
+        view.send(data: [0x0c][...])
+    }
+
     static func loginShell() -> String {
         if let shell = ProcessInfo.processInfo.environment["SHELL"],
            FileManager.default.isExecutableFile(atPath: shell) {
