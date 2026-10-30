@@ -42,8 +42,11 @@ public final class IslandController {
     public init<Content: View>(screen: NSScreen? = nil, @ViewBuilder content: () -> Content) {
         self.screen = screen ?? NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
             ?? NSScreen.main ?? NSScreen.screens[0]
+        let actions = IslandActions(
+            focusKeyboard: { [weak self] in self?.focusKeyboard() },
+            close: { [weak self] in self?.close() })
         panel.contentView = NSHostingView(
-            rootView: content().environmentObject(state))
+            rootView: content().environmentObject(state).environment(\.islandActions, actions))
         panel.setFrame(idleFrame, display: false)
     }
 
