@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
         ClipboardFeature.start()
         ShelfFeature.start()
+        // Each start() only arms what the user's settings and granted permissions allow; none prompts.
+        FinderFeature.start()
+        DockFeature.start()
+        DisplayFeature.start()
+        AudioFeature.start()
         let island = IslandController { IslandRootView() }
         island.show()
         self.island = island
