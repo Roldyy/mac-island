@@ -9,6 +9,8 @@ struct AppSnapshot: Equatable, Sendable {
     var isRegular: Bool
     var isFrontmost: Bool
     var isPlayingAudio: Bool
-    /// On-screen layer-0 windows owned by the app.
+    /// Layer-0 windows owned by the app, whatever their state (minimized and other-Space ones count).
     var windowCount: Int
+    /// Hidden with Cmd+H: its windows are off screen but the app is in use.
+    var isHidden: Bool = false
 }

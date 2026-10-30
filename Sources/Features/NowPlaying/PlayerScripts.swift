@@ -1,18 +1,26 @@
 import Foundation
 
-public enum PlayerCommand: Sendable { case playPause, next, previous }
+enum PlayerCommand: Sendable { case playPause, next, previous }
 
-public enum PlayerDurationUnit: Sendable { case seconds, milliseconds }
+enum PlayerDurationUnit: Sendable { case seconds, milliseconds }
 
-/// AppleScript source text. Every script targets the app by bundle id, and callers only run
-/// them after an NSWorkspace check, so a query never launches the app.
-public enum PlayerScripts {
+/// AppleScript source text. Every script is wrapped in `if application id "..." is running`, which
+/// never launches the app, and targets it by bundle id. The Swift-side NSWorkspace check alone left a
+/// window in which a player that was quitting got relaunched by the `tell`.
+enum PlayerScripts {
     static let separator = "(ASCII character 31)"
+
+    private static func guarded(_ bundleID: String, body: String, otherwise: String? = nil) -> String {
+        var out = "if application id \"\(bundleID)\" is running then\n"
+        out += body.split(separator: "\n", omittingEmptySubsequences: false).map { "    \($0)" }.joined(separator: "\n")
+        if let otherwise { out += "\nelse\n    \(otherwise)" }
+        return out + "\nend if"
+    }
 
     static func status(bundleID: String) -> String {
         let artwork = bundleID == BundleIDs.spotify ? "artwork url of current track" : "\"\""
         let duration = "duration of current track"
-        return """
+        let body = """
         tell application id "\(bundleID)"
             set st to player state as text
             if st is "stopped" then return "stopped"
@@ -20,10 +28,13 @@ public enum PlayerScripts {
             return st & d & (name of current track) & d & (artist of current track) & d & (album of current track) & d & ((player position) as text) & d & ((\(duration)) as text) & d & (\(artwork))
         end tell
         """
+        return guarded(bundleID, body: body, otherwise: "return \"none\"")
     }
 
+    /// Not running: error -1728, which the caller turns into "no cover".
     static func artworkData(bundleID: String) -> String {
-        "tell application id \"\(bundleID)\" to return data of artwork 1 of current track"
+        guarded(bundleID, body: "tell application id \"\(bundleID)\" to return data of artwork 1 of current track",
+                otherwise: "error number -1728")
     }
 
     static func command(_ c: PlayerCommand, bundleID: String) -> String {
@@ -32,13 +43,13 @@ public enum PlayerScripts {
         case .next: "next track"
         case .previous: "previous track"
         }
-        return "tell application id \"\(bundleID)\" to \(verb)"
+        return guarded(bundleID, body: "tell application id \"\(bundleID)\" to \(verb)")
     }
 }
 
 /// Pure parser of the status script output.
-public enum PlayerScriptParser {
-    public static func parse(_ raw: String, bundleID: String,
+enum PlayerScriptParser {
+    static func parse(_ raw: String, bundleID: String,
                              durationUnit: PlayerDurationUnit) throws -> NowPlayingSnapshot? {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty || text == "stopped" || text == "none" { return nil }

@@ -33,7 +33,8 @@ import Testing
             running: StubRunning(ids: [BundleIDs.spotify]),
             postKey: { keys.set(keys.get() + [$0]) })
         await t.send(.next, source: BundleIDs.spotify)
-        #expect(scripts.get() == ["tell application id \"com.spotify.client\" to next track"])
+        #expect(scripts.get() == [PlayerScripts.command(.next, bundleID: BundleIDs.spotify)])
+        #expect(scripts.get().first?.hasPrefix("if application id \"com.spotify.client\" is running then") == true)
         #expect(keys.get().isEmpty)
     }
 

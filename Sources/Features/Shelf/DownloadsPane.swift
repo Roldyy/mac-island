@@ -33,6 +33,12 @@ struct DownloadsPane: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // The way out of "denied": rescan when the pane shows and when the user comes back from
+        // System Settings.
+        .onAppear { model.refreshDownloads() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshDownloads()
+        }
     }
 
     private func note(_ text: String) -> some View {

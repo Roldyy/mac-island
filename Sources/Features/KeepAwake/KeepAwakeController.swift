@@ -26,6 +26,7 @@ final class KeepAwakeController {
     @ObservationIgnored private let idleSeconds: () -> TimeInterval
     @ObservationIgnored private let accessibilityTrusted: () -> Bool
     @ObservationIgnored private let runsLoop: Bool
+    @ObservationIgnored private let tickInterval: Duration
     @ObservationIgnored private var scheduler: JiggleScheduler
     @ObservationIgnored private var activityUntil: Date?
     @ObservationIgnored private var loop: Task<Void, Never>?
@@ -36,7 +37,7 @@ final class KeepAwakeController {
          clock: @escaping () -> Date = Date.init,
          idleSeconds: @escaping () -> TimeInterval = SystemProbes.idleSeconds,
          accessibilityTrusted: @escaping () -> Bool = SystemProbes.accessibilityTrusted,
-         runsLoop: Bool = true) {
+         runsLoop: Bool = true, tickInterval: Duration = .seconds(1)) {
         session = AssertionSet(power: power)
         activity = AssertionSet(power: power)
         self.jiggler = jiggler
@@ -45,6 +46,7 @@ final class KeepAwakeController {
         self.idleSeconds = idleSeconds
         self.accessibilityTrusted = accessibilityTrusted
         self.runsLoop = runsLoop
+        self.tickInterval = tickInterval
         scheduler = JiggleScheduler(intervalMinutes: settings.mouseJiggleIntervalMinutes)
     }
 
@@ -103,9 +105,9 @@ final class KeepAwakeController {
 
     private func ensureLoop() {
         guard runsLoop, loop == nil else { return }
-        loop = Task { [weak self] in
+        loop = Task { [weak self, tickInterval] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: tickInterval)
                 guard let self else { return }
                 self.tick()
             }

@@ -48,12 +48,38 @@ import Testing
         #expect(NowPlayingError.from(scriptErrorCode: -600) == .scriptFailed(code: -600))
     }
 
+    @Test func everyScriptIsGuardedByAnIsRunningCheck() {
+        for id in [BundleIDs.spotify, BundleIDs.music] {
+            let guardLine = "if application id \"\(id)\" is running then"
+            let scripts = [
+                PlayerScripts.status(bundleID: id),
+                PlayerScripts.artworkData(bundleID: id),
+                PlayerScripts.command(.playPause, bundleID: id),
+                PlayerScripts.command(.next, bundleID: id),
+                PlayerScripts.command(.previous, bundleID: id),
+            ]
+            for script in scripts {
+                #expect(script.hasPrefix(guardLine), "unguarded: \(script)")
+                #expect(script.hasSuffix("end if"))
+                // no `tell application id` may sit outside the guard
+                let outside = script.components(separatedBy: guardLine)[0]
+                #expect(!outside.contains("tell application"))
+            }
+        }
+    }
+
     @Test func commandScripts() {
-        #expect(PlayerScripts.command(.playPause, bundleID: BundleIDs.spotify)
-                == "tell application id \"com.spotify.client\" to playpause")
+        let play = PlayerScripts.command(.playPause, bundleID: BundleIDs.spotify)
+        #expect(play.contains("tell application id \"com.spotify.client\" to playpause"))
         #expect(PlayerScripts.command(.next, bundleID: BundleIDs.music)
-                == "tell application id \"com.apple.Music\" to next track")
+                .contains("tell application id \"com.apple.Music\" to next track"))
         #expect(PlayerScripts.command(.previous, bundleID: BundleIDs.music)
-                == "tell application id \"com.apple.Music\" to previous track")
+                .contains("tell application id \"com.apple.Music\" to previous track"))
+    }
+
+    @Test func notRunningStatusParsesToNothing() throws {
+        let script = PlayerScripts.status(bundleID: BundleIDs.spotify)
+        #expect(script.contains("else\n    return \"none\"\nend if"))
+        #expect(try PlayerScriptParser.parse("none", bundleID: BundleIDs.spotify, durationUnit: .milliseconds) == nil)
     }
 }

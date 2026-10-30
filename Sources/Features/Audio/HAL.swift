@@ -63,4 +63,43 @@ enum HAL {
         var v = value
         return AudioObjectSetPropertyData(object, &addr, 0, nil, UInt32(MemoryLayout<UInt32>.size), &v) == noErr
     }
+
+    /// Channel count of each stream of `object` in `scope` (kAudioDevicePropertyStreamConfiguration);
+    /// nil when it cannot be read.
+    static func streamChannels(_ object: AudioObjectID, scope: AudioObjectPropertyScope) -> [Int]? {
+        var addr = address(kAudioDevicePropertyStreamConfiguration, scope: scope)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(object, &addr, 0, nil, &size) == noErr else { return nil }
+        guard size >= UInt32(MemoryLayout<AudioBufferList>.size - MemoryLayout<AudioBuffer>.size) else { return [] }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(object, &addr, 0, nil, &size, raw) == noErr else { return nil }
+        let list = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
+        return list.map { Int($0.mNumberChannels) }
+    }
+
+    /// The device object for a UID, or nil.
+    static func deviceID(forUID uid: String) -> AudioObjectID? {
+        ids(system, kAudioHardwarePropertyDevices).first { string($0, kAudioDevicePropertyDeviceUID) == uid }
+    }
+
+    /// Switch input streams of one IOProc on or off (kAudioDevicePropertyIOProcStreamUsage). The
+    /// structure must list every input stream of the device.
+    static func setInputStreamUsage(_ device: AudioObjectID, procID: AudioDeviceIOProcID,
+                                    streamIsOn: [UInt32]) -> OSStatus {
+        guard !streamIsOn.isEmpty else { return noErr }
+        let header = MemoryLayout<AudioHardwareIOProcStreamUsage>.size
+        let size = header + MemoryLayout<UInt32>.size * (streamIsOn.count - 1)
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: MemoryLayout<AudioHardwareIOProcStreamUsage>.alignment)
+        defer { raw.deallocate() }
+        raw.initializeMemory(as: UInt8.self, repeating: 0, count: size)
+        let usage = raw.assumingMemoryBound(to: AudioHardwareIOProcStreamUsage.self)
+        usage.pointee.mIOProc = unsafeBitCast(procID, to: UnsafeMutableRawPointer.self)
+        usage.pointee.mNumberStreams = UInt32(streamIsOn.count)
+        let flags = (raw + MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!)
+            .assumingMemoryBound(to: UInt32.self)
+        for (k, on) in streamIsOn.enumerated() { flags[k] = on }
+        var addr = address(kAudioDevicePropertyIOProcStreamUsage, scope: kAudioObjectPropertyScopeInput)
+        return AudioObjectSetPropertyData(device, &addr, 0, nil, UInt32(size), raw)
+    }
 }

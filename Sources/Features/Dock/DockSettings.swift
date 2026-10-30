@@ -1,3 +1,4 @@
+import IslandKit
 import Foundation
 
 /// Reads and writes the Dock preference keys in the app's defaults suite.
@@ -11,7 +12,7 @@ struct DockSettings {
 
     let defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: DockSettings.suiteName) ?? .standard) {
+    init(defaults: UserDefaults = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 

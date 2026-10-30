@@ -25,6 +25,17 @@ import Testing
         #expect(plan([app(10, windows: 1)], last: [10: 0]) == [])
     }
 
+    @Test func hiddenAppIsKeptEvenWithoutCountedWindows() {
+        var hidden = app(10)
+        hidden.isHidden = true
+        #expect(plan([hidden], last: [10: 0]) == [])
+    }
+
+    @Test func appWhoseOnlyWindowIsMinimizedOrElsewhereIsKept() {
+        // Window counting no longer needs the window on screen: any state counts as one window.
+        #expect(plan([app(10, windows: 1)], last: [10: 0]) == [])
+    }
+
     @Test func frontmostAppIsKept() {
         #expect(plan([app(10, front: true)], last: [10: 0]) == [])
     }

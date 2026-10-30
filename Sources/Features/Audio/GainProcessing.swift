@@ -29,11 +29,13 @@ enum GainProcessing {
         }
     }
 
-    /// Buffers are paired by index (covers one interleaved buffer and one-buffer-per-channel alike).
-    /// An output buffer with no input partner is silenced.
+    /// The tap's stream (`tapIndex` in the input buffer list, found by `StreamLayout`, never assumed to be
+    /// buffer 0: a device with a microphone puts its input streams in the same list) feeds the first output
+    /// buffer; any other output buffer is silenced. A nil index, an index outside the list or a NULL tap
+    /// buffer (a stream switched off) outputs silence rather than some other stream.
     static func process(input: UnsafePointer<AudioBufferList>,
                         output: UnsafeMutablePointer<AudioBufferList>,
-                        from: Float, to: Float) {
+                        tapIndex: Int?, from: Float, to: Float) {
         let inBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
         let outBuffers = UnsafeMutableAudioBufferListPointer(output)
         let floatSize = MemoryLayout<Float>.size
@@ -45,8 +47,8 @@ enum GainProcessing {
             guard outChannels > 0 else { continue }
             let outFrames = outBytes / (floatSize * outChannels)
             var done = 0
-            if index < inBuffers.count {
-                let inp = inBuffers[index]
+            if index == 0, let tapIndex, tapIndex >= 0, tapIndex < inBuffers.count {
+                let inp = inBuffers[tapIndex]
                 let inChannels = Int(inp.mNumberChannels)
                 if let inData = inp.mData, inChannels > 0 {
                     let frames = min(outFrames, Int(inp.mDataByteSize) / (floatSize * inChannels))
@@ -60,5 +62,27 @@ enum GainProcessing {
                 memset(outData + done, 0, outBytes - done)
             }
         }
+    }
+}
+
+/// Which input stream of the aggregate is the tap, as a pure decision over channel counts.
+enum StreamLayout {
+    struct Plan: Equatable {
+        var tapIndex: Int
+        /// One flag per aggregate input stream for `kAudioDevicePropertyIOProcStreamUsage`.
+        var streamIsOn: [UInt32]
+    }
+
+    /// Expected layout: the output device's own input streams first (same channel counts as the device
+    /// reports), then exactly one stream, the stereo tap, last. Anything else has no plan: the caller
+    /// must not run the IOProc on a layout it cannot name. The order is UNKNOWN from the headers; the
+    /// checks above make a wrong guess fail closed in the usual cases, and it needs a real
+    /// headset to be proven.
+    static func plan(aggregateInputChannels: [Int], subDeviceInputChannels: [Int], tapChannels: Int = 2) -> Plan? {
+        let n = subDeviceInputChannels.count
+        guard aggregateInputChannels.count == n + 1,
+              Array(aggregateInputChannels.prefix(n)) == subDeviceInputChannels,
+              aggregateInputChannels[n] == tapChannels else { return nil }
+        return Plan(tapIndex: n, streamIsOn: [UInt32](repeating: 0, count: n) + [1])
     }
 }

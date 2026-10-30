@@ -11,7 +11,7 @@ import Foundation
 /// A conforming type returns the system-wide snapshot with `sourceBundleID` set to the real
 /// owner (browser, podcast app...). `NowPlayingAggregator` already handles it like any provider,
 /// and `NowPlayingTransport` already falls back to media keys for non-scripted sources.
-public protocol SystemWideProvider: NowPlayingProvider {
+protocol SystemWideProvider: NowPlayingProvider {
     /// Start the helper process or XPC connection. Idempotent.
     func start() async throws
     /// Stop it; called when the tab is hidden.

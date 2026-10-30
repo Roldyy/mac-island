@@ -1,4 +1,13 @@
+import IslandKit
 import Foundation
+
+/// Read side of the preferences store. UserDefaults in the app, an in-memory fake in tests, so a
+/// test never writes a plist into ~/Library/Preferences.
+protocol KeyValueReading {
+    func object(forKey key: String) -> Any?
+}
+
+extension UserDefaults: KeyValueReading {}
 
 /// Preferences in the app's defaults suite. `shelfEnabled` and `shelfItems` keep the old names;
 /// the Downloads keys are new.
@@ -7,9 +16,9 @@ struct ShelfSettings {
     static let defaultLimit = 8
     static let maxLimit = 50
 
-    let defaults: UserDefaults
+    let defaults: any KeyValueReading
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: ShelfSettings.suiteName) ?? .standard) {
+    init(defaults: any KeyValueReading = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 
@@ -26,7 +35,7 @@ struct ShelfSettings {
     /// and written to the own file, so an emptied shelf never refills.
     func loadItems(store: ShelfStore) -> [ShelfItem] {
         if store.fileExists { return store.load() }
-        guard let legacy = defaults.data(forKey: "shelfItems") else { return [] }
+        guard let legacy = defaults.object(forKey: "shelfItems") as? Data else { return [] }
         let items = LegacyShelfImporter.parse(legacy)
         try? store.save(items)
         return items

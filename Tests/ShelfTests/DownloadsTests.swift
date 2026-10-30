@@ -44,6 +44,19 @@ import Testing
         #expect(r6)
     }
 
+    @Test func futureModificationDateReliesOnSizeStabilityAlone() {
+        var tr = DownloadTracker(settle: 2)
+        let future = t0.addingTimeInterval(3600)
+        let r1 = tr.isFinished(path: "/d/a", size: 10, modified: future, now: t0)
+        let r2 = tr.isFinished(path: "/d/a", size: 10, modified: future, now: t0.addingTimeInterval(1))
+        let r3 = tr.isFinished(path: "/d/a", size: 10, modified: future, now: t0.addingTimeInterval(2.5))
+        #expect(!r1 && !r2 && r3)
+        // still growing: waits again
+        let r4 = tr.isFinished(path: "/d/a", size: 20, modified: future, now: t0.addingTimeInterval(3))
+        let r5 = tr.isFinished(path: "/d/a", size: 20, modified: future, now: t0.addingTimeInterval(5.5))
+        #expect(!r4 && r5)
+    }
+
     @Test func forgetsPathsThatDisappear() {
         var tr = DownloadTracker(settle: 2)
         _ = tr.isFinished(path: "/d/a", size: 1, modified: t0, now: t0.addingTimeInterval(5))
@@ -126,5 +139,75 @@ import Testing
         t.defaults.set(9999, forKey: "shelfDownloadsLimit")
         #expect(s.downloadsLimit == 50)
         #expect(ShelfSettings.suiteName == "be.roldy.macisland")
+    }
+}
+
+private final class FakeAccess: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _granted = false
+    private var _opens = 0
+    private var _lists = 0
+    private var _snaps: [DownloadsSnapshot] = []
+    let dir: URL
+    init(dir: URL) { self.dir = dir }
+
+    var granted: Bool { get { lock.withLock { _granted } } set { lock.withLock { _granted = newValue } } }
+    var opens: Int { lock.withLock { _opens } }
+    var lists: Int { lock.withLock { _lists } }
+    var snaps: [DownloadsSnapshot] { lock.withLock { _snaps } }
+    func record(_ s: DownloadsSnapshot) { lock.withLock { _snaps.append(s) } }
+
+    var fileSystem: DownloadsFileSystem {
+        DownloadsFileSystem(
+            list: { [self] _, _, _, _ in
+                lock.withLock { _lists += 1 }
+                let ok = granted
+                return DownloadsSnapshot(state: ok ? .ok : .denied, items: [], hasPending: false)
+            },
+            openForEvents: { [self] path in
+                guard granted else { return -1 }
+                lock.withLock { _opens += 1 }
+                return open(path, O_EVTONLY)
+            })
+    }
+}
+
+private func waitUntil(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+    let end = Date().addingTimeInterval(timeout)
+    while Date() < end {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    return condition()
+}
+
+@Suite struct DownloadsMonitorTests {
+    @Test func deniedThenGrantedReattachesOnRefresh() async {
+        let access = FakeAccess(dir: makeTempDir())
+        let monitor = DownloadsMonitor(directory: access.dir, fileSystem: access.fileSystem,
+                                       limit: { 8 }, onSnapshot: { access.record($0) })
+        monitor.start()
+        #expect(await waitUntil { access.snaps.last?.state == .denied })
+        #expect(access.opens == 0)
+
+        monitor.refresh()
+        #expect(await waitUntil { access.snaps.count >= 2 })
+        #expect(access.snaps.last?.state == .denied)
+        #expect(access.opens == 0)
+
+        access.granted = true   // the user grants access in System Settings
+        monitor.refresh()
+        #expect(await waitUntil { access.snaps.last?.state == .ok })
+        #expect(access.opens == 1)
+
+        // attached for real: a new file in the folder triggers a rescan without any refresh()
+        let before = access.lists
+        makeFile("new.zip", in: access.dir)
+        #expect(await waitUntil { access.lists > before })
+
+        monitor.refresh()
+        _ = await waitUntil(timeout: 0.3) { false }
+        #expect(access.opens == 1) // idempotent: never a second source
+        monitor.stop()
     }
 }

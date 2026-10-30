@@ -3,16 +3,16 @@
 enum FinderScripts {
     static let finderBundleID = "com.apple.finder"
 
-    /// POSIX paths of the selected items, joined by the record separator.
+    /// A list: item 1 is the number of selected items, then one POSIX path per item. A list keeps every
+    /// name in its own item, whatever characters it holds (no delimiter to inject).
     static let selection = """
     tell application id "com.apple.finder"
         set sel to selection as alias list
-        set out to {}
+        set out to {count of sel}
         repeat with a in sel
             set end of out to POSIX path of a
         end repeat
-        set AppleScript's text item delimiters to (character id 30)
-        return out as text
+        return out
     end tell
     """
 

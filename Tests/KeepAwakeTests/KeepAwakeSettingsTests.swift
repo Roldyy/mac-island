@@ -3,12 +3,7 @@ import Testing
 @testable import KeepAwakeFeature
 
 @Suite struct KeepAwakeSettingsTests {
-    func fresh() -> UserDefaults {
-        let name = "keepawake-test-\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
-        d.removePersistentDomain(forName: name)
-        return d
-    }
+    func fresh() -> MemoryDefaults { MemoryDefaults() }
 
     @Test func defaultsWhenAbsent() {
         let s = KeepAwakeSettings(defaults: fresh())

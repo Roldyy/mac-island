@@ -50,6 +50,7 @@ final class FinderModel {
         tap?.stop()
         tap = nil
         tapRunning = false
+        controller.deactivate()
         controller.cancelCut()
     }
 
@@ -59,17 +60,22 @@ final class FinderModel {
         accessibility = KeyEventTap.accessibilityTrusted
         inputMonitoring = KeyEventTap.inputMonitoringGranted
         let wanted = started && (cutPasteEnabled || pasteImageAsFile)
+        controller.publish()   // the tap thread reads the settings from the snapshot
         if wanted {
             if tap == nil {
-                let t = KeyEventTap { [weak self] chord in self?.controller.handleKey(chord) ?? false }
+                let controller = self.controller
+                let t = KeyEventTap(decide: { controller.tapDecision($0) },
+                                    perform: { [weak controller] decision in controller?.perform(decision) })
                 t.onLost = { [weak self] in self?.refresh() }
                 tap = t
             }
             tapRunning = tap?.start() ?? false
+            if tapRunning { controller.activate() } else { controller.deactivate() }
         } else {
             tap?.stop()
             tap = nil
             tapRunning = false
+            controller.deactivate()
         }
         syncFromController()
         Task.detached {

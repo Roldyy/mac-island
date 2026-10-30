@@ -43,13 +43,19 @@ func mkdir(_ url: URL) -> URL {
     return url
 }
 
-/// A throwaway defaults suite whose persistent domain is removed when the handle is released.
+/// A throwaway defaults suite with a uuid-based name. The suite name is an absolute path in the temp
+/// directory, so the plist is written there and never in ~/Library/Preferences. The domain is removed
+/// and the file deleted when the handle is released.
 final class TempDefaults {
     let suite: String
     let defaults: UserDefaults
     init() {
-        suite = "finder-test-\(UUID().uuidString)"
+        suite = FileManager.default.temporaryDirectory.appendingPathComponent("finder-test-\(UUID().uuidString)").path
         defaults = UserDefaults(suiteName: suite)!
     }
-    deinit { defaults.removePersistentDomain(forName: suite) }
+    deinit {
+        defaults.removePersistentDomain(forName: suite)
+        defaults.synchronize()
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
+    }
 }

@@ -71,10 +71,25 @@ func proc(_ id: UInt32, pid: Int32, _ bundle: String, running: Bool = true) -> A
     AudioProcess(objectID: id, pid: pid, bundleID: bundle, name: "app-\(bundle)", isRunningOutput: running)
 }
 
-/// A throwaway defaults suite.
-func makeDefaults() -> UserDefaults {
-    let name = "AudioTests-\(UUID().uuidString)"
-    let d = UserDefaults(suiteName: name)!
-    d.removePersistentDomain(forName: name)
-    return d
+/// A throwaway defaults suite whose persistent domain, and plist file, are removed on deinit.
+/// Hold it in a stored property of the suite (one instance per test) so it outlives the test body.
+final class TempDefaults {
+    let suite = "AudioTests-\(UUID().uuidString)"
+    let defaults: UserDefaults
+
+    init() { defaults = UserDefaults(suiteName: suite)! }
+
+    deinit {
+        defaults.removePersistentDomain(forName: suite)
+        // cfprefsd may flush the plist after the removal: make sure no file stays behind.
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Preferences/\(suite).plist")
+        try? FileManager.default.removeItem(at: file)
+    }
+}
+
+/// A mutable boolean the model under test reads through a closure.
+final class Flag: @unchecked Sendable {
+    var value: Bool
+    init(_ value: Bool) { self.value = value }
 }

@@ -21,17 +21,17 @@ final class AppleScriptFinder: FinderScripting, @unchecked Sendable {
     private let queue = DispatchQueue(label: "mac-island.finder.applescript", qos: .userInitiated)
 
     func selection() async throws -> [URL] {
-        FinderPathParser.parseSelection(try await run(FinderScripts.selection))
+        try FinderPathParser.parseSelection(try await run(FinderScripts.selection))
     }
 
     func targetFolder() async throws -> URL {
-        guard let url = FinderPathParser.parseFolder(try await run(FinderScripts.targetFolder)) else {
+        guard let url = FinderPathParser.parseFolder(try await run(FinderScripts.targetFolder).stringValue) else {
             throw FinderScriptError.badResult
         }
         return url
     }
 
-    private func run(_ source: String) async throws -> String? {
+    private func run(_ source: String) async throws -> NSAppleEventDescriptor {
         try await withCheckedThrowingContinuation { cont in
             queue.async {
                 guard !NSRunningApplication.runningApplications(withBundleIdentifier: FinderScripts.finderBundleID).isEmpty else {
@@ -46,7 +46,7 @@ final class AppleScriptFinder: FinderScripting, @unchecked Sendable {
                     let code = (info[NSAppleScript.errorNumber] as? Int) ?? 0
                     cont.resume(throwing: Self.map(code)); return
                 }
-                cont.resume(returning: desc.stringValue)
+                cont.resume(returning: desc)
             }
         }
     }

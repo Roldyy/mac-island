@@ -1,5 +1,16 @@
 import Foundation
 
+/// The two file-system touches the monitor makes, injectable so tests can play "access denied, then granted".
+struct DownloadsFileSystem: Sendable {
+    var list: @Sendable (URL, Int, Date, inout DownloadTracker) -> DownloadsSnapshot
+    /// A descriptor for change events, or a negative number when the folder cannot be opened.
+    var openForEvents: @Sendable (String) -> Int32
+
+    static let live = DownloadsFileSystem(
+        list: { dir, limit, now, tracker in DownloadsLister.list(directory: dir, limit: limit, now: now, tracker: &tracker) },
+        openForEvents: { open($0, O_EVTONLY) })
+}
+
 /// Watches a folder with a DispatchSource and publishes snapshots on the main queue.
 /// All state lives on one serial queue. Never logs file names.
 final class DownloadsMonitor: @unchecked Sendable {
@@ -7,14 +18,17 @@ final class DownloadsMonitor: @unchecked Sendable {
     private let directory: URL
     private let limit: @Sendable () -> Int
     private let onSnapshot: @Sendable (DownloadsSnapshot) -> Void
+    private let fileSystem: DownloadsFileSystem
     private var tracker: DownloadTracker
     private var source: DispatchSourceFileSystemObject?
     private var debounce: DispatchWorkItem?
     private var started = false
 
-    init(directory: URL, settle: TimeInterval = 2, limit: @escaping @Sendable () -> Int,
+    init(directory: URL, settle: TimeInterval = 2, fileSystem: DownloadsFileSystem = .live,
+         limit: @escaping @Sendable () -> Int,
          onSnapshot: @escaping @Sendable (DownloadsSnapshot) -> Void) {
         self.directory = directory
+        self.fileSystem = fileSystem
         self.tracker = DownloadTracker(settle: settle)
         self.limit = limit
         self.onSnapshot = onSnapshot
@@ -30,6 +44,8 @@ final class DownloadsMonitor: @unchecked Sendable {
         }
     }
 
+    /// Rescans now. Also the way back from .denied / .missing: the folder watcher is attached by the
+    /// first scan that can read the folder.
     func refresh() { queue.async { [self] in scan() } }
 
     func stop() {
@@ -42,7 +58,7 @@ final class DownloadsMonitor: @unchecked Sendable {
 
     private func attach() {
         guard source == nil else { return }
-        let fd = open(directory.path, O_EVTONLY)
+        let fd = fileSystem.openForEvents(directory.path)
         guard fd >= 0 else { return }  // denied or missing: the snapshot already says so
         let src = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd, eventMask: [.write, .rename, .delete, .extend], queue: queue)
@@ -60,7 +76,7 @@ final class DownloadsMonitor: @unchecked Sendable {
     }
 
     private func scan() {
-        let snap = DownloadsLister.list(directory: directory, limit: limit(), now: Date(), tracker: &tracker)
+        let snap = fileSystem.list(directory, limit(), Date(), &tracker)
         if snap.state == .ok { attach() }
         let publish = onSnapshot
         DispatchQueue.main.async { publish(snap) }

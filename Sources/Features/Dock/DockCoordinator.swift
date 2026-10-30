@@ -24,8 +24,13 @@ final class DockCoordinator {
             switch event {
             case let .down(p):
                 // Decide on the click first: it needs the state before the Dock activates the app.
+                // The action itself waits for the mouse-up, when the Dock has handled the same click.
                 self.preview?.pointerDown()
                 self.click?.handleMouseDown(at: p)
+            case let .up(p):
+                self.click?.handleMouseUp(at: p)
+            case .dragged:
+                self.click?.cancelPending()
             case let .moved(p):
                 self.preview?.pointerMoved(p)
             }
@@ -36,6 +41,7 @@ final class DockCoordinator {
         guard isStarted else { return }
         isStarted = false
         source.stop()
+        click?.cancelPending()
         preview?.cancel()
         stopTimer()
     }

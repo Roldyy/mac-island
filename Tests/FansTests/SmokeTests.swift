@@ -3,6 +3,9 @@ import Testing
 
 @Suite struct FansSmokeTests {
     @Test @MainActor func tabHasStableIdentity() {
-        #expect(FansFeature.tab().id == "fans")
+        let tab = FansFeature.tab()
+        #expect(tab.id == "fans")
+        #expect(tab.title == "Ventilos")
+        #expect(tab.systemImage == "fan")
     }
 }

@@ -16,11 +16,12 @@ struct ShelfPane: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
                         ForEach(model.items) { item in
+                            let url = model.url(for: item)
                             FileTile(name: item.displayName,
-                                     icon: model.icon(forPath: item.path),
-                                     available: item.availability == .available,
+                                     icon: model.icon(forPath: url?.path ?? item.path),
+                                     available: url != nil,
                                      dragProvider: { model.dragProvider(for: item) },
-                                     reveal: { model.reveal(path: item.resolvedURL()?.path ?? item.path) },
+                                     reveal: { model.reveal(item) },
                                      remove: { model.remove(item) })
                         }
                     }
@@ -44,5 +45,9 @@ struct ShelfPane: View {
             model.handleDrop(providers)
         }
         .accessibilityLabel("Étagère, zone de dépôt de fichiers")
+        .onAppear { model.refreshItems() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshItems()
+        }
     }
 }

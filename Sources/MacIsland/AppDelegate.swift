@@ -30,14 +30,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DockFeature.start()
         DisplayFeature.start()
         AudioFeature.start()
+        FansFeature.start()  // read-only monitoring; manual control needs the approved helper
+        MonitorFeature.start()
+        CommandBarFeature.start()
         let island = IslandController { IslandRootView() }
+        island.openSize = CGSize(width: 720, height: 420)
         island.show()
         self.island = island
     }
 
     /// First launch only: copy the Vorssaint settings across. Never touches the source.
     private func migrateVorssaintIfNeeded() {
-        guard let defaults = UserDefaults(suiteName: Self.bundleID) else { return }
+        guard let defaults = AppDefaults.make() else { return }
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let migrator = VorssaintMigrator(
@@ -79,17 +83,23 @@ struct IslandRootView: View {
                       ? Color.red : Color.black)
             if state.isOpen {
                 VStack(spacing: 0) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        // 13 tabs do not fit with labels: icons only, the selected one shows its name.
                         ForEach(tabs) { tab in
                             Button { selected = tab.id } label: {
-                                Label(tab.title, systemImage: tab.systemImage)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .padding(.horizontal, 10).padding(.vertical, 5)
-                                    .background(selected == tab.id ? Color.white.opacity(0.16) : .clear,
-                                                in: Capsule())
+                                HStack(spacing: 5) {
+                                    Image(systemName: tab.systemImage)
+                                    if selected == tab.id { Text(tab.title) }
+                                }
+                                .font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .background(selected == tab.id ? Color.white.opacity(0.16) : .clear,
+                                            in: Capsule())
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.white.opacity(selected == tab.id ? 1 : 0.6))
+                            .help(tab.title)
+                            .accessibilityLabel(tab.title)
                         }
                         Spacer(minLength: 8)
                         ClaudeStatusPill(model: TerminalFeature.claudeStatus())  // hidden while idle
@@ -104,5 +114,8 @@ struct IslandRootView: View {
             }
         }
         .animation(.easeOut(duration: 0.18), value: state.isOpen)
+        .onChange(of: state.isOpen) { open in
+            if open { KeepAwakeFeature.noteIslandActivity() }  // honours `notchKeepAwakeActivity`
+        }
     }
 }

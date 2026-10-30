@@ -1,14 +1,21 @@
 import CoreGraphics
 import Foundation
 
-/// Counts visible windows per owner pid. Layer 0 on-screen windows only, which needs no
-/// Screen Recording permission (window titles are never read).
+/// Counts layer-0 windows per owner pid, in any state: minimized, on another Space, full screen
+/// elsewhere and windows of a hidden app all count. "On screen only" would make those apps look
+/// windowless. Needs no Screen Recording permission (window titles are never read).
 enum WindowCounter {
     static let minimumSide: Double = 8
 
-    static func currentCounts() -> [Int32: Int] {
-        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-        return counts(from: (info as? [[String: Any]]) ?? [])
+    /// Source of the window list, so the options passed to the system are testable.
+    typealias WindowLister = (CGWindowListOption, CGWindowID) -> [[String: Any]]
+
+    static let systemLister: WindowLister = { options, relativeTo in
+        (CGWindowListCopyWindowInfo(options, relativeTo) as? [[String: Any]]) ?? []
+    }
+
+    static func currentCounts(lister: WindowLister = systemLister) -> [Int32: Int] {
+        counts(from: lister([.optionAll, .excludeDesktopElements], kCGNullWindowID))
     }
 
     static func counts(from windows: [[String: Any]]) -> [Int32: Int] {

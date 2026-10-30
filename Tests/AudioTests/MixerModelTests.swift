@@ -3,16 +3,19 @@ import Testing
 @testable import AudioFeature
 
 @MainActor @Suite struct MixerModelTests {
-    func make(procs: [AudioProcess] = [], output: String? = "out1", positions: [String: Double] = [:])
+    let temp = TempDefaults()
+    func make(procs: [AudioProcess] = [], output: String? = "out1", positions: [String: Double] = [:],
+              ready: Flag = Flag(true))
         -> (MixerModel, FakeEngine, FakeAudioSystem, AudioSettings) {
         let sys = FakeAudioSystem()
         sys.processList = procs
         sys.defaults[.output] = output
         let engine = FakeEngine()
-        let d = makeDefaults()
+        let d = temp.defaults
         let settings = AudioSettings(defaults: d)
         for (k, v) in positions { settings.setPosition(v, for: k) }
-        let m = MixerModel(engine: engine, system: sys, settings: settings, ownPID: 1)
+        let m = MixerModel(engine: engine, system: sys, settings: settings, ownPID: 1,
+                           isCaptureReady: { ready.value })
         return (m, engine, sys, settings)
     }
 
@@ -68,9 +71,59 @@ import Testing
     }
 
     @Test func savedPositionAppliesWhenAppAppears() {
-        let (m, e, _, _) = make(procs: [proc(10, pid: 100, "com.a")], positions: ["com.a": 0])
+        let (m, e, _, _) = make(procs: [proc(10, pid: 100, "com.a")], positions: ["com.a": 0.5])
         m.refresh()
-        #expect(e.starts == [.init(app: "com.a", processes: [10], output: "out1", gain: 0)])
+        #expect(e.starts == [.init(app: "com.a", processes: [10], output: "out1", gain: 0.25)])
+    }
+
+    @Test func importedZeroPositionBecomesAnExplicitVisibleMutedRow() {
+        // Migrated data holds 0.0 for apps the user never muted on purpose: show it as muted.
+        let (m, e, _, s) = make(procs: [proc(10, pid: 100, "com.a", running: false)], positions: ["com.a": 0])
+        m.refresh()
+        #expect(m.apps.map(\.id) == ["com.a"])
+        #expect(m.apps.first?.isMuted == true)
+        #expect(m.apps.first?.position == 1)
+        #expect(s.mutedApps == ["com.a"])
+        #expect(s.appPositions["com.a"] == 1)
+        m.setMuted(false, for: "com.a") // one click to undo
+        #expect(m.apps.first?.isMuted == false)
+        #expect(e.live.isEmpty)
+        #expect(m.hasLiveTaps == false)
+    }
+
+    @Test func controlledAppIsListedEvenWhenSilent() {
+        let (m, _, _, _) = make(procs: [proc(10, pid: 100, "com.a", running: false),
+                                        proc(11, pid: 101, "com.b", running: false)],
+                                positions: ["com.a": 0.5])
+        m.refresh()
+        #expect(m.apps.map(\.id) == ["com.a"])
+    }
+
+    @Test func noTapAndNoPromptUntilCaptureIsReady() {
+        let ready = Flag(false)
+        let (m, e, _, _) = make(procs: [proc(10, pid: 100, "com.a")], positions: ["com.a": 0.5], ready: ready)
+        m.refresh()
+        m.setPosition(0.4, for: "com.a")
+        m.setMuted(true, for: "com.a")
+        #expect(e.starts.isEmpty)
+        #expect(m.hasLiveTaps == false)
+        #expect(m.failedTapCount == 0)
+        #expect(m.apps.map(\.id) == ["com.a"]) // the row stays, the wanted state is kept
+        ready.value = true
+        m.refresh()
+        #expect(e.starts.count == 1)
+        #expect(e.starts.first?.gain == 0)
+    }
+
+    @Test func losingCaptureReleasesLiveTaps() {
+        let ready = Flag(true)
+        let (m, e, _, _) = make(procs: [proc(10, pid: 100, "com.a")], ready: ready)
+        m.refresh()
+        m.setPosition(0.5, for: "com.a")
+        #expect(m.hasLiveTaps)
+        ready.value = false
+        m.refresh()
+        #expect(e.live.isEmpty)
     }
 
     @Test func appExitReleasesTapAndDropsRow() {

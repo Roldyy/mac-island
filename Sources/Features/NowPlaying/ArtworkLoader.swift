@@ -2,24 +2,29 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+/// Seam for the cover download, so tests can race a slow fetch against a fast one.
+protocol ArtworkLoading: Sendable {
+    func artwork(for snap: NowPlayingSnapshot) async -> Data?
+}
+
 /// Loads cover art off the main thread, caps byte size and pixel size, caches in memory.
 /// Returns PNG data of at most `maxPixels` on the long edge.
-public actor ArtworkLoader {
-    public static let maxBytes = 4 * 1024 * 1024
-    public static let maxPixels = 320
+actor ArtworkLoader: ArtworkLoading {
+    static let maxBytes = 4 * 1024 * 1024
+    static let maxPixels = 320
 
     private var cache: [String: Data] = [:]
     private var order: [String] = []
     private let limit = 24
     private let fetch: @Sendable (URL) async throws -> Data
 
-    public init(fetch: @escaping @Sendable (URL) async throws -> Data = { url in
+    init(fetch: @escaping @Sendable (URL) async throws -> Data = { url in
         try await URLSession.shared.data(from: url).0
     }) {
         self.fetch = fetch
     }
 
-    public func artwork(for snap: NowPlayingSnapshot) async -> Data? {
+    func artwork(for snap: NowPlayingSnapshot) async -> Data? {
         if let hit = cache[snap.trackKey] { return hit }
         var raw = snap.artworkData
         if raw == nil, let url = snap.artworkURL { raw = try? await fetch(url) }

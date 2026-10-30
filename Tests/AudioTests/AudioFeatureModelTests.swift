@@ -3,6 +3,7 @@ import Testing
 @testable import AudioFeature
 
 @MainActor @Suite struct AudioFeatureModelTests {
+    let temp = TempDefaults()
     func make(hasPlist: Bool = true, probe: Int32 = 0)
         -> (AudioFeatureModel, FakeAudioSystem, FakeEngine) {
         let sys = FakeAudioSystem()
@@ -10,7 +11,7 @@ import Testing
         sys.defaults[.output] = "o1"
         sys.processList = [proc(10, pid: 100, "com.a")]
         let engine = FakeEngine()
-        let m = AudioFeatureModel(system: sys, engine: engine, settings: AudioSettings(defaults: makeDefaults()),
+        let m = AudioFeatureModel(system: sys, engine: engine, settings: AudioSettings(defaults: temp.defaults),
                                   hasUsageDescription: { hasPlist }, probe: { probe })
         return (m, sys, engine)
     }
@@ -46,6 +47,7 @@ import Testing
         let (m, sys, e) = make()
         m.start()
         m.setVisible(true)
+        m.requestPermission()
         m.mixer.setPosition(0.5, for: "com.a")
         m.setVisible(false)
         sys.processList = []
@@ -57,15 +59,36 @@ import Testing
         let (m, _, e) = make()
         m.start()
         m.setVisible(true)
+        m.requestPermission()
         m.mixer.setPosition(0.5, for: "com.a")
         m.stop()
+        #expect(e.live.isEmpty)
+    }
+
+    @Test func noTapUntilTheUserGrantedCapture() {
+        let (m, _, e) = make()
+        m.start()
+        m.setVisible(true)
+        m.mixer.setPosition(0.5, for: "com.a")
+        #expect(e.live.isEmpty)
+        #expect(m.mixer.failedTapCount == 0)
+        m.requestPermission()
+        #expect(e.live == ["com.a"])
+    }
+
+    @Test func refusedPermissionKeepsTapsOff() {
+        let (m, _, e) = make(probe: -50)
+        m.start()
+        m.setVisible(true)
+        m.requestPermission()
+        m.mixer.setPosition(0.5, for: "com.a")
         #expect(e.live.isEmpty)
     }
 
     @Test func permissionNeverProbedAtLaunch() {
         var probed = 0
         let sys = FakeAudioSystem()
-        let m = AudioFeatureModel(system: sys, engine: FakeEngine(), settings: AudioSettings(defaults: makeDefaults()),
+        let m = AudioFeatureModel(system: sys, engine: FakeEngine(), settings: AudioSettings(defaults: temp.defaults),
                                   hasUsageDescription: { true }, probe: { probed += 1; return 0 })
         m.start(); m.setVisible(true)
         #expect(probed == 0)
@@ -78,7 +101,7 @@ import Testing
     @Test func requestDoesNothingWithoutBundle() {
         var probed = 0
         let m = AudioFeatureModel(system: FakeAudioSystem(), engine: FakeEngine(),
-                                  settings: AudioSettings(defaults: makeDefaults()),
+                                  settings: AudioSettings(defaults: temp.defaults),
                                   hasUsageDescription: { false }, probe: { probed += 1; return 0 })
         m.requestPermission()
         #expect(probed == 0)

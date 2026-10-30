@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import DisplayFeature
 
@@ -23,5 +24,23 @@ import Testing
     @Test func malformedEntriesAreSkipped() {
         let counts = WindowCounter.counts(from: [["kCGWindowLayer": 0], [:], win(pid: 12)])
         #expect(counts == [12: 1])
+    }
+
+    @Test func asksForAllWindowsNotOnlyOnScreenOnes() {
+        var asked: CGWindowListOption?
+        let counts = WindowCounter.currentCounts { options, _ in
+            asked = options
+            return [win(pid: 10)]
+        }
+        #expect(asked?.contains(.optionOnScreenOnly) == false)
+        #expect(asked?.contains(.excludeDesktopElements) == true)
+        #expect(counts[10] == 1)
+    }
+
+    @Test func offScreenWindowsAreCounted() {
+        // Minimized, other Space, hidden app: the system flags them not on screen.
+        var minimized = win(pid: 10)
+        minimized["kCGWindowIsOnscreen"] = false
+        #expect(WindowCounter.counts(from: [minimized])[10] == 1)
     }
 }

@@ -28,10 +28,13 @@ struct DockApp: Equatable, Sendable {
 
 enum MouseEvent: Equatable {
     case down(CGPoint)
+    case up(CGPoint)
+    /// Left button held while the pointer moves: a drag, never a click.
+    case dragged(CGPoint)
     case moved(CGPoint)
 }
 
-/// Cocoa-coordinate mouse events from outside the app. Monitoring only: clicks are never swallowed.
+/// Cocoa-coordinate mouse events from outside the app (down, up, drag, move). Monitoring only: clicks are never swallowed.
 @MainActor protocol MouseEventSource: AnyObject {
     var isRunning: Bool { get }
     func start(_ handler: @escaping (MouseEvent) -> Void)

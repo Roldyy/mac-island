@@ -3,11 +3,11 @@ import Foundation
 /// Picks the active source: playing beats paused; among playing, the one that started most
 /// recently; among paused, the one that played most recently; otherwise input order.
 /// Pure apart from the injected clock.
-public struct NowPlayingAggregator: Sendable {
-    public struct Output: Sendable {
-        public var snapshot: NowPlayingSnapshot?
+struct NowPlayingAggregator: Sendable {
+    struct Output: Sendable {
+        var snapshot: NowPlayingSnapshot?
         /// True only when nothing could be read and at least one provider was refused.
-        public var permissionDenied: Bool
+        var permissionDenied: Bool
     }
 
     private let clock: @Sendable () -> Date
@@ -15,11 +15,11 @@ public struct NowPlayingAggregator: Sendable {
     private var startedPlaying: [String: Date] = [:]
     private var lastSeenPlaying: [String: Date] = [:]
 
-    public init(clock: @escaping @Sendable () -> Date = { Date() }) {
+    init(clock: @escaping @Sendable () -> Date = { Date() }) {
         self.clock = clock
     }
 
-    public mutating func select(from snapshots: [NowPlayingSnapshot]) -> NowPlayingSnapshot? {
+    mutating func select(from snapshots: [NowPlayingSnapshot]) -> NowPlayingSnapshot? {
         let now = clock()
         var playingNow: Set<String> = []
         for s in snapshots where s.isPlaying {
@@ -42,7 +42,7 @@ public struct NowPlayingAggregator: Sendable {
         return best
     }
 
-    public static func gather(from providers: [any NowPlayingProvider]) async -> (snapshots: [NowPlayingSnapshot], denied: Bool) {
+    static func gather(from providers: [any NowPlayingProvider]) async -> (snapshots: [NowPlayingSnapshot], denied: Bool) {
         var snaps: [NowPlayingSnapshot] = []
         var denied = false
         for p in providers {
@@ -57,12 +57,12 @@ public struct NowPlayingAggregator: Sendable {
         return (snaps, denied)
     }
 
-    public mutating func resolve(_ gathered: (snapshots: [NowPlayingSnapshot], denied: Bool)) -> Output {
+    mutating func resolve(_ gathered: (snapshots: [NowPlayingSnapshot], denied: Bool)) -> Output {
         let chosen = select(from: gathered.snapshots)
         return Output(snapshot: chosen, permissionDenied: chosen == nil && gathered.denied)
     }
 
-    public mutating func current(from providers: [any NowPlayingProvider]) async -> Output {
+    mutating func current(from providers: [any NowPlayingProvider]) async -> Output {
         resolve(await Self.gather(from: providers))
     }
 }

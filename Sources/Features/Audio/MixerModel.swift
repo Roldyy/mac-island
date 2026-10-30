@@ -6,7 +6,8 @@ import os
 /// Pure logic over `AudioSystem` + `MixerEngine`.
 ///
 /// Safety rule: an app at full volume and unmuted has NO tap, so its audio is never touched. A tap
-/// exists only while the user asked for something, and every exit path (`stop`, app exit, no output
+/// exists only while the user asked for something AND capture is authorised (creating a tap is what
+/// triggers the system prompt, which may only come from the permission button), and every exit path (`stop`, app exit, no output
 /// device, device change, failure) releases it.
 @MainActor @Observable
 final class MixerModel {
@@ -40,14 +41,30 @@ final class MixerModel {
     @ObservationIgnored private var output: String?
     @ObservationIgnored private let log = Logger(subsystem: "be.roldy.macisland", category: "audio")
 
+    /// Taps start only while this says capture is authorised (`AudioPermission.ready`): creating one
+    /// is what makes the system show its capture prompt, which may only come from the button.
+    @ObservationIgnored private let isCaptureReady: () -> Bool
+
     init(engine: MixerEngine, system: AudioSystem, settings: AudioSettings,
-         ownPID: Int32 = ProcessInfo.processInfo.processIdentifier) {
+         ownPID: Int32 = ProcessInfo.processInfo.processIdentifier,
+         isCaptureReady: @escaping () -> Bool = { false }) {
+        self.isCaptureReady = isCaptureReady
         self.engine = engine
         self.system = system
         self.settings = settings
         self.ownPID = ownPID
-        positions = settings.appPositions
-        muted = settings.mutedApps
+        var positions = settings.appPositions
+        var muted = settings.mutedApps
+        // A migrated 0.0 is not a request for silence through a hidden gain-0 tap: show it as an
+        // explicit mute (visible row, one click to undo) with the slider back at full.
+        for (id, position) in positions where position <= 0 {
+            positions[id] = 1
+            muted.insert(id)
+            settings.setPosition(1, for: id)
+            settings.setMuted(true, for: id)
+        }
+        self.positions = positions
+        self.muted = muted
     }
 
     /// Re-read the process list and the default output, then reconcile taps with the wanted state.
@@ -59,7 +76,7 @@ final class MixerModel {
         }
         var next: [String: Group] = [:]
         for (id, ps) in byBundle {
-            let visible = ps.contains(where: \.isRunningOutput) || live[id] != nil
+            let visible = ps.contains(where: \.isRunningOutput) || live[id] != nil || isControlled(id)
             next[id] = Group(name: ps.first(where: \.isRunningOutput)?.name ?? ps[0].name,
                              pid: ps[0].pid, processIDs: ps.map(\.objectID).sorted(), visible: visible)
         }
@@ -115,7 +132,7 @@ final class MixerModel {
     }
 
     private func reconcile(_ id: String) {
-        guard let group = groups[id], let output, isControlled(id) else {
+        guard let group = groups[id], let output, isControlled(id), isCaptureReady() else {
             if live[id] != nil { release(id) }
             return
         }

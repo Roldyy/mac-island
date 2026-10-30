@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Packaging: copy to "Mac Island.app/Contents/Library/LaunchDaemons/be.roldy.macisland.fanhelper.plist"
+  and the FanHelper binary to "Mac Island.app/Contents/MacOS/FanHelper".
+  Sign the helper first with identifier be.roldy.macisland.fanhelper, then the app (no deep signing).
+  On demand only: no RunAtLoad, no KeepAlive. launchd starts the helper when the app connects to the
+  Mach service; the app registers it with SMAppService.daemon(plistName:) on an explicit click only.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>be.roldy.macisland.fanhelper</string>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/FanHelper</string>
+	<key>MachServices</key>
+	<dict>
+		<key>be.roldy.macisland.fanhelper</key>
+		<true/>
+	</dict>
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>be.roldy.macisland</string>
+	</array>
+</dict>
+</plist>

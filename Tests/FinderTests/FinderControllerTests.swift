@@ -10,20 +10,37 @@ final class FakeScripting: FinderScripting, @unchecked Sendable {
     func targetFolder() async throws -> URL { try lock.withLock { folderResult }.get() }
 }
 
-@MainActor
-final class FakeEnvironment: FinderEnvironment {
+final class FakeEnvironment: FinderEnvironment, @unchecked Sendable {
+    static let finderPID: Int32 = 100
     var finder = true
     var editing = false
     var editingQueries = 0
+    /// pid of the app that owns the Accessibility focus; Finder's by default.
+    var focusedPID: Int32? = FakeEnvironment.finderPID
     func isFinderFrontmost() -> Bool { finder }
-    func isTextEditing() -> Bool { editingQueries += 1; return editing }
+    func finderPID() -> Int32? { Self.finderPID }
+    func focusedApplicationPID() -> Int32? { focusedPID }
+    func isTextEditing(finderPID: Int32) -> Bool { editingQueries += 1; return editing }
 }
 
-struct FakePasteboard: PasteboardReading {
-    var hasFileURLs = false
-    var hasImage = false
-    var png: Data? = nil
+final class FakePasteboard: PasteboardReading, @unchecked Sendable {
+    var changeCount = 0
+    var hasFileURLs: Bool
+    var hasImage: Bool
+    var png: Data?
+    init(hasFileURLs: Bool = false, hasImage: Bool = false, png: Data? = nil) {
+        self.hasFileURLs = hasFileURLs; self.hasImage = hasImage; self.png = png
+    }
     func pngData() -> Data? { png }
+}
+
+/// Fails on the listed source paths, moves everything else for real.
+struct FailingMover: FileMoving {
+    var failing: Set<String>
+    func move(from: URL, to: URL) throws {
+        if failing.contains(from.path) { throw CocoaError(.fileWriteNoPermission) }
+        try FileManager.default.moveItem(at: from, to: to)
+    }
 }
 
 final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
@@ -34,10 +51,10 @@ final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v
 
     func make(_ scripting: FakeScripting, env: FakeEnvironment? = nil,
               pb: FakePasteboard = FakePasteboard(), cutOn: Bool = true, imageOn: Bool = true,
-              clock: Box<Date>? = nil) -> FinderController {
+              clock: Box<Date>? = nil, mover: FileMoving = FileManagerMover()) -> FinderController {
         let c = clock ?? Box(t0)
         return FinderController(scripting: scripting, environment: env ?? FakeEnvironment(), pasteboard: pb,
-                                settings: { (cutOn, imageOn) }, clock: { c.value }, timeZone: { .gmt })
+                                mover: mover, settings: { (cutOn, imageOn) }, clock: { c.value }, timeZone: { .gmt })
     }
     func key(_ code: Int, command: Bool = true, rep: Bool = false) -> KeyChord {
         KeyChord(keyCode: code, command: command, shift: false, option: false, control: false, isRepeat: rep)
@@ -158,6 +175,9 @@ final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v
         _ = c.handleKey(key(KeyCode.v)); await c.idle()
         #expect(c.outcome == .refused(.sameFolder))
         #expect(FileManager.default.fileExists(atPath: f.path))
+        // The cut is dropped: nothing pending, Cmd+V is Finder's again.
+        #expect(c.cutCount == 0)
+        #expect(c.decide(key(KeyCode.v)) == .pass)
     }
     @Test func missingDestinationRefused() async {
         let root = makeTempDir()
@@ -185,7 +205,7 @@ final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v
         #expect(c.outcome == .moved(items.count))
         #expect(!FileManager.default.fileExists(atPath: items[0].path))
     }
-    @Test func partialFailureKeepsFailedItemsCut() async {
+    @Test func partialFailureDropsASourceThatNoLongerExists() async {
         let root = makeTempDir()
         let ok = touch(root.appendingPathComponent("s/ok.txt"))
         let ghost = root.appendingPathComponent("s/ghost.txt")
@@ -195,6 +215,80 @@ final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v
         _ = c.handleKey(key(KeyCode.x)); await c.idle()
         _ = c.handleKey(key(KeyCode.v)); await c.idle()
         #expect(c.outcome == .movedPartial(moved: 1, failed: 1))
+        // The deleted source is not re-marked: Cmd+V is no longer swallowed for nothing.
+        #expect(c.cutCount == 0)
+        #expect(c.decide(key(KeyCode.v)) == .pass)
+    }
+    @Test func failedSourceThatStillExistsStaysCutWithoutAFreshTimer() async {
+        let root = makeTempDir()
+        let ok = touch(root.appendingPathComponent("s/ok.txt"))
+        let stuck = touch(root.appendingPathComponent("s/stuck.txt"))
+        let dest = mkdir(root.appendingPathComponent("d"))
+        let clock = Box(t0)
+        let sc = FakeScripting(); sc.selectionResult = .success([ok, stuck]); sc.folderResult = .success(dest)
+        let c = make(sc, clock: clock, mover: FailingMover(failing: [stuck.path]))
+        _ = c.handleKey(key(KeyCode.x)); await c.idle()
+        clock.value = t0.addingTimeInterval(100)
+        _ = c.handleKey(key(KeyCode.v)); await c.idle()
+        #expect(c.outcome == .movedPartial(moved: 1, failed: 1))
+        #expect(c.cutCount == 1)
+        #expect(c.decide(key(KeyCode.v)) == .swallowPasteMove)
+        // 121 s after the original Cmd+X: the retry did not earn another 120 s.
+        clock.value = t0.addingTimeInterval(PendingCut.lifetime + 1)
+        #expect(c.cutCount == 0)
+        #expect(c.decide(key(KeyCode.v)) == .pass)
+    }
+    @Test func copyingSomethingElseDropsTheCut() async {
+        let root = makeTempDir()
+        let a = touch(root.appendingPathComponent("s/a.txt"))
+        let dest = mkdir(root.appendingPathComponent("d"))
+        let pb = FakePasteboard(); pb.changeCount = 1
+        let sc = FakeScripting(); sc.selectionResult = .success([a]); sc.folderResult = .success(dest)
+        let c = make(sc, pb: pb)
+        _ = c.handleKey(key(KeyCode.x)); await c.idle()
+        #expect(c.cutCount == 1)
+        pb.changeCount = 2      // file B copied from the menu or another app
+        #expect(c.cutCount == 0)
+        #expect(c.decide(key(KeyCode.v)) == .pass)
+        #expect(!c.handleKey(key(KeyCode.v)))
+        await c.idle()
+        #expect(FileManager.default.fileExists(atPath: a.path))   // A was never moved
+    }
+    @Test func unchangedPasteboardKeepsTheCut() async {
+        let pb = FakePasteboard(); pb.changeCount = 4
+        let sc = FakeScripting(); sc.selectionResult = .success([URL(fileURLWithPath: "/a/1")])
+        let c = make(sc, pb: pb)
+        _ = c.handleKey(key(KeyCode.x)); await c.idle()
+        #expect(c.decide(key(KeyCode.v)) == .swallowPasteMove)
+    }
+    @Test func focusOutsideFinderPassesTheKeys() async {
+        let sc = FakeScripting(); sc.selectionResult = .success([URL(fileURLWithPath: "/a/1")])
+        let env = FakeEnvironment()
+        let c = make(sc, env: env)
+        _ = c.handleKey(key(KeyCode.x)); await c.idle()
+        env.editingQueries = 0
+        env.focusedPID = 200            // a panel of another app owns the keyboard, Finder is still frontmost
+        #expect(c.decide(key(KeyCode.x)) == .pass)
+        #expect(c.decide(key(KeyCode.v)) == .pass)
+        env.focusedPID = nil
+        #expect(c.decide(key(KeyCode.v)) == .pass)
+        #expect(env.editingQueries == 0)
+        env.focusedPID = FakeEnvironment.finderPID
+        #expect(c.decide(key(KeyCode.v)) == .swallowPasteMove)
+    }
+    @Test func focusLeavingFinderBeforeThePasteRunsMovesNothing() async {
+        let root = makeTempDir()
+        let f = touch(root.appendingPathComponent("s/a.txt"))
+        let dest = mkdir(root.appendingPathComponent("d"))
+        let sc = FakeScripting(); sc.selectionResult = .success([f]); sc.folderResult = .success(dest)
+        let env = FakeEnvironment()
+        let c = make(sc, env: env)
+        _ = c.handleKey(key(KeyCode.x)); await c.idle()
+        #expect(c.handleKey(key(KeyCode.v)))     // decided while Finder owned the keyboard
+        env.focusedPID = 200                      // Cmd+Tab lands before the queued paste runs
+        await c.idle()
+        #expect(FileManager.default.fileExists(atPath: f.path))
+        #expect(c.outcome == .cutMarked(1))
         #expect(c.cutCount == 1)
     }
     @Test func statusLines() {

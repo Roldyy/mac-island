@@ -9,7 +9,13 @@ final class TempDefaults {
         suite = "display-test-\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suite)!
     }
-    deinit { defaults.removePersistentDomain(forName: suite) }
+    deinit {
+        defaults.removePersistentDomain(forName: suite)
+        // cfprefsd may flush the plist after the removal: make sure no file stays behind.
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Preferences/\(suite).plist")
+        try? FileManager.default.removeItem(at: file)
+    }
 }
 
 /// Scripted brightness backend: records every write, never touches a real display.

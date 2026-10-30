@@ -4,14 +4,13 @@ import Testing
 
 @MainActor
 @Suite struct ModelTests {
-    private func defaults() -> UserDefaults {
-        let d = UserDefaults(suiteName: "np-test-\(UUID().uuidString)")!
-        return d
-    }
+    private func defaults() -> MemoryFlags { MemoryFlags() }
 
-    private func model(_ providers: [any NowPlayingProvider], defaults: UserDefaults) -> NowPlayingModel {
+    private func model(_ providers: [any NowPlayingProvider], defaults: MemoryFlags,
+                       artwork: (any ArtworkLoading)? = nil,
+                       artworkTimeout: Duration = .seconds(5)) -> NowPlayingModel {
         NowPlayingModel(providers: providers, defaults: defaults, interval: .milliseconds(10),
-                        transport: nil, artwork: nil)
+                        transport: nil, artwork: artwork, artworkTimeout: artworkTimeout)
     }
 
     @Test func noQueryBeforeAuthorization() async throws {
@@ -68,5 +67,51 @@ import Testing
         let n = p.calls.get()
         try await Task.sleep(for: .milliseconds(80))
         #expect(p.calls.get() == n)
+    }
+
+    @Test func slowEarlierCoverNeverOverwritesTheNewTrack() async throws {
+        let p = FakeProvider("a", .success(snap("a", title: "slow", playing: true)))
+        let loader = FakeLoader(delays: ["slow": .milliseconds(200)])
+        let m = model([p], defaults: defaults(), artwork: loader)
+        let first = Task { await m.poll() }
+        try await Task.sleep(for: .milliseconds(30))   // the slow fetch is in flight
+        p.result.set(.success(snap("a", title: "fast", playing: true)))
+        await m.poll()
+        await first.value
+        #expect(await eventually { m.artwork == Data("fast".utf8) })
+        try await Task.sleep(for: .milliseconds(300))  // the slow one finishes now
+        #expect(m.artwork == Data("fast".utf8))
+    }
+
+    @Test func pollDoesNotWaitForTheCoverDownload() async {
+        let p = FakeProvider("a", .success(snap("a", title: "hang", playing: true)))
+        let loader = FakeLoader(delays: ["hang": .seconds(30)])
+        let m = model([p], defaults: defaults(), artwork: loader, artworkTimeout: .milliseconds(100))
+        let start = ContinuousClock.now
+        await m.poll()
+        #expect(ContinuousClock.now - start < .seconds(1))
+        #expect(m.snapshot?.title == "hang")
+        #expect(m.artwork == nil)
+    }
+
+    @Test func hungCoverTimesOutAndTheNextTrackStillGetsItsCover() async {
+        let p = FakeProvider("a", .success(snap("a", title: "hang", playing: true)))
+        let loader = FakeLoader(delays: ["hang": .seconds(30)])
+        let m = model([p], defaults: defaults(), artwork: loader, artworkTimeout: .milliseconds(100))
+        await m.poll()
+        p.result.set(.success(snap("a", title: "next", playing: true)))
+        await m.poll()
+        #expect(await eventually { m.artwork == Data("next".utf8) })
+    }
+
+    @Test func coverIsClearedWhenTheTrackChanges() async {
+        let p = FakeProvider("a", .success(snap("a", title: "one", playing: true)))
+        let loader = FakeLoader(delays: ["two": .seconds(30)])
+        let m = model([p], defaults: defaults(), artwork: loader, artworkTimeout: .seconds(5))
+        await m.poll()
+        #expect(await eventually { m.artwork == Data("one".utf8) })
+        p.result.set(.success(snap("a", title: "two", playing: true)))
+        await m.poll()
+        #expect(m.artwork == nil)   // never the previous track's cover
     }
 }

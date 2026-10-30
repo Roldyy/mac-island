@@ -3,8 +3,9 @@ import Testing
 @testable import AudioFeature
 
 @Suite struct AudioSettingsTests {
+    let temp = TempDefaults()
     @Test func positionsAreReadAsIsWhenFlagged() {
-        let d = makeDefaults()
+        let d = temp.defaults
         d.set(["com.example.a": 0.5, "com.example.b": 0.0], forKey: "appVolumes")
         d.set(true, forKey: "appVolumesArePositions")
         let s = AudioSettings(defaults: d)
@@ -12,14 +13,14 @@ import Testing
     }
 
     @Test func linearGainsAreConvertedToPositionsWhenNotFlagged() {
-        let d = makeDefaults()
+        let d = temp.defaults
         d.set(["com.example.a": 0.25], forKey: "appVolumes")
         let s = AudioSettings(defaults: d)
         #expect(abs((s.appPositions["com.example.a"] ?? -1) - 0.5) < 1e-9)
     }
 
     @Test func valuesAreClampedAndNonNumbersDropped() {
-        let d = makeDefaults()
+        let d = temp.defaults
         d.set(["a": 5.0, "b": -2.0, "c": "loud"] as [String: Any], forKey: "appVolumes")
         d.set(true, forKey: "appVolumesArePositions")
         let s = AudioSettings(defaults: d)
@@ -27,7 +28,7 @@ import Testing
     }
 
     @Test func unknownShapeStartsEmpty() {
-        let d = makeDefaults()
+        let d = temp.defaults
         d.set(["x", "y"], forKey: "appVolumes")
         d.set("nope", forKey: "audioPriorityOutputUIDs")
         d.set(42, forKey: "audioPriorityInputUIDs")
@@ -40,14 +41,14 @@ import Testing
     }
 
     @Test func priorityDropsNonStringsAndDuplicates() {
-        let d = makeDefaults()
+        let d = temp.defaults
         d.set(["a", 3, "b", "a", ""] as [Any], forKey: "audioPriorityOutputUIDs")
         let s = AudioSettings(defaults: d)
         #expect(s.priority(for: .output) == ["a", "b"])
     }
 
     @Test func saveRoundTripsAndFlagsPositions() {
-        let d = makeDefaults()
+        let d = temp.defaults
         let s = AudioSettings(defaults: d)
         s.setPosition(0.3, for: "com.example.a")
         s.setPriority(["u1", "u2"], for: .input)

@@ -24,6 +24,13 @@ final class FakeJiggler: MouseJiggling, @unchecked Sendable {
     func jiggle() { count += 1 }
 }
 
+/// In-memory preferences: nothing is ever written to ~/Library/Preferences.
+final class MemoryDefaults: KeyValueReading {
+    private var values: [String: Any] = [:]
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { values[key] = value }
+}
+
 final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
 
 @MainActor
@@ -33,13 +40,11 @@ struct Rig {
     let now = Box(Date(timeIntervalSince1970: 1_000_000))
     let idle = Box<TimeInterval>(0)
     let trusted = Box(true)
-    let defaults: UserDefaults
+    let defaults = MemoryDefaults()
     let controller: KeepAwakeController
 
-    init(display: Bool = false, jiggle: Bool = false, activity: Bool = true, intervalMinutes: Int = 1) {
-        let name = "ka-ctrl-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
+    init(display: Bool = false, jiggle: Bool = false, activity: Bool = true, intervalMinutes: Int = 1,
+         runsLoop: Bool = false) {
         defaults.set(display, forKey: KeepAwakeSettings.preventDisplaySleepKey)
         defaults.set(jiggle, forKey: "keepAwakeMouseJiggleEnabled")
         defaults.set(intervalMinutes, forKey: "keepAwakeMouseJiggleIntervalMinutes")
@@ -49,7 +54,7 @@ struct Rig {
             power: power, jiggler: jig,
             settings: KeepAwakeSettings(defaults: defaults),
             clock: { n.value }, idleSeconds: { i.value }, accessibilityTrusted: { t.value },
-            runsLoop: false)
+            runsLoop: runsLoop, tickInterval: .milliseconds(10))
     }
 }
 
@@ -111,10 +116,8 @@ struct Rig {
     @Test func deinitReleasesEverything() {
         let power = FakePower()
         do {
-            let name = "ka-deinit-\(UUID().uuidString)"
-            let d = UserDefaults(suiteName: name)!
             let c = KeepAwakeController(
-                power: power, jiggler: FakeJiggler(), settings: KeepAwakeSettings(defaults: d),
+                power: power, jiggler: FakeJiggler(), settings: KeepAwakeSettings(defaults: MemoryDefaults()),
                 clock: { Date() }, idleSeconds: { 0 }, accessibilityTrusted: { true }, runsLoop: false)
             c.start(duration: nil)
             #expect(power.live.count == 1)
@@ -179,4 +182,42 @@ struct Rig {
         r.controller.noteIslandActivity()
         #expect(r.power.created.isEmpty)
     }
+
+    // The real path: the loop task ticks by itself, nobody calls tick().
+
+    @Test func loopReleasesTheActivityAssertionByItself() async {
+        let r = Rig(activity: true, runsLoop: true)
+        r.controller.noteIslandActivity()
+        #expect(r.power.live.count == 1)
+        r.now.value = r.now.value.addingTimeInterval(KeepAwakeController.activityHold + 1)
+        #expect(await eventually { r.power.live.isEmpty })
+    }
+
+    @Test func loopEndsAnExpiredSessionAndJiggles() async {
+        let r = Rig(jiggle: true, intervalMinutes: 1, runsLoop: true)
+        r.idle.value = 600
+        r.controller.start(duration: 1800)
+        #expect(await eventually { r.jig.count >= 1 })
+        r.now.value = r.now.value.addingTimeInterval(1800)
+        #expect(await eventually { !r.controller.isActive })
+        #expect(r.power.live.isEmpty)
+    }
+
+    @Test func noLoopMeansNoSelfTick() async {
+        let r = Rig(activity: true, runsLoop: false)
+        r.controller.noteIslandActivity()
+        r.now.value = r.now.value.addingTimeInterval(KeepAwakeController.activityHold + 1)
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(r.power.live.count == 1)
+    }
+}
+
+@MainActor
+private func eventually(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+    let end = Date().addingTimeInterval(timeout)
+    while Date() < end {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return condition()
 }

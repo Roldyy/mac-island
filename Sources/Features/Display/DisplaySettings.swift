@@ -1,3 +1,4 @@
+import IslandKit
 import Foundation
 
 /// Reads and writes the preference keys of the Display lane in the app's defaults suite.
@@ -20,7 +21,7 @@ struct DisplaySettings {
 
     var defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: DisplaySettings.suiteName) ?? .standard) {
+    init(defaults: UserDefaults = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 

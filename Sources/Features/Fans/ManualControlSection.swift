@@ -1,0 +1,124 @@
+import FanShared
+import SwiftUI
+
+/// Manual control, visually separated from monitoring. The sliders and the return button are
+/// disabled unless the helper is approved and reachable; the install and approval buttons stay
+/// usable because they are how the user gets there.
+struct ManualControlSection: View {
+    let model: FansModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Contrôle manuel")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            HelperStatusRow(model: model)
+
+            Label("""
+                Forcer les ventilateurs court-circuite la régulation de macOS. Retour automatique \
+                si l'app quitte, si l'onglet se ferme, sans signal pendant 8 s ou au-delà de 95 °C.
+                """, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.yellow)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(model.readings) { reading in
+                    if let range = model.range(for: reading.index) {
+                        FanSliderRow(model: model, fan: reading.index, range: range)
+                    }
+                }
+            }
+            .disabled(!model.manualAvailable)
+            .opacity(model.manualAvailable ? 1 : 0.4)
+
+            Button {
+                Task { await model.returnToAutomatic() }
+            } label: {
+                Label("Retour automatique", systemImage: "arrow.uturn.backward.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(.green)
+            .disabled(!model.helperReachable)
+            .accessibilityHint("Rend le contrôle des ventilateurs à macOS")
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.yellow.opacity(0.35)))
+    }
+}
+
+/// The slider edits a local value; the model only sees it when the drag ends, so one gesture is
+/// one helper request (the helper rate-limits anyway).
+struct FanSliderRow: View {
+    let model: FansModel
+    let fan: Int
+    let range: ClosedRange<Double>
+    @State private var value = 0.0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Ventilateur \(fan + 1)")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(FanFormat.rpm(value))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            Slider(value: $value, in: range) { editing in
+                guard !editing else { return }
+                model.targets[fan] = value
+                Task { await model.commitTarget(fan: fan) }
+            }
+            .accessibilityLabel("Vitesse cible du ventilateur \(fan + 1)")
+            .accessibilityValue(FanFormat.spoken(value))
+        }
+        .onAppear { value = model.targets[fan] ?? range.lowerBound }
+        .onChange(of: model.targets[fan]) { _, newValue in
+            if let newValue { value = newValue }
+        }
+    }
+}
+
+struct HelperStatusRow: View {
+    let model: FansModel
+
+    var body: some View {
+        switch model.installStatus {
+        case .notRegistered:
+            HStack {
+                Text("Helper non installé. L'installation demande ensuite votre accord d'administrateur.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                Spacer()
+                Button("Installer le helper") { model.installHelper() }
+                    .controlSize(.small)
+            }
+        case .requiresApproval:
+            HStack {
+                Text("En attente de votre accord : Réglages Système > Général > Ouverture.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                Spacer()
+                Button("Ouvrir les Réglages") { model.openLoginItems() }
+                    .controlSize(.small)
+            }
+        case .enabled:
+            Label(model.helperReachable ? "Helper prêt." : "Helper approuvé mais injoignable.",
+                  systemImage: model.helperReachable ? "checkmark.shield" : "exclamationmark.shield")
+                .font(.caption)
+                .foregroundStyle(model.helperReachable ? Color.green : Color.orange)
+        case .notFound:
+            Label("Helper absent de cette version de l'app : contrôle manuel indisponible.",
+                  systemImage: "xmark.shield")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+        }
+    }
+}

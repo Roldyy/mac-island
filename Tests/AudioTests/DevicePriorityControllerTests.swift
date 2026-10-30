@@ -3,13 +3,14 @@ import Testing
 @testable import AudioFeature
 
 @MainActor @Suite struct DevicePriorityControllerTests {
+    let temp = TempDefaults()
     func make(priority: [String] = ["a", "b", "c"], current: String? = "c",
               devices: [AudioDeviceInfo] = [out("b"), out("c")])
         -> (DevicePriorityController, FakeAudioSystem, MutableClock, AudioSettings) {
         let sys = FakeAudioSystem()
         sys.deviceList = devices
         sys.defaults[.output] = current
-        let settings = AudioSettings(defaults: makeDefaults())
+        let settings = AudioSettings(defaults: temp.defaults)
         settings.setPriority(priority, for: .output)
         let clock = MutableClock()
         let c = DevicePriorityController(system: sys, settings: settings, now: { clock.date }, manualGrace: 10)
@@ -60,10 +61,52 @@ import Testing
         clock.advance(3)
         sys.emit(.devicesChanged)
         #expect(sys.setCalls.count == 1)
-        // Later device event: priority applies again.
+        // A real device appearing later is a new situation: priority applies again.
         clock.advance(20)
+        sys.deviceList.append(out("z"))
         sys.emit(.devicesChanged)
         #expect(sys.setCalls.map(\.uid) == ["a", "a"])
+    }
+
+    @Test func manualPickSurvivesDeviceEventsWhenTheDeviceSetIsUnchanged() {
+        let (c, sys, clock, _) = make(current: "b", devices: [out("a"), out("b"), out("c")])
+        c.start()
+        sys.defaults[.output] = "c" // the user picks c by hand
+        sys.emit(.defaultChanged(.output))
+        clock.advance(120) // well past the grace
+        sys.emit(.devicesChanged) // e.g. a volume change elsewhere re-lists the same devices
+        sys.emit(.devicesChanged)
+        #expect(sys.setCalls.map(\.uid) == ["a"])
+        #expect(sys.defaults[.output] == "c")
+    }
+
+    @Test func theMixersPrivateAggregateAppearingIsNotADeviceChange() {
+        let (c, sys, clock, _) = make(current: "b", devices: [out("a"), out("b"), out("c")])
+        c.start()
+        sys.defaults[.output] = "c"
+        sys.emit(.defaultChanged(.output))
+        clock.advance(120)
+        sys.deviceList.append(out(CoreAudioSystem.aggregatePrefix + "1234"))
+        sys.emit(.devicesChanged)
+        sys.deviceList.removeLast()
+        sys.emit(.devicesChanged)
+        #expect(sys.setCalls.map(\.uid) == ["a"])
+        #expect(sys.defaults[.output] == "c")
+    }
+
+    @Test func onlyTheDirectionWhoseDeviceSetChangedIsReevaluated() {
+        let (c, sys, clock, _) = make(priority: ["a", "c"], current: "a", devices: [out("a"), out("c"), inp("i1")])
+        c.setPriority(["i2", "i1"], for: .input)
+        sys.defaults[.input] = "i1"
+        c.start()
+        sys.defaults[.output] = "c" // the user picks c by hand
+        sys.emit(.defaultChanged(.output))
+        clock.advance(120)
+        sys.deviceList.append(inp("i2")) // an input appeared: output has nothing new to decide
+        sys.emit(.devicesChanged)
+        #expect(sys.setCalls.filter { $0.direction == .output }.isEmpty)
+        #expect(sys.setCalls.last?.uid == "i2")
+        #expect(sys.defaults[.output] == "c")
     }
 
     @Test func ownChangeEchoIsNotTreatedAsManual() {

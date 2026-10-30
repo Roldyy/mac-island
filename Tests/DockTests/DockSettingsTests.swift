@@ -2,13 +2,10 @@ import Foundation
 import Testing
 @testable import DockFeature
 
-@Suite struct DockSettingsTests {
-    func fresh() -> UserDefaults {
-        let name = "dock-test-\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
-        d.removePersistentDomain(forName: name)
-        return d
-    }
+@Suite final class DockSettingsTests {
+    /// Kept until the suite instance dies, so each domain is removed after its test.
+    private var made: [TempDefaults] = []
+    func fresh() -> UserDefaults { let t = TempDefaults(); made.append(t); return t.defaults }
 
     @Test func defaultsWhenAbsentAreOptIn() {
         let s = DockSettings(defaults: fresh())

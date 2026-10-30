@@ -19,6 +19,9 @@ final class DevicePriorityController {
     @ObservationIgnored private let manualGrace: TimeInterval
     @ObservationIgnored private var lastManualChange: [AudioDirection: Date] = [:]
     @ObservationIgnored private var pendingOwn: [AudioDirection: String] = [:]
+    /// Real device UIDs per direction at the last evaluation. A device event re-applies the priority
+    /// list only when this set changes, so a hand-picked device is kept until a device comes or goes.
+    @ObservationIgnored private var knownDevices: [AudioDirection: Set<String>] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "be.roldy.macisland", category: "audio")
 
     init(system: AudioSystem, settings: AudioSettings,
@@ -56,6 +59,7 @@ final class DevicePriorityController {
         isRunning = false
         system.stopListening()
         pendingOwn.removeAll()
+        knownDevices.removeAll()
     }
 
     func handle(_ event: AudioSystemEvent) {
@@ -63,8 +67,9 @@ final class DevicePriorityController {
         switch event {
         case .devicesChanged:
             rememberNames()
-            evaluate(.output)
-            evaluate(.input)
+            for direction in AudioDirection.allCases where realUIDs(direction) != knownDevices[direction] {
+                evaluate(direction)
+            }
         case .defaultChanged(let direction):
             if let own = pendingOwn[direction], own == system.defaultDeviceUID(direction) {
                 pendingOwn[direction] = nil // the echo of our own change
@@ -79,10 +84,18 @@ final class DevicePriorityController {
         onEvent?(event)
     }
 
+    /// UIDs of the devices that exist for `direction`, without the mixer's own private aggregates
+    /// (they appear and vanish with every tap and are not a device the user plugged).
+    private func realUIDs(_ direction: AudioDirection) -> Set<String> {
+        Set(system.devices().filter { $0.supports(direction) && !$0.uid.hasPrefix(CoreAudioSystem.aggregatePrefix) }
+            .map(\.uid))
+    }
+
     private func evaluate(_ direction: AudioDirection) {
-        let available = system.devices().filter { $0.supports(direction) }.map(\.uid)
+        let available = realUIDs(direction)
+        knownDevices[direction] = available
         guard let target = DevicePriorityResolver.resolve(
-            available: available, priority: priority(for: direction),
+            available: Array(available), priority: priority(for: direction),
             current: system.defaultDeviceUID(direction),
             lastManualChange: lastManualChange[direction], now: now(), grace: manualGrace
         ) else { return }

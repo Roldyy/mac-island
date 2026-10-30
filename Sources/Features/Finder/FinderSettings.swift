@@ -1,3 +1,4 @@
+import IslandKit
 import Foundation
 
 /// The two migrated keys (names found in the old app's defaults), read and written in the suite.
@@ -10,7 +11,7 @@ final class FinderSettings {
 
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: FinderSettings.suiteName) ?? .standard) {
+    init(defaults: UserDefaults = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 

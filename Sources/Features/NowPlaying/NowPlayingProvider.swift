@@ -1,6 +1,6 @@
 import Foundation
 
-public enum NowPlayingError: Error, Equatable, Sendable {
+enum NowPlayingError: Error, Equatable, Sendable {
     /// Automation permission refused (AppleScript error -1743).
     case permissionDenied
     /// Player is open but has no current track (AppleScript error -1728).
@@ -19,7 +19,7 @@ public enum NowPlayingError: Error, Equatable, Sendable {
 
 /// A source of now-playing information. `snapshot()` returns nil when the source has nothing
 /// to report (app not running, stopped). It must never launch the app it observes.
-public protocol NowPlayingProvider: Sendable {
+protocol NowPlayingProvider: Sendable {
     var bundleID: String { get }
     func snapshot() async throws -> NowPlayingSnapshot?
 }

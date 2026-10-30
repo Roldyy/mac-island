@@ -24,7 +24,7 @@ enum AutoQuitPlanner {
                   let bundle = app.bundleID,
                   !AutoQuitConfig.builtInExclusions.contains(bundle),
                   !config.userExclusions.contains(bundle),
-                  !app.isFrontmost, !app.isPlayingAudio, app.windowCount == 0,
+                  !app.isFrontmost, !app.isHidden, !app.isPlayingAudio, app.windowCount == 0,
                   let last = lastActive[app.pid] else { return false }
             return now.timeIntervalSince(last) >= config.delay
         }

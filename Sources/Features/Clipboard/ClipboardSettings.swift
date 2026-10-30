@@ -1,3 +1,4 @@
+import IslandKit
 import Foundation
 
 /// Reads the migrated preference keys (old names kept) from the app's defaults suite.
@@ -10,7 +11,7 @@ struct ClipboardSettings {
 
     let defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: ClipboardSettings.suiteName) ?? .standard) {
+    init(defaults: UserDefaults = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 

@@ -1,17 +1,26 @@
+import IslandKit
 import Foundation
+
+/// Read side of the preferences store. UserDefaults in the app, an in-memory fake in tests, so a
+/// test never writes a plist into ~/Library/Preferences.
+protocol KeyValueReading {
+    func object(forKey key: String) -> Any?
+}
+
+extension UserDefaults: KeyValueReading {}
 
 /// Reads the migrated preference keys (old names kept) from the app's defaults suite.
 /// Observed in the old app's domain: keepAwakeMouseJiggleEnabled, keepAwakeMouseJiggleIntervalMinutes,
-/// notchKeepAwakeActivity (carried by the "notch" prefix), clamshellPreferred and defaultDurationMinutes
-/// (both outside the key map's prefixes: not migrated, absent means the default below).
+/// notchKeepAwakeActivity, clamshellPreferred and defaultDurationMinutes. All of them are migrated now;
+/// an absent key means the default below.
 struct KeepAwakeSettings {
     static let suiteName = "be.roldy.macisland"
     /// New key (not migrated): also keep the display awake. The old keepAwakeExternalDisplay is unexplained, so unused.
     static let preventDisplaySleepKey = "keepAwakePreventDisplaySleep"
 
-    let defaults: UserDefaults
+    let defaults: any KeyValueReading
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: KeepAwakeSettings.suiteName) ?? .standard) {
+    init(defaults: any KeyValueReading = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 

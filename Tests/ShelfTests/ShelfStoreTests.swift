@@ -51,7 +51,7 @@ import Testing
         #expect(ShelfItems.remove(UUID(), from: [a, b]) == [a, b])
     }
 
-    @Test func availabilityNeverCrashesAndFollowsNoLinks() throws {
+    @Test func availabilityNeverCrashes() throws {
         let dir = makeTempDir()
         let file = makeFile("a.txt", in: dir)
         let item = ShelfItem(path: file.path, bookmark: nil, addedAt: .now)
@@ -60,6 +60,60 @@ import Testing
         #expect(item.availability == .missing)
         #expect(item.resolvedURL() == nil)
         #expect(ShelfItem(path: "", bookmark: nil, addedAt: .now).availability == .missing)
+    }
+
+    @Test func shelfStoresTheSymlinkItselfNeverTheTargetContents() throws {
+        let dir = makeTempDir()
+        let target = makeFile("target.txt", in: dir, bytes: 4096)
+        let link = dir.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let items = ShelfItems.add([link], to: [], now: .now) { _ in Data([7]) }
+        let item = try #require(items.first)
+        #expect(item.path == link.standardizedFileURL.path)
+        #expect(item.bookmark == nil)
+        #expect(item.displayName == "link.txt")
+        // the stored JSON carries the path only, nothing of the target
+        let store = ShelfStore(directory: makeTempDir())
+        try store.save(items)
+        let raw = try Data(contentsOf: store.fileURL)
+        #expect(raw.count < 1024)
+        // removing the target leaves the link itself present (lstat), still never followed
+        try FileManager.default.removeItem(at: target)
+        #expect(item.availability == .available)
+        #expect(ShelfFileCheck.isSymlink(item.path))
+    }
+
+    @Test func movedFileStaysAvailableThroughItsBookmark() throws {
+        let dir = makeTempDir()
+        let file = makeFile("a.txt", in: dir)
+        let item = ShelfItem(path: file.path, bookmark: ShelfItem.makeBookmark(file), addedAt: .now)
+        try FileManager.default.moveItem(at: file, to: dir.appendingPathComponent("b.txt"))
+        #expect(item.availability == .available)
+        let resolved = try #require(item.resolve())
+        #expect(resolved.url.lastPathComponent == "b.txt")
+        #expect(resolved.item.path.hasSuffix("/b.txt"))
+        #expect(resolved.item.displayName == "b.txt")
+        #expect(resolved.item.id == item.id)
+    }
+
+    @Test func newFileAtTheOldPathIsNeverPassedOffAsTheShelvedOne() throws {
+        let dir = makeTempDir()
+        let file = makeFile("a.txt", in: dir, bytes: 4)
+        let item = ShelfItem(path: file.path, bookmark: ShelfItem.makeBookmark(file), addedAt: .now)
+        try FileManager.default.moveItem(at: file, to: dir.appendingPathComponent("b.txt"))
+        makeFile("a.txt", in: dir, bytes: 99)
+        // one answer for every consumer: tile state, icon, reveal and drag
+        #expect(item.resolve() == nil)
+        #expect(item.resolvedURL() == nil)
+        #expect(item.availability == .missing)
+    }
+
+    @Test func stalePathIsKeptWhenBookmarkAgrees() throws {
+        let dir = makeTempDir()
+        let file = makeFile("a.txt", in: dir)
+        let item = ShelfItem(path: file.standardizedFileURL.path, bookmark: ShelfItem.makeBookmark(file), addedAt: .now)
+        let resolved = try #require(item.resolve())
+        #expect(resolved.item == item)
     }
 
     @Test func bookmarkFollowsRenamedFile() throws {

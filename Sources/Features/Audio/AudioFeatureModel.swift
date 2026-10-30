@@ -20,6 +20,7 @@ final class AudioFeatureModel {
     let deviceNames: () -> [String: String]
 
     @ObservationIgnored private let system: AudioSystem
+    @ObservationIgnored private let gate: CaptureGate
     @ObservationIgnored private let hasUsageDescription: () -> Bool
     @ObservationIgnored private let probe: () -> Int32
     @ObservationIgnored private var probeResult: Int32?
@@ -29,11 +30,14 @@ final class AudioFeatureModel {
 
     init(system: AudioSystem, engine: MixerEngine, settings: AudioSettings,
          hasUsageDescription: @escaping () -> Bool = { AudioPermissionProbe.hasUsageDescription },
-         probe: @escaping () -> Int32 = { AudioPermissionProbe.probe() }) {
+         probe: @escaping () -> Int32 = { AudioPermissionProbe.probe() },
+         gate: CaptureGate = CaptureGate()) {
         self.system = system
+        self.gate = gate
         self.hasUsageDescription = hasUsageDescription
         self.probe = probe
-        mixer = MixerModel(engine: engine, system: system, settings: settings)
+        mixer = MixerModel(engine: engine, system: system, settings: settings,
+                           isCaptureReady: { gate.isReady })
         priority = DevicePriorityController(system: system, settings: settings)
         permission = AudioPermission.resolve(hasUsageDescription: hasUsageDescription(), probe: nil)
         deviceNames = { settings.deviceNames }
@@ -41,7 +45,9 @@ final class AudioFeatureModel {
     }
 
     static func live() -> AudioFeatureModel {
-        AudioFeatureModel(system: CoreAudioSystem(), engine: CoreAudioMixerEngine(), settings: .standard())
+        let gate = CaptureGate()
+        return AudioFeatureModel(system: CoreAudioSystem(), engine: CoreAudioMixerEngine(gate: gate),
+                                 settings: .standard(), gate: gate)
     }
 
     /// Idempotent.
@@ -91,6 +97,7 @@ final class AudioFeatureModel {
         guard permission.canRequest else { return }
         probeResult = probe()
         permission = AudioPermission.resolve(hasUsageDescription: hasUsageDescription(), probe: probeResult)
+        gate.isReady = permission == .ready
         log.info("permission probe done")
         if isVisible { mixer.refresh() }
     }

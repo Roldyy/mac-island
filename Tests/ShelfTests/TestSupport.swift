@@ -1,4 +1,5 @@
 import Foundation
+@testable import ShelfFeature
 
 private enum TempRegistry {
     nonisolated(unsafe) static var urls: [URL] = []
@@ -48,12 +49,13 @@ func posix(_ url: URL) -> Int? {
     (try? FileManager.default.attributesOfItem(atPath: url.path))?[.posixPermissions] as? Int
 }
 
+/// In-memory preferences: nothing is ever written to ~/Library/Preferences.
+final class MemoryDefaults: KeyValueReading {
+    private var values: [String: Any] = [:]
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { values[key] = value }
+}
+
 final class TempDefaults {
-    let suite: String
-    let defaults: UserDefaults
-    init() {
-        suite = "shelf-test-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suite)!
-    }
-    deinit { defaults.removePersistentDomain(forName: suite) }
+    let defaults = MemoryDefaults()
 }

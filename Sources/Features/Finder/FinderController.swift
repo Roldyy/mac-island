@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 
@@ -26,21 +27,25 @@ final class FinderController {
     private let inspector: FileInspecting
     private let mover: FileMoving
     private let settings: () -> (cutPaste: Bool, image: Bool)
-    private let clock: () -> Date
+    private let clock: @Sendable () -> Date
     private let timeZone: () -> TimeZone
+
+    /// What the tap thread reads. Kept in step with `cut`, the settings and the frontmost app.
+    let keyState = FinderKeyState()
+    private let evaluator: FinderKeyEvaluator
+    private var activationObserver: NSObjectProtocol?
 
     private(set) var cut = PendingCut()
     private(set) var outcome: FinderOutcome?
     /// Set when a move was refused only for size: `confirmLargeMove()` runs it.
     private(set) var awaitingConfirmation: (items: [URL], destination: URL)?
-    private var inFlightCuts = 0
     private var chain: Task<Void, Never>?
     var onChange: () -> Void = {}
 
     init(scripting: FinderScripting, environment: FinderEnvironment, pasteboard: PasteboardReading,
          inspector: FileInspecting = SystemFileInspector(), mover: FileMoving = FileManagerMover(),
          settings: @escaping () -> (cutPaste: Bool, image: Bool),
-         clock: @escaping () -> Date = Date.init, timeZone: @escaping () -> TimeZone = { .current }) {
+         clock: @escaping @Sendable () -> Date = { Date() }, timeZone: @escaping () -> TimeZone = { .current }) {
         self.scripting = scripting
         self.environment = environment
         self.pasteboard = pasteboard
@@ -49,36 +54,72 @@ final class FinderController {
         self.settings = settings
         self.clock = clock
         self.timeZone = timeZone
+        self.evaluator = FinderKeyEvaluator(environment: environment, pasteboard: pasteboard,
+                                            state: keyState, clock: clock)
     }
 
-    var cutCount: Int { cut.count(now: clock()) }
+    var cutCount: Int { cut.count(now: clock(), pasteboardChangeCount: pasteboard.changeCount) }
 
-    // MARK: Decision (synchronous, called from the tap)
+    // MARK: Snapshot for the tap thread
 
-    func decide(_ chord: KeyChord) -> KeyDecision {
-        guard KeyDecision.isCandidate(chord), environment.isFinderFrontmost() else { return .pass }
-        // The Accessibility query is the slow part: x and v always need it, c and Esc only with a cut pending.
-        let isKeyOfCut = chord.keyCode == KeyCode.x || chord.keyCode == KeyCode.v
-        let wantsEditingCheck = isKeyOfCut || cut.isActive(now: clock())
+    /// Copies the cut and the settings into the snapshot. Call after any change to either.
+    func publish() {
         let s = settings()
-        let isPaste = chord.keyCode == KeyCode.v
-        let ctx = FinderKeyContext(
-            finderFrontmost: true,
-            textEditing: wantsEditingCheck ? environment.isTextEditing() : false,
-            hasPendingCut: cut.isActive(now: clock()) || inFlightCuts > 0,
-            pasteboardHasFileURLs: isPaste ? pasteboard.hasFileURLs : false,
-            pasteboardHasImage: isPaste ? pasteboard.hasImage : false,
-            cutPasteEnabled: s.cutPaste, imagePasteEnabled: s.image)
-        return KeyDecision.decide(chord, ctx)
+        let expires = cut.expiresAt
+        let count = cut.pasteboardChangeCount
+        keyState.update {
+            $0.cutExpiresAt = expires
+            $0.cutPasteboardChangeCount = count
+            $0.cutPasteEnabled = s.cutPaste
+            $0.imagePasteEnabled = s.image
+        }
     }
 
-    /// Handles a key from the tap: returns true to swallow it.
+    func refreshFrontmost() {
+        let front = environment.isFinderFrontmost()
+        keyState.update { $0.finderFrontmost = front }
+    }
+
+    /// Starts following the frontmost app (the tap thread only reads the flag). Idempotent.
+    func activate() {
+        refreshFrontmost()
+        publish()
+        guard activationObserver == nil else { return }
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshFrontmost() }
+        }
+    }
+
+    func deactivate() {
+        if let o = activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(o) }
+        activationObserver = nil
+        keyState.update { $0.finderFrontmost = false }
+    }
+
+    // MARK: Decision (synchronous)
+
+    /// Main-actor entry (tests, fallbacks): refreshes the snapshot from the environment, then decides.
+    func decide(_ chord: KeyChord) -> KeyDecision {
+        refreshFrontmost()
+        publish()
+        return evaluator.decide(chord)
+    }
+
+    /// The tap thread's entry: decision plus its immediate state change, no main-actor hop. Pair it with
+    /// `perform` on the main actor.
+    nonisolated func tapDecision(_ chord: KeyChord) -> KeyDecision { evaluator.decideApplying(chord) }
+
+    /// Handles a key on the main actor: returns true to swallow it.
     func handleKey(_ chord: KeyChord) -> Bool {
         let d = decide(chord)
+        keyState.update { $0.apply(d) }
         perform(d)
         return d.swallows
     }
 
+    /// The side effect of a decision already applied to the snapshot.
     func perform(_ decision: KeyDecision) {
         switch decision {
         case .pass, .swallowRepeat:
@@ -86,7 +127,6 @@ final class FinderController {
         case .passAndCancelCut:
             cancelCut()
         case .swallowCut:
-            inFlightCuts += 1
             enqueue { await self.markCut() }
         case .swallowPasteMove:
             enqueue { await self.pasteMove() }
@@ -98,6 +138,7 @@ final class FinderController {
     func cancelCut() {
         cut.cancel()
         awaitingConfirmation = nil
+        publish()
         onChange()
     }
 
@@ -122,10 +163,14 @@ final class FinderController {
     }
 
     private func markCut() async {
-        defer { inFlightCuts -= 1; onChange() }
+        defer {
+            keyState.update { $0.inFlightCuts = max(0, $0.inFlightCuts - 1) }
+            publish()
+            onChange()
+        }
         do {
             let items = try await scripting.selection()
-            cut.mark(items, now: clock())
+            cut.mark(items, now: clock(), pasteboardChangeCount: pasteboard.changeCount)
             outcome = items.isEmpty ? .nothingSelected : .cutMarked(items.count)
             log.info("cut marked count=\(items.count, privacy: .public)")
         } catch {
@@ -135,11 +180,14 @@ final class FinderController {
     }
 
     private func pasteMove() async {
-        let items = cut.activeItems(now: clock())
+        let items = cut.activeItems(now: clock(), pasteboardChangeCount: pasteboard.changeCount)
         guard !items.isEmpty else { return }
-        guard environment.isFinderFrontmost() else { return }
+        guard finderOwnsKeyboard() else { return }
         do {
             let destination = try await scripting.targetFolder()
+            // Finder took a moment to answer: the user may have switched app or cancelled the cut meanwhile.
+            guard finderOwnsKeyboard(),
+                  !cut.activeItems(now: clock(), pasteboardChangeCount: pasteboard.changeCount).isEmpty else { return }
             await execute(items: items, destination: destination, confirmed: false)
         } catch {
             outcome = Self.outcome(for: error)
@@ -162,11 +210,13 @@ final class FinderController {
             log.info("move needs confirmation count=\(n, privacy: .public)")
         case .failure(let refusal):
             outcome = .refused(refusal)
-            if refusal == .sameFolder { cut.cancel() }
+            if refusal == .sameFolder { cut.cancel(); publish() }
             log.info("move refused")
         case .success(let report):
-            let remaining = report.failedSources
-            if remaining.isEmpty { cut.cancel() } else { cut.mark(remaining, now: clock()) }
+            // Only failed sources that still exist stay cut, and they keep the first timer: a deleted
+            // source would otherwise keep Cmd+V swallowed, and a retry loop would never expire.
+            cut.retain(report.failedSources.filter(inspector.exists))
+            publish()
             switch (report.moved, report.failed) {
             case (let m, 0): outcome = .moved(m)
             case (0, let f): outcome = .moveFailed(f)
@@ -178,11 +228,12 @@ final class FinderController {
     }
 
     private func pasteImage() async {
-        guard environment.isFinderFrontmost(), let png = pasteboard.pngData() else {
+        guard finderOwnsKeyboard(), let png = pasteboard.pngData() else {
             outcome = .imageFailed; onChange(); return
         }
         do {
             let folder = try await scripting.targetFolder()
+            guard finderOwnsKeyboard() else { outcome = .imageFailed; onChange(); return }
             try ImagePaste.save(png: png, in: folder, date: clock(), timeZone: timeZone(), inspector: inspector)
             outcome = .imageSaved
             log.info("image saved")
@@ -194,6 +245,12 @@ final class FinderController {
             outcome = .imageFailed
         }
         onChange()
+    }
+
+    /// Frontmost AND focused in Finder, asked again at action time: the key was decided earlier.
+    private func finderOwnsKeyboard() -> Bool {
+        FinderFocus.ownsKeyboard(finderFrontmost: environment.isFinderFrontmost(),
+                                 focusedAppPID: environment.focusedApplicationPID(), finderPID: environment.finderPID())
     }
 
     nonisolated static func outcome(for error: Error) -> FinderOutcome {

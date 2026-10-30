@@ -1,3 +1,4 @@
+import IslandKit
 import Foundation
 
 /// The migrated Vorssaint keys, read tolerantly, in the defaults suite `be.roldy.macisland`.
@@ -21,7 +22,7 @@ final class AudioSettings {
     init(defaults: UserDefaults) { self.defaults = defaults }
 
     static func standard() -> AudioSettings {
-        AudioSettings(defaults: UserDefaults(suiteName: suiteName) ?? .standard)
+        AudioSettings(defaults: AppDefaults.make() ?? .standard)
     }
 
     // MARK: Per-app volume

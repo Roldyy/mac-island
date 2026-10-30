@@ -27,3 +27,32 @@ final class FakeProvider: NowPlayingProvider, @unchecked Sendable {
         return try result.get().get()
     }
 }
+
+/// Cover loader with a per-title delay; the returned bytes name the title.
+final class FakeLoader: ArtworkLoading, @unchecked Sendable {
+    private let delays: [String: Duration]
+    let calls = Box<[String]>([])
+    init(delays: [String: Duration]) { self.delays = delays }
+    func artwork(for snap: NowPlayingSnapshot) async -> Data? {
+        calls.set(calls.get() + [snap.title])
+        if let d = delays[snap.title] { try? await Task.sleep(for: d) }
+        return Data(snap.title.utf8)
+    }
+}
+
+/// In-memory flag store: nothing is ever written to ~/Library/Preferences.
+final class MemoryFlags: NowPlayingFlagStore {
+    private var values: [String: Bool] = [:]
+    func bool(forKey key: String) -> Bool { values[key] ?? false }
+    func set(_ value: Bool, forKey key: String) { values[key] = value }
+}
+
+@MainActor
+func eventually(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+    let end = Date().addingTimeInterval(timeout)
+    while Date() < end {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return condition()
+}

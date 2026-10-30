@@ -1,14 +1,17 @@
 import AppKit
 
-protocol PasteboardReading {
+protocol PasteboardReading: Sendable {
+    /// Bumps on every write to the pasteboard, whoever makes it.
+    var changeCount: Int { get }
     var hasFileURLs: Bool { get }
     var hasImage: Bool { get }
     func pngData() -> Data?
 }
 
-struct SystemPasteboard: PasteboardReading {
+struct SystemPasteboard: PasteboardReading, @unchecked Sendable {
     var pasteboard: NSPasteboard = .general
 
+    var changeCount: Int { pasteboard.changeCount }
     var hasFileURLs: Bool {
         pasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
     }

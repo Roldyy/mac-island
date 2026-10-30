@@ -23,7 +23,7 @@ struct NoCapture: WindowCapturing {
     func thumbnails(pid: Int32, frames: [CGRect], maxSize: CGSize) async -> [CGImage?] { frames.map { _ in nil } }
 }
 
-@MainActor @Suite struct DockPreviewControllerTests {
+@MainActor @Suite final class DockPreviewControllerTests {
     let resolver = FakeResolver()
     let windows = FakeWindows()
     let presenter = FakePresenter()
@@ -31,9 +31,11 @@ struct NoCapture: WindowCapturing {
     let model = PreviewModel()
     let clock = Box()
     final class Box { var t = 0.0 }
+    /// Released with the suite instance: removes the suite's preference domain after the test.
+    private let temp = TempDefaults(prefix: "dock-prev")
 
     func make() -> DockPreviewController {
-        let d = UserDefaults(suiteName: "dock-prev-\(UUID().uuidString)")!
+        let d = temp.defaults
         d.set(true, forKey: "dockPreviewEnabled")
         d.set(400, forKey: "dockPreviewDelayMilliseconds")
         let c = clock

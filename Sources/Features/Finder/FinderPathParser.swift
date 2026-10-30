@@ -1,17 +1,27 @@
 import Foundation
 
-/// Parses what the Finder scripts print. Paths are separated by the ASCII record separator so a
-/// newline inside a file name cannot split an item. Anything that is not a clean absolute path is dropped.
+/// Parses what the Finder scripts return. Anything that is not a clean absolute path is refused.
 enum FinderPathParser {
-    static let separator: Character = "\u{1E}"
-
-    static func parseSelection(_ raw: String?) -> [URL] {
-        guard let raw, !raw.isEmpty else { return [] }
+    /// Reads the list the selection script returns: item 1 is the count Finder reported, the other
+    /// items are POSIX paths, one list item each, so no character in a name can start another path.
+    /// Refuses (throws) when it is not a list or when the clean paths do not add up to that count.
+    static func parseSelection(_ desc: NSAppleEventDescriptor?) throws -> [URL] {
+        guard let desc, desc.descriptorType == typeAEList, desc.numberOfItems >= 1,
+              let reported = desc.atIndex(1)?.int32Value, reported >= 0,
+              desc.atIndex(1)?.descriptorType != typeUnicodeText
+        else { throw FinderScriptError.badResult }
         var seen = Set<String>()
         var out: [URL] = []
-        for piece in raw.split(separator: separator, omittingEmptySubsequences: true) {
-            guard let path = clean(String(piece)), path != "/", seen.insert(path).inserted else { continue }
-            out.append(URL(fileURLWithPath: path))
+        if desc.numberOfItems >= 2 {
+            for i in 2...desc.numberOfItems {
+                guard let raw = desc.atIndex(i)?.stringValue, let path = clean(raw), path != "/",
+                      seen.insert(path).inserted else { continue }
+                out.append(URL(fileURLWithPath: path))
+            }
+        }
+        // Whatever was dropped (not a path, duplicate) or added changes the count: refuse the whole selection.
+        guard out.count == Int(reported), desc.numberOfItems - 1 == Int(reported) else {
+            throw FinderScriptError.badResult
         }
         return out
     }
