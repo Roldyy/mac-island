@@ -30,6 +30,7 @@ public enum VorssaintKeyMap {
         "brightnessControlEnabled", "pastePlainEnabled", "pastePlainShortcut",
         "dockPreviewEnabled", "shelfEnabled", "shelfItems",
         "windowEdgeSnapEnabled", "windowMaximizeEnabled",
+        "defaultDurationMinutes",  // Keep Awake session length, 0 = no limit (confirmed by the keepAwake lane)
     ]
     static let carriedPrefixes = [
         "notch", "clipboard", "keepAwake", "monitor", "mixer",
