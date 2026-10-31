@@ -1,9 +1,10 @@
 import IslandUI
 import SwiftUI
 
-/// The first thing on the page: a big ring for the 5-hour session, a smaller one for the week, and how long
-/// until the session renews. Plan percentages come from the plan file; a session with no fresh reading falls
-/// back to the log estimate (tokens, no percentage), exactly as the limits state decides.
+/// The first thing on the page: two equal rings (the 5-hour session and the week) with their labels beside
+/// them, or under them when the column is too narrow, never squeezed. Plan percentages come from the plan
+/// file; a session with no fresh reading falls back to the log estimate (tokens, no percentage), exactly as
+/// the limits state decides. One footer line carries the provenance (estimate, age of the reading).
 struct AgentsHeroCard: View {
     let limits: LimitsState
     let display: AgentsLimitDisplay
@@ -13,6 +14,8 @@ struct AgentsHeroCard: View {
     /// False in snapshots: the countdown then stays on `now`.
     var ticking = true
 
+    static let ringSize: CGFloat = 96
+
     private var session: LimitRow? { limits.rows.first { $0.kind == .session } }
     private var week: LimitRow? { limits.rows.first { $0.kind == .weekly } }
 
@@ -21,63 +24,86 @@ struct AgentsHeroCard: View {
 
     var body: some View {
         let tint = session.map(Self.tint) ?? IslandPalette.accent.color
-        HStack(alignment: .center, spacing: IslandSpacing.l) {
+        VStack(alignment: .leading, spacing: IslandSpacing.m) {
             if limits.rows.isEmpty {
-                placeholder
+                HStack(alignment: .center, spacing: IslandSpacing.m) { placeholder }
             } else {
-                if let session { sessionPart(session) }
-                if let week {
-                    Rectangle().fill(IslandPalette.separator.color.opacity(0.5)).frame(width: 1)
-                    weekPart(week)
+                // One decision for both rings: words beside them when both columns fit, under them otherwise.
+                ViewThatFits(in: .horizontal) {
+                    rings(stacked: false)
+                    rings(stacked: true)
                 }
             }
+            footer
         }
         .padding(IslandSpacing.m)
-        .frame(maxWidth: .infinity, minHeight: 140, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .islandGlass(cornerRadius: IslandRadius.medium)
         .background(LinearGradient(colors: [tint.opacity(0.20), tint.opacity(0)], startPoint: .topLeading, endPoint: .bottomTrailing)
             .clipShape(RoundedRectangle(cornerRadius: IslandRadius.medium, style: .continuous)))
         .opacity(limits.isStale ? 0.85 : 1)
     }
 
+    private func rings(stacked: Bool) -> some View {
+        HStack(alignment: .center, spacing: IslandSpacing.m) {
+            if let session { sessionColumn(session, stacked: stacked) }
+            if session != nil, week != nil {
+                Rectangle().fill(IslandPalette.separator.color.opacity(0.5)).frame(width: 1, height: Self.ringSize)
+            }
+            if let week { weekColumn(week, stacked: stacked) }
+        }
+    }
+
+    // MARK: a ring and its words
+
+    /// Ring beside its details when the column is wide enough for them on one line each, else the details under.
+    @ViewBuilder
+    private func column<Ring: View, Details: View>(stacked: Bool, ring: Ring,
+                                                   @ViewBuilder details: (HorizontalAlignment) -> Details) -> some View {
+        if stacked {
+            VStack(spacing: IslandSpacing.s) { ring; details(.center) }.frame(maxWidth: .infinity)
+        } else {
+            HStack(spacing: IslandSpacing.m) { ring; details(.leading) }.frame(maxWidth: .infinity)
+        }
+    }
+
     // MARK: session
 
-    private func sessionPart(_ row: LimitRow) -> some View {
+    private func sessionColumn(_ row: LimitRow, stacked: Bool) -> some View {
         let tint = Self.tint(row)
-        return HStack(alignment: .center, spacing: IslandSpacing.l) {
-            AgentsGauge(fill: row.fill(display), tint: tint, pace: row.paceMarker(display), lineWidth: 10) {
-                ringCenter(row, tint: tint)
+        return column(stacked: stacked, ring: ring(row, tint: tint, lineWidth: 10)) { alignment in
+            VStack(alignment: alignment, spacing: IslandSpacing.xs) {
+                Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color).lineLimit(1)
+                if let level = row.level { levelLabel(level) }
+                countdown(row, alignment: alignment)
             }
-            .frame(width: 104, height: 104)
-            VStack(alignment: .leading, spacing: IslandSpacing.xs) {
-                HStack(spacing: IslandSpacing.s) {
-                    Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color)
-                    if let level = row.level { levelLabel(level) }
-                }
-                countdown(row)
-                notes
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.title)
         .accessibilityValue([row.valueText(display), row.level?.label, row.renewal.map(renewalText)]
             .compactMap { $0 }.joined(separator: ", "))
     }
 
+    private func ring(_ row: LimitRow, tint: Color, lineWidth: CGFloat) -> some View {
+        AgentsGauge(fill: row.fill(display), tint: tint, pace: row.paceMarker(display), lineWidth: lineWidth) {
+            ringCenter(row, tint: tint)
+        }
+        .frame(width: Self.ringSize, height: Self.ringSize)
+    }
+
     @ViewBuilder private func ringCenter(_ row: LimitRow, tint: Color) -> some View {
         if let fill = row.fill(display) {
             VStack(spacing: 0) {
-                AgentsFigure(text: UsageFormat.percent(fill), font: .system(size: 27, weight: .bold, design: .rounded), color: tint)
+                AgentsFigure(text: UsageFormat.percent(fill), font: .system(size: 24, weight: .bold, design: .rounded), color: tint)
                 Text(AgentsStrings.text(display == .used ? "used" : "remaining").lowercased())
                     .font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
             }
         } else if let tokens = row.tokens {
             VStack(spacing: 0) {
-                AgentsFigure(text: UsageFormat.tokens(tokens), font: .system(size: 20, weight: .bold, design: .rounded), color: tint)
+                AgentsFigure(text: UsageFormat.tokensShort(tokens), font: .system(size: 17, weight: .bold, design: .rounded), color: tint)
                 Text(AgentsStrings.tokensShort).font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
             }
+            .padding(.horizontal, IslandSpacing.m)
         } else {
             Text("—").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(IslandPalette.textSecondary.color)
         }
@@ -91,25 +117,25 @@ struct AgentsHeroCard: View {
     }
 
     /// "Se renouvelle dans 2 h 13 min", ticking every 30 s while the page is live.
-    @ViewBuilder private func countdown(_ row: LimitRow) -> some View {
+    @ViewBuilder private func countdown(_ row: LimitRow, alignment: HorizontalAlignment) -> some View {
         if let renewal = row.renewal {
             if ticking {
-                TimelineView(.periodic(from: now, by: 30)) { context in countdownBody(renewal, at: context.date) }
+                TimelineView(.periodic(from: now, by: 30)) { context in countdownBody(renewal, at: context.date, alignment: alignment) }
             } else {
-                countdownBody(renewal, at: now)
+                countdownBody(renewal, at: now, alignment: alignment)
             }
         }
     }
 
-    private func countdownBody(_ renewal: Date, at date: Date) -> some View {
+    private func countdownBody(_ renewal: Date, at date: Date, alignment: HorizontalAlignment) -> some View {
         let remaining = renewal.timeIntervalSince(date)
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: alignment, spacing: 0) {
             if remaining > 0 {
-                Text(AgentsStrings.resetsIn).font(.islandFootnote).foregroundStyle(IslandPalette.textTertiary.color)
-                AgentsFigure(text: UsageFormat.duration(remaining), font: .system(size: 21, weight: .semibold, design: .rounded))
+                Text(AgentsStrings.resetsIn).font(.islandFootnote).foregroundStyle(IslandPalette.textTertiary.color).lineLimit(1)
+                AgentsFigure(text: UsageFormat.duration(remaining), font: .system(size: 18, weight: .semibold, design: .rounded))
             }
             Text("\(AgentsStrings.renewsAt) \(UsageFormat.clock(renewal))")
-                .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
+                .font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color).lineLimit(1)
         }
     }
 
@@ -120,79 +146,119 @@ struct AgentsHeroCard: View {
         return "\(clock) · \(AgentsStrings.fill(constant: AgentsStrings.inFormat, UsageFormat.duration(remaining)))"
     }
 
-    @ViewBuilder private var notes: some View {
-        if limits.source == .estimatedFromLogs {
-            AgentsNote(AgentsStrings.text("estimated"))
-        } else if limits.hasEstimatedRow {
-            AgentsNote(AgentsStrings.sessionEstimatedNote).lineLimit(3)
+    // MARK: week
+
+    private func weekColumn(_ row: LimitRow, stacked: Bool) -> some View {
+        let tint = Self.tint(row)
+        return column(stacked: stacked, ring: ring(row, tint: tint, lineWidth: 10)) { alignment in
+            VStack(alignment: alignment, spacing: IslandSpacing.xs) {
+                Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color).lineLimit(1)
+                if let level = row.level { levelLabel(level) }
+                Text(AgentsStrings.overSevenDays).font(.islandFootnote)
+                    .foregroundStyle(IslandPalette.textTertiary.color).lineLimit(1)
+            }
         }
-        if limits.source == .planFile, let date = limits.updated {
-            if limits.isStale {
-                Label(AgentsStrings.format("updatedFormat", UsageFormat.relative(date, now: now)), systemImage: IslandStatus.warning.symbol)
-                    .font(.islandFootnote).foregroundStyle(IslandStatus.warning.color)
-            } else {
-                AgentsNote(AgentsStrings.format("updatedFormat", UsageFormat.relative(date, now: now)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(row.title)
+        .accessibilityValue([row.valueText(display), row.level?.label].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    // MARK: provenance
+
+    /// Where the figures come from, as pills, and what the white tick means. Hidden when there is nothing to say.
+    @ViewBuilder private var footer: some View {
+        let pills = provenance
+        let legend = tickLegend
+        if !pills.isEmpty || legend != nil {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: IslandSpacing.s) {
+                    pillRow(pills)
+                    Spacer(minLength: IslandSpacing.s)
+                    if let legend { legendText(legend) }
+                }
+                pillRow(pills).frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    // MARK: week
+    private struct Provenance: Identifiable {
+        var text: String
+        var symbol: String
+        var tint: Color
+        var help: String?
+        var id: String { text }
+    }
 
-    private func weekPart(_ row: LimitRow) -> some View {
-        let tint = Self.tint(row)
-        return VStack(spacing: IslandSpacing.xs) {
-            AgentsGauge(fill: row.fill(display), tint: tint, pace: row.paceMarker(display), lineWidth: 8) {
-                if let fill = row.fill(display) {
-                    VStack(spacing: 0) {
-                        AgentsFigure(text: UsageFormat.percent(fill), font: .system(size: 15, weight: .bold, design: .rounded), color: tint)
-                        Text(AgentsStrings.text(display == .used ? "used" : "remaining").lowercased())
-                            .font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
-                    }
-                } else if let tokens = row.tokens {
-                    AgentsFigure(text: UsageFormat.tokens(tokens), font: .system(size: 12, weight: .bold, design: .rounded), color: tint)
-                }
-            }
-            .frame(width: 70, height: 70)
-            Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color)
-            if let level = row.level {
-                // Word only: the ring's color and percentage already carry the rest, and the column is narrow.
-                Text(level.label).font(.islandCaptionEmphasis).foregroundStyle(level.status.color)
-                    .lineLimit(2).multilineTextAlignment(.center)
+    private var provenance: [Provenance] {
+        var pills: [Provenance] = []
+        if limits.source == .estimatedFromLogs {
+            pills.append(Provenance(text: AgentsStrings.text("estimated"), symbol: "desktopcomputer", tint: IslandStatus.info.color,
+                                    help: nil))
+        } else if limits.hasEstimatedRow {
+            pills.append(Provenance(text: AgentsStrings.text("estimated"), symbol: "desktopcomputer", tint: IslandStatus.info.color,
+                                    help: AgentsStrings.sessionEstimatedNote))
+        }
+        if limits.source == .planFile, let date = limits.updated {
+            let text = AgentsStrings.format("updatedFormat", UsageFormat.relative(date, now: now))
+            pills.append(limits.isStale
+                ? Provenance(text: text, symbol: IslandStatus.warning.symbol, tint: IslandStatus.warning.color, help: nil)
+                : Provenance(text: text, symbol: "clock", tint: IslandPalette.textSecondary.color, help: nil))
+        }
+        return pills
+    }
+
+    private func pillRow(_ pills: [Provenance]) -> some View {
+        HStack(spacing: IslandSpacing.s) {
+            ForEach(pills) { pill in
+                AgentsPill(text: pill.text, symbol: pill.symbol, tint: pill.tint).help(pill.help ?? pill.text)
             }
         }
-        .frame(width: 104)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.title)
-        .accessibilityValue([row.valueText(display), row.level?.label].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    /// The white tick is on the ring whenever the session knows how far its window has run.
+    private var tickLegend: String? {
+        guard let row = limits.rows.first(where: { $0.paceMarker(display) != nil }) else { return nil }
+        return row.fill(display) == nil ? AgentsStrings.paceLegendElapsed : AgentsStrings.paceLegendShort
+    }
+
+    private func legendText(_ text: String) -> some View {
+        HStack(spacing: IslandSpacing.xs) {
+            Capsule().fill(IslandPalette.textPrimary.color).frame(width: 2.5, height: 11).accessibilityHidden(true)
+            Text(text).font(.islandFootnote).foregroundStyle(IslandPalette.textTertiary.color).lineLimit(1)
+        }
+        .accessibilityHidden(true)
     }
 
     // MARK: nothing to show yet
 
     @ViewBuilder private var placeholder: some View {
         if isLoaded {
-            AgentsGauge(fill: nil, tint: IslandPalette.accent.color, lineWidth: 10) {
-                Text("—").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(IslandPalette.textSecondary.color)
+            HStack(spacing: IslandSpacing.m) {
+                AgentsGauge(fill: nil, tint: IslandPalette.accent.color, lineWidth: 10) {
+                    Text("—").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(IslandPalette.textSecondary.color)
+                }
+                .frame(width: Self.ringSize, height: Self.ringSize)
+                AgentsNote(AgentsStrings.text("waitingForLimits")).frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: 104, height: 104)
-            AgentsNote(AgentsStrings.text("waitingForLimits")).frame(maxWidth: .infinity, alignment: .leading)
         } else {
+            skeletonColumn
+            Rectangle().fill(IslandPalette.separator.color.opacity(0.5)).frame(width: 1, height: Self.ringSize)
+            skeletonColumn
+        }
+    }
+
+    private var skeletonColumn: some View {
+        HStack(spacing: IslandSpacing.m) {
             Circle().stroke(IslandPalette.textPrimary.color.opacity(0.10), lineWidth: 10)
-                .frame(width: 104, height: 104).agentsShimmer()
+                .frame(width: Self.ringSize, height: Self.ringSize).agentsShimmer()
             VStack(alignment: .leading, spacing: IslandSpacing.s) {
-                AgentsSkeletonBar(width: 90, height: 14)
-                AgentsSkeletonBar(width: 140, height: 24)
-                AgentsSkeletonBar(width: 110, height: 10)
+                AgentsSkeletonBar(width: 70, height: 14)
+                AgentsSkeletonBar(width: 90, height: 12)
+                AgentsSkeletonBar(width: 60, height: 20)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityHidden(true)
-            Rectangle().fill(IslandPalette.separator.color.opacity(0.5)).frame(width: 1)
-            VStack(spacing: IslandSpacing.xs) {
-                Circle().stroke(IslandPalette.textPrimary.color.opacity(0.10), lineWidth: 8)
-                    .frame(width: 70, height: 70).agentsShimmer()
-                AgentsSkeletonBar(width: 60, height: 12)
-            }
-            .frame(width: 100)
-            .accessibilityHidden(true)
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
     }
 }

@@ -47,6 +47,9 @@ struct AgentsCardFrame<Content: View, Trailing: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .background(LinearGradient(colors: [card.tint.opacity(0.10), card.tint.opacity(0)], startPoint: .topLeading,
+                                   endPoint: .center)
+            .clipShape(RoundedRectangle(cornerRadius: IslandRadius.medium, style: .continuous)))
     }
 }
 

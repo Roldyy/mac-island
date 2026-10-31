@@ -29,6 +29,13 @@ enum AgentsCardLayout {
 
     /// Full-width cards sit alone; half-width cards pair up in order. A half-width card left over before a
     /// full-width one (or at the end) takes the whole row.
+    /// Below `pairingWidth` (the real island page is 540 pt of content) every card takes a whole row.
+    static let pairingWidth: CGFloat = 760
+
+    static func rows(_ cards: [AgentsCard], width: CGFloat) -> [[AgentsCard]] {
+        width >= pairingWidth ? rows(cards) : cards.map { [$0] }
+    }
+
     static func rows(_ cards: [AgentsCard]) -> [[AgentsCard]] {
         var rows: [[AgentsCard]] = []
         var pending: AgentsCard?

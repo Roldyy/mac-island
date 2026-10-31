@@ -109,4 +109,10 @@ enum AgentsStrings {
     static let resetsIn = "Se renouvelle dans"
     static let tokensShort = "jetons"
     static let finishedChip = "a terminé"
+    static let paceLegendShort = "Trait blanc : rythme régulier"
+    static let paceLegendElapsed = "Trait blanc : temps écoulé"
+    static let overSevenDays = "Sur 7 jours"
+    static let liveHeader = "En cours"
+    static let collapse = "Réduire"
+    static let perDay = "par jour"
 }

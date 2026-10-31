@@ -2,7 +2,8 @@ import ClaudeLiveKit
 import IslandUI
 import SwiftUI
 
-/// Live Claude sessions as one row of compact chips: a state dot and the folder, the state word when it matters.
+/// Live Claude sessions as one status bar: a header, then a chip per session (state dot, folder, the state
+/// word when it matters). With no session the bar says so quietly instead of floating a lone chip.
 struct AgentsSessionChips: View {
     let sessions: [ClaudeSession]
     let lastFinished: FinishedSession?
@@ -11,8 +12,12 @@ struct AgentsSessionChips: View {
 
     var body: some View {
         HStack(spacing: IslandSpacing.s) {
+            Label(AgentsStrings.liveHeader, systemImage: AgentsCard.live.symbol)
+                .font(.islandCaptionEmphasis).foregroundStyle(IslandStatus.info.color).lineLimit(1)
+                .labelStyle(.titleAndIcon)
             if sessions.isEmpty {
-                chip { Text(AgentsStrings.text("noSession")).font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color) }
+                Text(AgentsStrings.text("noSession")).font(.islandCaption)
+                    .foregroundStyle(IslandPalette.textSecondary.color).lineLimit(1)
             }
             ForEach(sessions.prefix(Self.limit)) { session in chip { sessionLabel(session) } }
             if sessions.count > Self.limit {
@@ -26,7 +31,12 @@ struct AgentsSessionChips: View {
                     .font(.islandFootnote).foregroundStyle(IslandPalette.textTertiary.color).lineLimit(1)
             }
         }
-        .frame(minHeight: 26)
+        .padding(.horizontal, IslandSpacing.m)
+        .frame(minHeight: 36)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(IslandPalette.textPrimary.color.opacity(0.04), in: RoundedRectangle(cornerRadius: IslandRadius.medium, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: IslandRadius.medium, style: .continuous)
+            .strokeBorder(IslandPalette.separator.color.opacity(0.5), lineWidth: 0.5) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(AgentsCard.live.title)
     }
@@ -39,9 +49,9 @@ struct AgentsSessionChips: View {
                 .accessibilityHidden(true)
             Text(session.folderName.isEmpty ? "—" : session.folderName)
                 .font(.islandCaptionEmphasis).foregroundStyle(IslandPalette.textPrimary.color)
-                .lineLimit(1).truncationMode(.middle)
+                .lineLimit(1).truncationMode(.tail)
             if session.state == .working || session.state == .waiting {
-                Text(AgentsLiveModel.cardLabel(for: session.state)).font(.islandFootnote).foregroundStyle(status.color)
+                Text(AgentsLiveModel.cardLabel(for: session.state)).font(.islandFootnote).foregroundStyle(status.color).lineLimit(1)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -51,7 +61,7 @@ struct AgentsSessionChips: View {
 
     private func chip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .padding(.horizontal, IslandSpacing.m).frame(minHeight: 26)
+            .padding(.horizontal, IslandSpacing.s + 2).frame(minHeight: 24)
             .background(IslandPalette.textPrimary.color.opacity(0.08), in: Capsule())
             .overlay { Capsule().strokeBorder(IslandPalette.separator.color.opacity(0.5), lineWidth: 0.5) }
     }

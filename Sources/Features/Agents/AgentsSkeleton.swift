@@ -53,10 +53,14 @@ struct AgentsSkeletonCard: View {
     var body: some View {
         AgentsCardFrame(card) {
             VStack(alignment: .leading, spacing: IslandSpacing.s) {
-                AgentsSkeletonBar(width: 120, height: 26)
-                AgentsSkeletonBar(height: 10)
-                AgentsSkeletonBar(width: 160, height: 10)
-                if card == .trend || card == .activity { AgentsSkeletonBar(height: 56) }
+                if card == .models || card == .projects {
+                    ForEach(0..<4, id: \.self) { _ in AgentsSkeletonBar(height: 14) }
+                } else {
+                    AgentsSkeletonBar(width: 120, height: 26)
+                    AgentsSkeletonBar(height: 10)
+                    AgentsSkeletonBar(width: 160, height: 10)
+                    if card == .trend || card == .activity { AgentsSkeletonBar(height: 56) }
+                }
             }
         }
         .accessibilityElement(children: .ignore)

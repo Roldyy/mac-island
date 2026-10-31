@@ -17,6 +17,8 @@ struct AgentsPage: View {
     /// Off in snapshots: `.task` / `.onAppear` do not run there and nothing may start polling.
     var isLive = true
     @State private var showsSettings: Bool
+    /// Width of the page content; the island page is 540 pt, so that is the starting assumption.
+    @State private var pageWidth: CGFloat = 540
 
     init(model: AgentsUsageModel, live: AgentsLiveModel, showsSettings: Bool = false, isLive: Bool = true) {
         self.model = model
@@ -57,6 +59,7 @@ struct AgentsPage: View {
             }
         }
         .padding(IslandSpacing.m)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width - 2 * IslandSpacing.m } action: { pageWidth = $0 }
     }
 
     private var header: some View {
@@ -91,10 +94,10 @@ struct AgentsPage: View {
         } else {
             glance(cards)
             let lower = cards.filter { $0 != .limits && $0 != .live }
-            ForEach(Array(AgentsCardLayout.rows(lower).enumerated()), id: \.offset) { _, row in
+            ForEach(Array(AgentsCardLayout.rows(lower, width: pageWidth).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: IslandSpacing.m) {
                     ForEach(row) { card in
-                        view(for: card).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        view(for: card, paired: row.count > 1).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -102,26 +105,17 @@ struct AgentsPage: View {
         }
     }
 
-    /// The first screen: limits ring(s) and today side by side, live sessions under them. Each part follows
-    /// its card's visibility in the page settings.
+    /// The first screen: the limits rings, today under them, live sessions last. Each part follows its
+    /// card's visibility in the page settings.
     @ViewBuilder private func glance(_ cards: [AgentsCard]) -> some View {
-        let showsLimits = cards.contains(.limits), showsToday = cards.contains(.spend)
-        if showsLimits || showsToday {
-            HStack(alignment: .top, spacing: IslandSpacing.m) {
-                if showsLimits {
-                    AgentsHeroCard(limits: model.limits, display: model.limitDisplay, now: model.now,
-                                   isLoaded: model.hasLoaded, ticking: isLive)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                if showsToday {
-                    let today = model.snapshot.summary(for: .today)
-                    AgentsTodayCard(summary: today, hourly: Self.hourlyTokens(today, model: model),
-                                    isReady: model.isComplete(.today))
-                        .frame(width: showsLimits ? 200 : nil)
-                        .frame(maxWidth: showsLimits ? nil : .infinity, maxHeight: .infinity)
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
+        if cards.contains(.limits) {
+            AgentsHeroCard(limits: model.limits, display: model.limitDisplay, now: model.now,
+                           isLoaded: model.hasLoaded, ticking: isLive)
+        }
+        if cards.contains(.spend) {
+            let today = model.snapshot.summary(for: .today)
+            AgentsTodayCard(summary: today, hourly: Self.hourlyTokens(today, model: model),
+                            isReady: model.isComplete(.today))
         }
         if cards.contains(.live) {
             AgentsSessionChips(sessions: live.sessions, lastFinished: live.lastFinished)
@@ -133,23 +127,28 @@ struct AgentsPage: View {
         TrendBuckets.make(summary: today, period: .today, now: model.now, calendar: UsageFormat.calendar).map { Double($0.tokens) }
     }
 
-    @ViewBuilder private func view(for card: AgentsCard) -> some View {
+    @ViewBuilder private func view(for card: AgentsCard, paired: Bool) -> some View {
         let summary = model.summary
         let isPending = card == .activity ? !model.isFullyLoaded : !model.isComplete(model.period)
-        if isPending, card != .limits, card != .live, card != .resets {
-            AgentsSkeletonCard(card: card)
-        } else {
-            loaded(card, summary: summary)
+        Group {
+            if isPending, card != .limits, card != .live, card != .resets {
+                AgentsSkeletonCard(card: card).transition(.opacity)
+            } else {
+                loaded(card, summary: summary, paired: paired).transition(.opacity)
+            }
         }
+        .islandAnimation(.easeOut(duration: 0.3), value: isPending)
     }
 
-    @ViewBuilder private func loaded(_ card: AgentsCard, summary: UsageSummary) -> some View {
+    @ViewBuilder private func loaded(_ card: AgentsCard, summary: UsageSummary, paired: Bool) -> some View {
         switch card {
         case .spend:
             let today = model.snapshot.summary(for: .today)
             AgentsSpendCard(summary: summary, period: model.period, plan: model.plan,
                             todayCost: today.totalCost, todayEstimated: today.costIsEstimated,
-                            dailyBudget: model.dailyBudget)
+                            dailyBudget: model.dailyBudget,
+                            series: TrendBuckets.make(summary: summary, period: model.period, now: model.now,
+                                                      calendar: UsageFormat.calendar).map(\.cost))
         case .trend:
             AgentsTrendCard(buckets: TrendBuckets.make(summary: summary, period: model.period, now: model.now,
                                                        calendar: UsageFormat.calendar),
@@ -157,11 +156,11 @@ struct AgentsPage: View {
         case .models:
             AgentsShareCard(card: .models, rows: summary.perModel.map {
                 ShareRow(name: $0.model, tokens: $0.tokens, cost: $0.cost, estimated: $0.estimated)
-            })
+            }, compact: paired)
         case .projects:
             AgentsShareCard(card: .projects, rows: summary.perProject.map {
                 ShareRow(name: $0.name, tokens: $0.tokens, cost: $0.cost, estimated: $0.estimated)
-            })
+            }, compact: paired)
         case .activity:
             AgentsActivityCard(heatmap: model.snapshot.heatmap,
                                stats: HeatmapStats.compute(model.snapshot.heatmap, now: model.now, calendar: UsageFormat.calendar))

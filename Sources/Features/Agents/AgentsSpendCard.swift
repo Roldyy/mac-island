@@ -1,6 +1,8 @@
 import IslandUI
 import SwiftUI
 
+/// The period's cost as the headline, a sparkline of it beside, three stat chips, then the plan comparison,
+/// the cache saving and the daily budget.
 struct AgentsSpendCard: View {
     let summary: UsageSummary
     let period: UsagePeriod
@@ -8,37 +10,19 @@ struct AgentsSpendCard: View {
     let todayCost: Double
     let todayEstimated: Bool
     let dailyBudget: Double?
+    /// One value per bucket of the period (cost), for the sparkline.
+    var series: [Double] = []
 
     var body: some View {
         AgentsCardFrame(.spend) {
-            VStack(alignment: .leading, spacing: IslandSpacing.s) {
-                VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
-                    Text(UsageFormat.cost(summary.totalCost, estimated: summary.costIsEstimated))
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(IslandPalette.textPrimary.color)
-                    Text("\(AgentsStrings.text("apiValue")) · \(period.phrase)")
-                        .font(.islandCaption)
-                        .foregroundStyle(IslandPalette.textSecondary.color)
-                }
-                .accessibilityElement(children: .combine)
-                if let plan, let multiple = plan.multiple(apiValue: summary.totalCost, days: period.days) {
-                    Label(AgentsStrings.format("planMultipleFormat", UsageFormat.multiple(multiple), plan.name),
-                          systemImage: "scalemass")
-                        .font(.islandCaptionEmphasis)
-                        .foregroundStyle(IslandPalette.textPrimary.color)
-                }
+            VStack(alignment: .leading, spacing: IslandSpacing.m) {
+                headline
                 HStack(alignment: .top, spacing: IslandSpacing.s) {
-                    stat(AgentsStrings.tokensLabel, UsageFormat.tokens(summary.totalTokens))
-                    stat(AgentsStrings.cacheLabel, UsageFormat.tokens(summary.cacheReadTokens))
-                    stat(AgentsStrings.writtenLabel, UsageFormat.tokens(summary.outputTokens))
+                    AgentsStatTile(value: UsageFormat.tokens(summary.totalTokens), label: AgentsStrings.tokensLabel, symbol: "number")
+                    AgentsStatTile(value: UsageFormat.tokens(summary.cacheReadTokens), label: AgentsStrings.cacheLabel, symbol: "memorychip")
+                    AgentsStatTile(value: UsageFormat.tokens(summary.outputTokens), label: AgentsStrings.writtenLabel, symbol: "pencil.line")
                 }
-                if summary.cacheSavings > 0 {
-                    Label(AgentsStrings.format("savedFormat", UsageFormat.cost(summary.cacheSavings, estimated: summary.costIsEstimated)),
-                          systemImage: "leaf")
-                        .font(.islandCaption)
-                        .foregroundStyle(IslandStatus.success.color)
-                }
+                badges
                 budgetRow
                 if summary.costIsEstimated { AgentsNote(AgentsStrings.text("unpriced")) }
                 AgentsNote(AgentsStrings.text("valueNote"))
@@ -46,25 +30,51 @@ struct AgentsSpendCard: View {
         }
     }
 
-    private func stat(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
-            Text(value).font(.islandBodyEmphasis).monospacedDigit()
-                .foregroundStyle(IslandPalette.textPrimary.color)
-            Text(label).font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
+    private var headline: some View {
+        HStack(alignment: .bottom, spacing: IslandSpacing.l) {
+            VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
+                AgentsFigure(text: UsageFormat.cost(summary.totalCost, estimated: summary.costIsEstimated),
+                             font: .system(size: 34, weight: .bold, design: .rounded))
+                Text("\(AgentsStrings.text("apiValue")) · \(period.phrase)")
+                    .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color).lineLimit(1)
+            }
+            .layoutPriority(1)
+            .accessibilityElement(children: .combine)
+            AgentsSparkline(values: series, tint: IslandStatus.success.color)
+                .frame(minWidth: 60, maxWidth: .infinity).frame(height: 44)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var badges: some View {
+        let multiple = plan.flatMap { plan in plan.multiple(apiValue: summary.totalCost, days: period.days).map { (plan, $0) } }
+        if multiple != nil || summary.cacheSavings > 0 {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: IslandSpacing.s) { badgeContent(multiple) }
+                VStack(alignment: .leading, spacing: IslandSpacing.xs) { badgeContent(multiple) }
+            }
+        }
+    }
+
+    @ViewBuilder private func badgeContent(_ multiple: (PlanTier, Double)?) -> some View {
+        if let (plan, value) = multiple {
+            AgentsPill(text: AgentsStrings.format("planMultipleFormat", UsageFormat.multiple(value), plan.name),
+                       symbol: "scalemass", tint: IslandPalette.accent.color)
+        }
+        if summary.cacheSavings > 0 {
+            AgentsPill(text: AgentsStrings.format("savedFormat", UsageFormat.costShort(summary.cacheSavings, estimated: summary.costIsEstimated)),
+                       symbol: "leaf", tint: IslandStatus.success.color)
+        }
     }
 
     private var budgetRow: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
                 Text(AgentsStrings.text("budgetTitle")).font(.islandCaption)
-                    .foregroundStyle(IslandPalette.textPrimary.color)
+                    .foregroundStyle(IslandPalette.textPrimary.color).lineLimit(1)
                 Spacer(minLength: IslandSpacing.xs)
                 Text(dailyBudget.map { "\(UsageFormat.cost(todayCost, estimated: todayEstimated)) / \(UsageFormat.cost($0, estimated: false))" }
                         ?? AgentsStrings.text("off"))
-                    .font(.islandValue).foregroundStyle(IslandPalette.textSecondary.color)
+                    .font(.islandValue).foregroundStyle(IslandPalette.textSecondary.color).lineLimit(1)
             }
             if let dailyBudget {
                 let fraction = todayCost / dailyBudget
