@@ -1,5 +1,6 @@
 import AgentsFeature
 import AppKit
+import ClaudeLiveKit
 import ClipboardFeature
 import CommandBarFeature
 import FansFeature
@@ -13,6 +14,7 @@ import NowPlayingFeature
 import os
 import ShelfFeature
 import IslandKit
+import ShellKit
 import TerminalFeature
 import SettingsKit
 import SwiftUI
@@ -20,32 +22,82 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static let bundleID = "be.roldy.macisland"
+    private static let vorssaintDomain = "com.vorssaint.utils"
     private static let log = Logger(subsystem: "be.roldy.macisland", category: "migration")
     private var island: IslandController?
+    private var registry: FeatureRegistry?
+    private var settings: SettingsWindowController?
+    private var menuBar: MenuBarItemController?
+    private var claudeLive: ClaudeLiveMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
-        ClipboardFeature.start()
-        ShelfFeature.start()
+        let defaults = AppDefaults.make() ?? .standard
+        let registry = FeatureRegistry(descriptors: ShellDescriptors.all, defaults: defaults)
+        // The migrator does not carry the old "kept features" key, so fall back to its source domain.
+        registry.seedFromVorssaint(defaults.object(forKey: VorssaintHubSeed.key)
+            ?? UserDefaults.standard.persistentDomain(forName: Self.vorssaintDomain)?[VorssaintHubSeed.key])
         // Each start() only arms what the user's settings and granted permissions allow; none prompts.
-        FinderFeature.start()
-        DockFeature.start()
-        DisplayFeature.start()
-        AudioFeature.start()
-        FansFeature.start()  // read-only monitoring; manual control needs the approved helper
-        MonitorFeature.start()
-        CommandBarFeature.start()
-        let island = IslandController { IslandRootView() }
+        registry.launch(starters: [
+            "clipboard": { ClipboardFeature.start() },
+            "shelf": { ShelfFeature.start() },
+            "finder": { FinderFeature.start() },
+            "dock": { DockFeature.start() },
+            "display": { DisplayFeature.start() },
+            "audio": { AudioFeature.start() },
+            "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
+            "monitor": { MonitorFeature.start() },
+            "commandbar": { CommandBarFeature.start() },
+            "nowplaying": { NowPlayingFeature.start() },
+        ])
+        self.registry = registry
+
+        let tabs = ShellTabs.all
+        let navigation = ShellNavigation()
+        let quickAccess = QuickAccessModel(defaults: defaults)
+        let settings = SettingsWindowController(registry: registry, tabs: tabs) { permission in
+            if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
+        }
+        self.settings = settings
+        menuBar = MenuBarItemController(
+            onOpenSettings: { settings.show() },
+            onQuit: { NSApp.terminate(nil) })
+
+        // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
+        let live = ClaudeLiveMonitor(
+            source: ClaudeLiveSource(reader: ClaudeSessionReader(directory: ClaudeSessionReader.defaultDirectory)),
+            sink: ActivityCenterSink())
+        live.start()
+        claudeLive = live
+
+        var islandRef: IslandController?
+        let context = ShellContext(
+            tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess,
+            closedStrip: { AnyView(ClosedStrip(notchWidth: islandRef?.state.notchWidth ?? 0)) },
+            onSectionChange: { _ in },
+            alert: { MonitorFeature.currentAlert.map { ShellAlert(title: $0.title, message: $0.message) } },
+            manualFansActive: { FansFeature.isManualActive },
+            claudePill: { AnyView(ClaudeStatusPill(model: TerminalFeature.claudeStatus())) },
+            openSettings: { settings.show() },
+            onOpen: { KeepAwakeFeature.noteIslandActivity() })  // honours `notchKeepAwakeActivity`
+        let island = IslandController { IslandShellView(context: context) }
         island.openSize = CGSize(width: 720, height: 420)
+        islandRef = island
         island.show()
         self.island = island
 
+        // Quick-access actions that exist today; the others stay dimmed until their feature lands.
+        quickAccess.table.register("settings") { settings.show() }
+        quickAccess.table.register("keepawake") { [weak island] in
+            navigation.select(tabID: "keepawake")
+            island?.open()
+        }
+
         // The command bar can jump to any tab of the island.
-        CommandBarFeature.register(commands: ShellTabs.all.map { tab in
+        CommandBarFeature.register(commands: tabs.map { tab in
             BarCommand(id: "island.tab.\(tab.id)", title: "Ouvrir \(tab.title)",
                        keywords: ["île", "island", tab.id, tab.title]) { [weak island] in
-                ShellState.shared.selected = tab.id
-                island?.open()
+                if navigation.select(tabID: tab.id) { island?.open() } else { settings.show() }
             }
         })
     }
@@ -56,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let migrator = VorssaintMigrator(
-            sourceDomain: UserDefaults.standard.persistentDomain(forName: "com.vorssaint.utils") ?? [:],
+            sourceDomain: UserDefaults.standard.persistentDomain(forName: Self.vorssaintDomain) ?? [:],
             sourceSupportDir: support.appendingPathComponent("com.vorssaint.utils"),
             destDefaults: defaults,
             destSupportDir: support.appendingPathComponent(Self.bundleID))
@@ -76,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The island's tabs, in display order.
+/// The 13 feature tabs, reused as sub-views of the island's four groups and of the Settings sheets.
 @MainActor
 enum ShellTabs {
     static let all: [IslandTab] = [
@@ -87,81 +139,16 @@ enum ShellTabs {
     ]
 }
 
-/// Which tab is selected. Shared so the command bar can switch tabs.
+/// Bridges Claude sessions to the shared activity engine.
 @MainActor
-final class ShellState: ObservableObject {
-    static let shared = ShellState()
-    @Published var selected = "terminal"
+final class ActivityCenterSink: ClaudeActivitySink {
+    func post(_ activity: IslandActivity) { ActivityCenter.shared.post(activity) }
+    func withdraw(id: String) { ActivityCenter.shared.withdraw(id: id) }
 }
 
-/// Island shell: a tab bar and the selected feature's view. Features only supply `IslandTab`s.
-struct IslandRootView: View {
-    @EnvironmentObject private var state: IslandState
-    @ObservedObject private var shell = ShellState.shared
-
-    private let tabs = ShellTabs.all
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: state.isOpen ? 22 : 10, style: .continuous)
-                .fill(ProcessInfo.processInfo.environment["MIS_DEBUG"] != nil && !state.isOpen
-                      ? Color.red : Color.black)
-            if !state.isOpen, let alert = MonitorFeature.currentAlert {
-                // Closed island: a red dot in the right wing while a CPU or memory alert is active.
-                HStack {
-                    Spacer()
-                    Circle().fill(Color.red).frame(width: 8, height: 8)
-                        .padding(.trailing, 4).padding(.top, 12)
-                        .accessibilityLabel(alert.title)
-                }
-            }
-            if state.isOpen {
-                VStack(spacing: 0) {
-                    HStack(spacing: 4) {
-                        // 13 tabs do not fit with labels: icons only, the selected one shows its name.
-                        ForEach(tabs) { tab in
-                            Button { shell.selected = tab.id } label: {
-                                HStack(spacing: 5) {
-                                    Image(systemName: tab.systemImage)
-                                    if shell.selected == tab.id { Text(tab.title) }
-                                }
-                                .font(.system(size: 12, weight: .medium))
-                                .padding(.horizontal, 8).padding(.vertical, 5)
-                                .background(shell.selected == tab.id ? Color.white.opacity(0.16) : .clear,
-                                            in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.white.opacity(shell.selected == tab.id ? 1 : 0.6))
-                            .help(tab.title)
-                            .accessibilityLabel(tab.title)
-                        }
-                        Spacer(minLength: 8)
-                        if let alert = MonitorFeature.currentAlert {
-                            Label(alert.title, systemImage: "exclamationmark.triangle.fill")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.orange)
-                                .accessibilityLabel("\(alert.title). \(alert.message)")
-                        }
-                        if FansFeature.isManualActive {
-                            // Manual fan mode outlives the island: always say so while it is on.
-                            Label("Ventilos manuels", systemImage: "fan.fill")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.cyan)
-                        }
-                        ClaudeStatusPill(model: TerminalFeature.claudeStatus())  // hidden while idle
-                    }
-                    .padding(.top, 38)  // clear of the notch
-                    .padding(.bottom, 8)
-                    if let tab = tabs.first(where: { $0.id == shell.selected }) {
-                        tab.makeView().frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
-                .padding(.horizontal, 14).padding(.bottom, 12)
-            }
-        }
-        .animation(.easeOut(duration: 0.18), value: state.isOpen)
-        .onChange(of: state.isOpen) { _, open in
-            if open { KeepAwakeFeature.noteIslandActivity() }  // honours `notchKeepAwakeActivity`
-        }
-    }
+/// The closed island's wings, redrawn whenever the activity engine publishes a new layout.
+struct ClosedStrip: View {
+    let notchWidth: CGFloat
+    @ObservedObject private var center = ActivityCenter.shared
+    var body: some View { CompactStrip(layout: center.layout, notchWidth: notchWidth) }
 }

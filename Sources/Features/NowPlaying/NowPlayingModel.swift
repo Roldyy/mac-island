@@ -27,6 +27,9 @@ final class NowPlayingModel {
     private let transport: NowPlayingTransport?
     private let artworkLoader: (any ArtworkLoading)?
     private var visible = false
+    private var background = false
+    /// Called after every poll with what is playing (nil when nothing or access missing). The closed island listens.
+    var onSnapshot: ((NowPlayingSnapshot?) -> Void)?
     private var task: Task<Void, Never>?
     private var artworkKey: String?
     private var artworkTask: Task<Void, Never>?
@@ -83,11 +86,13 @@ final class NowPlayingModel {
         if out.permissionDenied {
             access = .denied; snapshot = nil; artwork = nil
             cancelArtwork()
+            onSnapshot?(nil)
             return
         }
         access = .ready
         snapshot = out.snapshot
         refreshArtwork()
+        onSnapshot?(out.snapshot)
     }
 
     /// Never awaited by `poll()`: a slow cover must not stall the transport state. Each track key owns at
@@ -132,14 +137,22 @@ final class NowPlayingModel {
         }
     }
 
+    /// Keep polling while the island is closed so the music shows in its wing. Slower than the open tab:
+    /// each poll is an AppleScript round trip. Still silent until the user pressed "Autoriser" once.
+    func setBackground(_ on: Bool) {
+        background = on
+        updatePolling()
+    }
+
     private func updatePolling() {
         task?.cancel()
         task = nil
-        guard visible, access != .needsAuthorization else { return }
+        guard visible || background, access != .needsAuthorization else { return }
         task = Task { [weak self, interval] in
             while !Task.isCancelled {
                 await self?.poll()
-                try? await Task.sleep(for: interval)
+                let wait = (self?.visible ?? false) ? interval : .seconds(3)
+                try? await Task.sleep(for: wait)
             }
         }
     }

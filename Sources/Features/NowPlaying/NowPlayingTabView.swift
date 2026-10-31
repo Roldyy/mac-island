@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct NowPlayingTabView: View {
-    @State private var model = NowPlayingModel.live()
+    @State private var model = NowPlayingFeature.model
 
     var body: some View {
         Group {
