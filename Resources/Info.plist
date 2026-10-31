@@ -31,7 +31,7 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHumanReadableCopyright</key>
-    <string>MIT License. See LICENSE.</string>
+    <string>GPL-3.0-or-later. See LICENSE.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Mac Island reads what is playing in Spotify and Music, and which items are selected in Finder for cut and paste.</string>
     <key>NSAudioCaptureUsageDescription</key>

@@ -30,10 +30,10 @@ struct AboutPage: View {
             SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     link("Voir le projet sur GitHub", "chevron.left.forwardslash.chevron.right", "https://github.com/Roldyy/mac-island")
-                    link("Lire la licence (MIT)", "doc.text", "https://github.com/Roldyy/mac-island/blob/main/LICENSE")
+                    link("Lire la licence (GPL-3.0)", "doc.text", "https://github.com/Roldyy/mac-island/blob/main/LICENSE")
                     link("Signaler un problème", "exclamationmark.bubble", "https://github.com/Roldyy/mac-island/issues")
                     Divider()
-                    Text("© 2026 Roldy Management. Logiciel libre sous licence MIT.")
+                    Text("© 2026 Roldy Management. Logiciel libre sous licence GPL-3.0 ou ultérieure, en partie dérivé de Vorssaint.")
                         .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
                 }
             }

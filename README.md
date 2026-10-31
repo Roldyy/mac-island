@@ -99,4 +99,4 @@ Releases are built with `scripts/notarize.sh`, which signs with a Developer ID, 
 
 ## License
 
-MIT, see `LICENSE`. Third-party notices are in `NOTICE`.
+GPL-3.0-or-later, see `LICENSE`. Part of the code is derived from Vorssaint (GPL-3.0-or-later). Third-party notices are in `NOTICE`.

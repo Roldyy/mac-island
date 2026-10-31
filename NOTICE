@@ -28,5 +28,9 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Mac Island is an independent project. It is not affiliated with Vorssaint or Glasswave, and it
-contains no code from either. Names are used only to describe the settings migration.
+Mac Island contains code derived from Vorssaint (https://github.com/vorssaint/vorssaint-utils),
+Copyright (C) 2026 Vorssaint, licensed under GPL-3.0-or-later. Files ported from it keep that
+notice. Mac Island as a whole is distributed under GPL-3.0-or-later (see LICENSE).
+
+Mac Island is an independent project. It is not affiliated with or endorsed by Vorssaint or
+Glasswave. The Vorssaint name, logo and branding are not used (see Vorssaint's TRADEMARKS.md).
