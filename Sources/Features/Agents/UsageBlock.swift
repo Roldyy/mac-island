@@ -25,7 +25,16 @@ enum UsageBlocks {
     /// The block `now` falls in, or nil when the last block is over (idle for 5 h, or past its end).
     static func active(_ records: [UsageRecord], now: Date) -> UsageBlock? {
         var current: UsageBlock?
-        for record in records.filter({ $0.timestamp <= now }).sorted(by: { $0.timestamp < $1.timestamp }) {
+        // Only the last run of activity matters: a gap over 5 h always starts a fresh block, whatever came
+        // before it. Sorting 13 weeks of records for that is the slow part, so cut at the last such gap first.
+        let eligible = records.filter { $0.timestamp <= now }
+        guard let latest = eligible.lazy.map(\.timestamp).max(), now.timeIntervalSince(latest) < length else { return nil }
+        let stamps = eligible.map(\.timestamp).sorted()
+        var cut = stamps[0]
+        for index in stamps.indices.dropFirst() where stamps[index].timeIntervalSince(stamps[index - 1]) > length {
+            cut = stamps[index]
+        }
+        for record in eligible.filter({ $0.timestamp >= cut }).sorted(by: { $0.timestamp < $1.timestamp }) {
             if let block = current,
                record.timestamp < block.end,
                record.timestamp.timeIntervalSince(block.lastActivity) <= length {

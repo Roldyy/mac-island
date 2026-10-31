@@ -19,10 +19,10 @@ struct ClaudeStatusDot: View {
             ZStack {
                 Circle().fill(IslandSurface.notchBlack)
                 Image(systemName: status == .waiting ? "hand.raised.fill" : "circle.fill")
-                    .font(.system(size: 7, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(status == .waiting ? IslandStatus.warning.color : IslandStatus.info.color)
             }
-            .frame(width: 13, height: 13)
+            .frame(width: 19, height: 19)
             .help(label)
             .accessibilityLabel(label)
         }
@@ -42,10 +42,10 @@ struct ClaudeOpenAppButton: View {
                 Circle().fill(IslandSurface.notchBlack)
                 Circle().strokeBorder(IslandPalette.textPrimary.color.opacity(0.3), lineWidth: 1)
                 Image(systemName: "arrow.up.forward.app")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(IslandPalette.textPrimary.color)
             }
-            .frame(width: 16, height: 16)
+            .frame(width: 21, height: 21)
             .contentShape(Circle().inset(by: -3))
         }
         .buttonStyle(HomeTapStyle())

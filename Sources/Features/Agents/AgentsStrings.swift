@@ -105,4 +105,8 @@ enum AgentsStrings {
     static let lessBudget = "Réduire le budget"
     static let moreBudget = "Augmenter le budget"
     static let inFormat = "dans %@"
+    static let refreshing = "Actualisation…"
+    static let resetsIn = "Se renouvelle dans"
+    static let tokensShort = "jetons"
+    static let finishedChip = "a terminé"
 }

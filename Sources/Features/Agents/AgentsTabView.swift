@@ -2,7 +2,8 @@ import ClaudeLiveKit
 import IslandUI
 import SwiftUI
 
-/// The "Agents IA" page: a header with the period menu, then cards two per row (charts full width).
+/// The "Agents IA" page: a glanceable first screen (session ring, week ring, today, live sessions), then
+/// the cards of the chosen period two per row (charts full width).
 struct AgentsTabView: View {
     var body: some View {
         AgentsPage(model: .shared, live: .shared)
@@ -30,8 +31,18 @@ struct AgentsPage: View {
         }
         .scrollIndicators(.visible)
         .task { if isLive { await model.refreshWhileVisible() } }
-        .onAppear { if isLive { live.start() } }
-        .onDisappear { if isLive { live.stop() } }
+        .onAppear {
+            if isLive {
+                model.pageDidAppear()
+                live.start()
+            }
+        }
+        .onDisappear {
+            if isLive {
+                model.pageDidDisappear()
+                live.stop()
+            }
+        }
         .onChange(of: live.sessions) { live.observe() }
     }
 
@@ -55,6 +66,7 @@ struct AgentsPage: View {
                 .font(.islandBodyEmphasis)
                 .foregroundStyle(IslandPalette.textPrimary.color)
                 .accessibilityAddTraits(.isHeader)
+            if model.isRefreshing { AgentsRefreshIndicator().transition(.opacity) }
             Spacer(minLength: IslandSpacing.s)
             AgentsSegmentedControl(items: UsagePeriod.allCases, selection: $model.period, title: \.title,
                                    label: AgentsStrings.periodLabel)
@@ -62,6 +74,7 @@ struct AgentsPage: View {
                 .labelStyle(.iconOnly)
                 .buttonStyle(.island)
         }
+        .islandAnimation(value: model.isRefreshing)
         .onChange(of: model.period) { model.persistPeriod() }
     }
 
@@ -69,17 +82,16 @@ struct AgentsPage: View {
 
     @ViewBuilder private var content: some View {
         let cards = model.visibleCards
-        if !model.hasLoaded {
-            IslandEmptyState(symbol: "hourglass", message: AgentsStrings.text("loading"))
-                .frame(minHeight: 150)
-        } else if model.status != .ready && model.limits.source != .planFile {
+        if model.hasLoaded, model.status != .ready, model.status != .loading, model.limits.source != .planFile {
             IslandEmptyState(symbol: "tray", message: AgentsStrings.text("empty"))
                 .frame(minHeight: 150)
         } else if cards.isEmpty {
             IslandEmptyState(symbol: "rectangle.dashed", message: AgentsStrings.text("noCards"))
                 .frame(minHeight: 150)
         } else {
-            ForEach(Array(AgentsCardLayout.rows(cards).enumerated()), id: \.offset) { _, row in
+            glance(cards)
+            let lower = cards.filter { $0 != .limits && $0 != .live }
+            ForEach(Array(AgentsCardLayout.rows(lower).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: IslandSpacing.m) {
                     ForEach(row) { card in
                         view(for: card).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -90,18 +102,54 @@ struct AgentsPage: View {
         }
     }
 
+    /// The first screen: limits ring(s) and today side by side, live sessions under them. Each part follows
+    /// its card's visibility in the page settings.
+    @ViewBuilder private func glance(_ cards: [AgentsCard]) -> some View {
+        let showsLimits = cards.contains(.limits), showsToday = cards.contains(.spend)
+        if showsLimits || showsToday {
+            HStack(alignment: .top, spacing: IslandSpacing.m) {
+                if showsLimits {
+                    AgentsHeroCard(limits: model.limits, display: model.limitDisplay, now: model.now,
+                                   isLoaded: model.hasLoaded, ticking: isLive)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                if showsToday {
+                    let today = model.snapshot.summary(for: .today)
+                    AgentsTodayCard(summary: today, hourly: Self.hourlyTokens(today, model: model),
+                                    isReady: model.isComplete(.today))
+                        .frame(width: showsLimits ? 200 : nil)
+                        .frame(maxWidth: showsLimits ? nil : .infinity, maxHeight: .infinity)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if cards.contains(.live) {
+            AgentsSessionChips(sessions: live.sessions, lastFinished: live.lastFinished)
+        }
+    }
+
+    /// Tokens per hour from midnight to now (zeros for quiet hours).
+    static func hourlyTokens(_ today: UsageSummary, model: AgentsUsageModel) -> [Double] {
+        TrendBuckets.make(summary: today, period: .today, now: model.now, calendar: UsageFormat.calendar).map { Double($0.tokens) }
+    }
+
     @ViewBuilder private func view(for card: AgentsCard) -> some View {
         let summary = model.summary
+        let isPending = card == .activity ? !model.isFullyLoaded : !model.isComplete(model.period)
+        if isPending, card != .limits, card != .live, card != .resets {
+            AgentsSkeletonCard(card: card)
+        } else {
+            loaded(card, summary: summary)
+        }
+    }
+
+    @ViewBuilder private func loaded(_ card: AgentsCard, summary: UsageSummary) -> some View {
         switch card {
-        case .limits:
-            AgentsLimitsCard(limits: model.limits, display: model.limitDisplay, now: model.now)
         case .spend:
             let today = model.snapshot.summary(for: .today)
             AgentsSpendCard(summary: summary, period: model.period, plan: model.plan,
                             todayCost: today.totalCost, todayEstimated: today.costIsEstimated,
                             dailyBudget: model.dailyBudget)
-        case .live:
-            AgentsLiveCard(sessions: live.sessions, lastFinished: live.lastFinished, now: model.now)
         case .trend:
             AgentsTrendCard(buckets: TrendBuckets.make(summary: summary, period: model.period, now: model.now,
                                                        calendar: UsageFormat.calendar),
@@ -117,8 +165,8 @@ struct AgentsPage: View {
         case .activity:
             AgentsActivityCard(heatmap: model.snapshot.heatmap,
                                stats: HeatmapStats.compute(model.snapshot.heatmap, now: model.now, calendar: UsageFormat.calendar))
-        case .resets:
-            EmptyView()   // Codex only, and the Codex source is a stub: `visibleCards` never lists it
+        case .limits, .live, .resets:
+            EmptyView()   // limits and live sessions are the first screen; resets is Codex only (a stub: never listed)
         }
     }
 

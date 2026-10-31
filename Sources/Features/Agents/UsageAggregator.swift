@@ -64,11 +64,19 @@ enum UsageAggregator {
         var models: [String: (tokens: Int, cost: Double, estimated: Bool)] = [:]
         var projects: [String: (tokens: Int, cost: Double, estimated: Bool)] = [:]
         var summary = UsageSummary()
+        var slots = UsageTimeSlots(calendar: calendar)
+        var kinds: [String: (price: ResolvedPrice, family: ModelFamily)] = [:]
         for record in records where record.timestamp >= window.start && record.timestamp < window.end {
-            let price = PriceTable.price(for: record.model)
+            let kind: (price: ResolvedPrice, family: ModelFamily)
+            if let hit = kinds[record.model] {
+                kind = hit
+            } else {
+                kind = (PriceTable.price(for: record.model), ModelFamily(model: record.model))
+                kinds[record.model] = kind
+            }
+            let price = kind.price, family = kind.family
             let cost = price.perMillion.cost(of: record)
             let tokens = record.totalTokens
-            let family = ModelFamily(model: record.model)
             summary.totalTokens += tokens
             summary.totalCost += cost
             summary.outputTokens += record.outputTokens
@@ -78,10 +86,10 @@ enum UsageAggregator {
                 * (price.perMillion.input - price.perMillion.cacheRead) / 1_000_000
             if price.estimated { summary.costIsEstimated = true }
             summary.agentTokens[record.agent, default: 0] += tokens
-            let day = calendar.startOfDay(for: record.timestamp)
+            let day = slots.day(of: record.timestamp)
             days[day, default: [:]][family, default: (0, 0)].tokens += tokens
             days[day, default: [:]][family, default: (0, 0)].cost += cost
-            if period == .today, let hour = calendar.dateInterval(of: .hour, for: record.timestamp)?.start {
+            if period == .today, let hour = slots.hour(of: record.timestamp) {
                 hours[hour, default: [:]][family, default: (0, 0)].tokens += tokens
                 hours[hour, default: [:]][family, default: (0, 0)].cost += cost
             }

@@ -34,7 +34,21 @@ enum PriceTable {
     static let haiku35 = ModelPrice(input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08)
     static let haiku3 = ModelPrice(input: 0.25, output: 1.25, cacheWrite: 0.3, cacheRead: 0.03)
 
+    private final class Memo: @unchecked Sendable {
+        let lock = NSLock()
+        var prices: [String: ResolvedPrice] = [:]
+    }
+    private static let memo = Memo()
+
+    /// Resolved once per model id: the snapshot asks for every record, and a handful of ids repeat tens of thousands of times.
     static func price(for model: String) -> ResolvedPrice {
+        if let hit = memo.lock.withLock({ memo.prices[model] }) { return hit }
+        let resolved = resolve(model)
+        memo.lock.withLock { if memo.prices.count < 512 { memo.prices[model] = resolved } }   // bounded: ids come from log files
+        return resolved
+    }
+
+    private static func resolve(_ model: String) -> ResolvedPrice {
         let name = model.lowercased()
         if name.hasPrefix("<") { return ResolvedPrice(perMillion: free, estimated: false) } // "<synthetic>"
         if ["opus-4-0", "opus-4-1", "opus-4-2025", "3-opus"].contains(where: name.contains) {

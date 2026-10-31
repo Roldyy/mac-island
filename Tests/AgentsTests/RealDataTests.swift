@@ -18,14 +18,37 @@ import Testing
         let calendar = UsageFormat.calendar
         let now = Date()
         let since = UsageSnapshot.windowStart(now: now, calendar: calendar)
-        let source = ClaudeUsageSource()
+        // A temp store: the real run never touches the installed app's own cache file.
+        let store = UsageCacheStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("mis-real-\(UUID().uuidString)").appendingPathComponent("usage-cache.bin"))
+        defer { try? FileManager.default.removeItem(at: store.url.deletingLastPathComponent()) }
+        let source = ClaudeUsageSource(store: store)
 
         let t0 = Date()
-        let first = source.load(modifiedSince: since)
+        var firstReport: TimeInterval?
+        var reports = 0
+        let first = source.load(modifiedSince: since, shouldContinue: { true }) { _ in
+            reports += 1
+            if firstReport == nil { firstReport = Date().timeIntervalSince(t0) }
+        }
         let parseSeconds = Date().timeIntervalSince(t0)
         let t1 = Date()
         let second = source.load(modifiedSince: since)
         let cachedSeconds = Date().timeIntervalSince(t1)
+
+        // Relaunch: empty memory, cache on disk. Time to the first state (decode only), then to the end state.
+        let relaunched = ClaudeUsageSource(store: store)
+        let t3 = Date()
+        var diskFirst: TimeInterval?
+        var diskSnapshot: TimeInterval?
+        let third = relaunched.load(modifiedSince: since, shouldContinue: { true }) { progress in
+            guard diskFirst == nil else { return }
+            diskFirst = Date().timeIntervalSince(t3)
+            _ = UsageSnapshot.build(progress.result.records, now: now, calendar: calendar)
+            diskSnapshot = Date().timeIntervalSince(t3)
+        }
+        let diskSeconds = Date().timeIntervalSince(t3)
+        let storeBytes = (try? FileManager.default.attributesOfItem(atPath: store.url.path)[.size] as? Int) ?? 0
 
         let t2 = Date()
         let snapshot = UsageSnapshot.build(first.records, now: now, calendar: calendar)
@@ -39,7 +62,10 @@ import Testing
         var lines: [String] = []
         lines.append("files=\(first.fileCount) parsedFirst=\(first.parsedFileCount) parsedSecond=\(second.parsedFileCount) dirMissing=\(first.directoryMissing)")
         lines.append("malformedLines=\(first.malformedLines) unreadableFiles=\(first.unreadableFiles) records=\(first.records.count) recordsSecond=\(second.records.count)")
-        lines.append(String(format: "parseFirst=%.2fs parseCached=%.2fs build=%.2fs peakRSS=%.0f MB", parseSeconds, cachedSeconds, buildSeconds, Self.peakMemoryMB()))
+        lines.append(String(format: "cold=%.2fs (first report %.2fs, %d reports) warmFromDisk: records at %.0f ms, first snapshot at %.0f ms, done %.2fs (parsed %d) memory=%.3fs",
+                            parseSeconds, firstReport ?? -1, reports, (diskFirst ?? -1) * 1000, (diskSnapshot ?? -1) * 1000, diskSeconds,
+                            third.parsedFileCount, cachedSeconds))
+        lines.append(String(format: "build=%.0f ms cacheFile=%.1f MB peakRSS=%.0f MB", buildSeconds * 1000, Double(storeBytes) / 1_048_576, Self.peakMemoryMB()))
         lines.append("tokens today=\(today.totalTokens) week=\(week.totalTokens) month=\(month.totalTokens)")
         lines.append(String(format: "cost today=%.2f week=%.2f month=%.2f estimated=%@ cacheSavings=%.2f", today.totalCost, week.totalCost, month.totalCost, "\(month.costIsEstimated)", month.cacheSavings))
         lines.append("models=\(month.perModel.count) projects=\(month.perProject.count) recordsOfUnknownModel=\(other) perDayBars=\(month.perDay.count)")
@@ -56,6 +82,8 @@ import Testing
 
         #expect(first.records.count > 0, "no usage record found")
         #expect(month.totalTokens >= week.totalTokens && week.totalTokens >= today.totalTokens, "periods not nested")
-        #expect(second.records.count >= first.records.count, "cached pass lost records")  // a live log may grow between passes
+        #expect(second.records.count >= first.records.count, "cached pass lost records")
+        #expect(third.records.count >= first.records.count, "disk-cached pass lost records")
+        #expect(third.parsedFileCount <= 5, "a relaunch re-read more than the files that changed meanwhile")  // a live log may grow between passes
     }
 }

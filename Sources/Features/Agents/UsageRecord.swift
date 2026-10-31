@@ -57,7 +57,27 @@ struct UsageLoadResult: Sendable {
     var unreadableFiles = 0
 }
 
+/// A state of a load in flight: everything known so far, and how far the newest-first read has got.
+struct UsageProgress: Sendable {
+    var result: UsageLoadResult
+    /// Newest modification date among files that have no data yet. A log never holds a record newer than its
+    /// own mtime, so a period starting after this instant is complete. nil = every file has data.
+    var missingNewest: Date?
+}
+
 protocol UsageSource: Sendable {
     /// `modifiedSince` lets a source skip files untouched since that date (nil = read everything).
     func load(modifiedSince: Date?) -> UsageLoadResult
+
+    /// Same load, reporting intermediate states through `progress` (newest files first) and stopping early
+    /// when `shouldContinue` turns false. The return value is the final state, never sent through `progress`.
+    /// Called on the loading thread, never on the main actor.
+    func load(modifiedSince: Date?, shouldContinue: () -> Bool, progress: (UsageProgress) -> Void) -> UsageLoadResult
+}
+
+extension UsageSource {
+    /// A source that cannot report partial states just returns its end state.
+    func load(modifiedSince: Date?, shouldContinue: () -> Bool, progress: (UsageProgress) -> Void) -> UsageLoadResult {
+        load(modifiedSince: modifiedSince)
+    }
 }

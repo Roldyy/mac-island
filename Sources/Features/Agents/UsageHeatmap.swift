@@ -30,8 +30,9 @@ struct UsageHeatmap: Equatable, Sendable {
         let start = gridStart(now: now, calendar: calendar)
         let today = calendar.startOfDay(for: now)
         var perDay: [Date: Int] = [:]
+        var slots = UsageTimeSlots(calendar: calendar)
         for record in records where record.timestamp >= start && record.timestamp <= now {
-            perDay[calendar.startOfDay(for: record.timestamp), default: 0] += record.totalTokens
+            perDay[slots.day(of: record.timestamp), default: 0] += record.totalTokens
         }
         let peak = perDay.values.max() ?? 0
         var columns: [[HeatCell]] = []
