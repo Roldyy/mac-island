@@ -13,7 +13,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "SettingsKit"),
-        .target(name: "IslandKit"),
+        .target(name: "IslandUI"),
+        .target(name: "IslandKit", dependencies: ["IslandUI"]),
+        .target(name: "IslandTestSupport"),
+        .target(name: "ClaudeLiveKit", dependencies: ["IslandKit"]),
+        .executableTarget(name: "ClaudeHook", dependencies: ["ClaudeLiveKit"]),
+        .target(name: "ShellKit", dependencies: ["IslandKit", "IslandUI", "SettingsKit", "ClaudeLiveKit"]),
 
         // Features: one module per lane, disjoint write surfaces.
         // Fan control: pure shared policy + XPC contract, the root helper, and the UI client.
@@ -36,7 +41,7 @@ let package = Package(
         .target(name: "AudioFeature", dependencies: ["IslandKit"], path: "Sources/Features/Audio"),
 
         .executableTarget(name: "MacIsland", dependencies: [
-            "IslandKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
+            "IslandKit", "IslandUI", "ShellKit", "ClaudeLiveKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
             "FansFeature", "MonitorFeature", "CommandBarFeature",
             "FinderFeature", "DockFeature", "DisplayFeature", "AudioFeature",
@@ -45,6 +50,10 @@ let package = Package(
 
         .testTarget(name: "SettingsKitTests", dependencies: ["SettingsKit"]),
         .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),
+        .testTarget(name: "IslandUITests", dependencies: ["IslandUI", "IslandTestSupport"]),
+        .testTarget(name: "ShellKitTests", dependencies: ["ShellKit", "IslandTestSupport"]),
+        .testTarget(name: "ClaudeLiveKitTests", dependencies: ["ClaudeLiveKit", "IslandTestSupport"]),
+        .testTarget(name: "ActivityTests", dependencies: ["IslandKit", "IslandTestSupport"]),
         .testTarget(name: "TerminalFeatureTests", dependencies: ["TerminalFeature"], path: "Tests/TerminalTests"),
         .testTarget(name: "AgentsFeatureTests", dependencies: ["AgentsFeature"], path: "Tests/AgentsTests"),
         .testTarget(name: "ClipboardFeatureTests", dependencies: ["ClipboardFeature"], path: "Tests/ClipboardTests"),
