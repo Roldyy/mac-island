@@ -1,10 +1,18 @@
+import ClaudeLiveKit
 import Foundation
 
 /// Pure parser for Claude Code `~/.claude/projects/**/*.jsonl` lines.
+/// JSONL fields read (names only): type, timestamp, cwd, message.id, message.model, message.usage.
+/// {input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}.
 enum ClaudeUsageParser {
-    struct Result {
+    struct Result: Sendable {
         var records: [UsageRecord] = []
         var malformedLines = 0
+
+        mutating func append(_ other: Result) {
+            records.append(contentsOf: other.records)
+            malformedLines += other.malformedLines
+        }
     }
 
     private struct Line: Decodable {
@@ -21,6 +29,7 @@ enum ClaudeUsageParser {
         }
         var type: String?
         var timestamp: String?
+        var cwd: String?
         var message: Message?
     }
 
@@ -38,6 +47,29 @@ enum ClaudeUsageParser {
             parser.consume(Data(slice), into: &result)
         }
         return result
+    }
+
+    /// Streams a file from `offset`. `committed` holds only newline-terminated lines (safe to cache and to
+    /// resume from `committedOffset`); `tail` is a last line without newline, parsed but never cached. A tail
+    /// still being written counts as malformed until its newline lands (transient, the counter is only a hint).
+    struct FileParse: Sendable {
+        var committed = Result()
+        var tail = Result()
+        var committedOffset: UInt64 = 0
+    }
+
+    static func parse(file url: URL, from offset: UInt64 = 0) throws -> FileParse {
+        var out = FileParse()
+        let parser = LineParser()
+        let outcome = try JSONLStream.read(url: url, from: offset) { parser.consume($0, into: &out.committed) }
+        out.committed.malformedLines += outcome.oversizedLines
+        out.committedOffset = outcome.committedOffset
+        if let tail = outcome.tail {
+            var scratch = Result()
+            parser.consume(tail, into: &scratch)
+            out.tail = scratch
+        }
+        return out
     }
 
     private final class LineParser {
@@ -75,7 +107,8 @@ enum ClaudeUsageParser {
                 inputTokens: usage.input_tokens ?? 0,
                 outputTokens: usage.output_tokens ?? 0,
                 cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-                cacheReadTokens: usage.cache_read_input_tokens ?? 0))
+                cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+                project: line.cwd.map(ClaudeText.folderName(fromCwd:)) ?? ""))
         }
     }
 }

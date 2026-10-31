@@ -1,6 +1,7 @@
+import IslandUI
 import SwiftUI
 
-/// Compact summary for the closed island: month tokens and cost.
+/// Compact summary for the closed island: tokens and cost of the selected period.
 struct AgentsIdleView: View {
     @State private var model = AgentsUsageModel.shared
 
@@ -9,17 +10,17 @@ struct AgentsIdleView: View {
     var body: some View {
         let s = model.summary
         HStack(spacing: 6) {
-            Image(systemName: "sparkles").foregroundStyle(.white.opacity(0.7))
+            Image(systemName: "sparkles").foregroundStyle(IslandPalette.textSecondary.color)
             Text(UsageFormat.tokens(s.totalTokens))
             Text(UsageFormat.cost(s.totalCost, estimated: s.costIsEstimated))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(IslandPalette.textSecondary.color)
         }
-        .font(.system(.caption, design: .rounded, weight: .semibold))
+        .font(.islandCaptionEmphasis)
         .monospacedDigit()
-        .foregroundStyle(.white)
+        .foregroundStyle(IslandPalette.textPrimary.color)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("AI usage this month")
-        .accessibilityValue("\(UsageFormat.tokens(s.totalTokens)) tokens, \(UsageFormat.cost(s.totalCost, estimated: s.costIsEstimated))")
+        .accessibilityLabel("Consommation IA \(model.period.phrase)")
+        .accessibilityValue("\(UsageFormat.exactTokens(s.totalTokens)) tokens, \(UsageFormat.cost(s.totalCost, estimated: s.costIsEstimated))")
         .task { await model.refresh() }
     }
 }

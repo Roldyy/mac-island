@@ -1,5 +1,16 @@
 import Foundation
 
+enum UsageAgent: String, Sendable, CaseIterable {
+    case claude, codex
+
+    var title: String {
+        switch self {
+        case .claude: "Claude"
+        case .codex: "Codex"
+        }
+    }
+}
+
 /// One assistant message worth of token usage. Never carries message content.
 struct UsageRecord: Equatable, Sendable {
     var messageID: String?
@@ -9,6 +20,9 @@ struct UsageRecord: Equatable, Sendable {
     var outputTokens: Int
     var cacheCreationTokens: Int
     var cacheReadTokens: Int
+    /// Last path component of the working directory, never a full path. Empty when the log has none.
+    var project: String = ""
+    var agent: UsageAgent = .claude
 
     var totalTokens: Int { inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens }
 
@@ -37,6 +51,10 @@ struct UsageLoadResult: Sendable {
     var fileCount = 0
     /// Files actually decoded this pass (the rest came from the cache).
     var parsedFileCount = 0
+    /// The source's folder does not exist (never used, or not installed).
+    var directoryMissing = false
+    /// Files that exist but could not be opened or read.
+    var unreadableFiles = 0
 }
 
 protocol UsageSource: Sendable {

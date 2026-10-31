@@ -1,23 +1,27 @@
+import IslandUI
 import SwiftUI
 
-/// Small daily token bars drawn with plain shapes.
+/// Small token bars (one per day, or per hour for "Aujourd’hui") drawn with plain shapes.
 struct DailyBarsView: View {
     let days: [DayUsage]
+    var hourly = false
 
     var body: some View {
         let peak = max(days.map(\.tokens).max() ?? 1, 1)
-        HStack(alignment: .bottom, spacing: 3) {
-            ForEach(days) { day in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(.white.opacity(0.85))
-                    .frame(height: max(3, 48 * CGFloat(day.tokens) / CGFloat(peak)))
-                    .frame(maxWidth: .infinity)
+        IslandCard {
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(days) { day in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(IslandPalette.accent.color)
+                        .frame(height: max(3, 48 * CGFloat(day.tokens) / CGFloat(peak)))
+                        .frame(maxWidth: .infinity)
+                }
             }
+            .frame(height: 48, alignment: .bottom)
         }
-        .frame(height: 48, alignment: .bottom)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Daily token usage this month")
-        .accessibilityValue(days.isEmpty ? "No data"
-            : "\(days.count) days, peak \(UsageFormat.tokens(peak)) tokens")
+        .accessibilityLabel(hourly ? "Tokens par heure" : "Tokens par jour")
+        .accessibilityValue(days.isEmpty ? "Aucune donnée"
+            : "\(days.count) \(hourly ? "heures" : "jours"), maximum \(UsageFormat.tokens(peak)) tokens")
     }
 }
