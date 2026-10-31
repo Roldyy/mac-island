@@ -51,4 +51,22 @@ public enum ShellLayout {
         if let remembered, visible.contains(where: { $0.id == remembered }) { return remembered }
         return visible.first?.id
     }
+
+    // MARK: - Open size
+
+    /// Solid band at the top of the open island, behind the hardware notch; the header starts under it.
+    public static let topBandHeight: CGFloat = 38
+
+    /// Height the open island asks for when no section is known (or the section has no entry).
+    public static let defaultOpenHeight: CGFloat = 420
+    /// Content-driven heights: a terminal needs room, a now-playing card does not.
+    static let openHeights: [String: CGFloat] = [
+        "terminal": 480, "agents": 420, "clipboard": 420, "shelf": 400,
+        "nowplaying": 320, "audio": 380, "keepawake": 320, "monitor": 360, "fans": 380,
+    ]
+
+    /// Panel height for the visible section; `IslandController` clamps it to the screen.
+    public static func openHeight(forSection id: String?) -> CGFloat {
+        id.flatMap { openHeights[$0] } ?? defaultOpenHeight
+    }
 }

@@ -17,6 +17,9 @@ public struct FeatureBadge: Equatable {
         }
     }
 
+    /// Shown instead of the state when a switch cannot take effect before the app restarts.
+    public static let pendingRelaunch = FeatureBadge("Prend effet au prochain lancement", .warning)
+
     private init(_ text: String, _ status: IslandStatus) {
         self.text = text
         self.status = status

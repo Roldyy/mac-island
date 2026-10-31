@@ -1,4 +1,4 @@
-import ClaudeLiveKit
+import ClaudeHookCore
 import Foundation
 
 // Hook entry point. Prints NOTHING on stdout (Claude Code reads it) and always exits 0.

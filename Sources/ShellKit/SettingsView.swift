@@ -1,4 +1,5 @@
 import IslandKit
+import AppKit
 import IslandUI
 import SwiftUI
 
@@ -8,9 +9,12 @@ struct SettingsView: View {
     /// Tabs of features that have no place in the island's four groups: their settings open in a sheet.
     let sheetTabs: [String: IslandTab]
     let openPermission: @MainActor (FeaturePermission) -> Void
+    /// Restarts the app; nil when it cannot (a bare `swift run` binary), then the row only says so.
+    var relaunch: (@MainActor () -> Void)?
 
     @State private var query = ""
     @State private var sheetTab: IslandTab?
+    @State private var hooksCopied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +28,7 @@ struct SettingsView: View {
                         IslandHeader(section.category.title)
                     }
                 }
+                Section { claudeHooks } header: { IslandHeader("Claude") }
             }
         }
         .frame(minWidth: 560, minHeight: 480)
@@ -61,9 +66,37 @@ struct SettingsView: View {
         .padding(12)
     }
 
+    /// Optional hooks: the island reacts faster than the 2 s poll. Display and copy only.
+    private var claudeHooks: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Réaction immédiate aux sessions Claude Code (facultatif)")
+                .font(.system(size: 13, weight: .medium))
+            Text("Mac Island n'écrit jamais dans votre fichier ~/.claude/settings.json. Copiez ce bloc, puis collez-le vous-même dans ce fichier.")
+                .font(.system(size: 11)).foregroundStyle(IslandPalette.textSecondary.color)
+            HStack(spacing: 8) {
+                Button(hooksCopied ? "Copié" : "Copier le bloc de hooks") { copyHooks() }
+                    .buttonStyle(IslandButtonStyle())
+                    .disabled(ClaudeHookSetup.snippet() == nil)
+                if ClaudeHookSetup.snippet() == nil {
+                    Text("Introuvable : disponible dans l'app installée.")
+                        .font(.system(size: 11)).foregroundStyle(IslandPalette.textSecondary.color)
+                }
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func copyHooks() {
+        guard let snippet = ClaudeHookSetup.snippet() else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(snippet, forType: .string)
+        hooksCopied = true
+    }
+
     private func row(_ d: FeatureDescriptor) -> some View {
         let state = registry.state(for: d.id)
-        let badge = FeatureBadge(state)
+        let relaunchNeeded = registry.needsRelaunch(d.id)
+        let badge = relaunchNeeded ? FeatureBadge.pendingRelaunch : FeatureBadge(state)
         return HStack(spacing: 10) {
             Image(systemName: d.systemImage).frame(width: 24).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
@@ -73,6 +106,9 @@ struct SettingsView: View {
                     .font(.system(size: 11)).foregroundStyle(badge.status.color)
             }
             Spacer(minLength: 8)
+            if relaunchNeeded, let relaunch {
+                Button("Relancer") { relaunch() }.buttonStyle(IslandButtonStyle())
+            }
             if case .needsPermission(let permission) = state {
                 Button("Autoriser") { openPermission(permission) }.buttonStyle(IslandButtonStyle())
             }

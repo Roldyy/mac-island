@@ -18,7 +18,7 @@ public struct IslandHUD: View {
     }
 
     public static func percentText(_ value: Double) -> String {
-        "\(Int((clamped(value) * 100).rounded())) %"
+        "\(Int((clamped(value) * 100).rounded()))\u{202F}%"
     }
 
     public var body: some View {

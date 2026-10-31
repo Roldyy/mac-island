@@ -2,9 +2,9 @@ import Foundation
 import Testing
 
 @Suite struct DesignLintTests {
-    /// W1 re-skins the existing modules; until it lands the repo-wide run only reports.
-    /// Flip to `true` once the tree is clean and the lint becomes a gate.
-    static let enforce = false
+    /// Folders that are clean and must stay so: a violation there fails the test. The rest only reports
+    /// until W1 re-skins `Sources/Features`; then add it here (and the report-only branch can go).
+    static let enforcedFolders: Set<String> = ["Sources/ShellKit", "Sources/MacIsland", "Sources/IslandKit"]
 
     static var repoRoot: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -79,16 +79,35 @@ import Testing
         #expect(DesignLint.scan(root: nowhere).isEmpty)
     }
 
-    // MARK: the repo (report-only until W1)
+    @Test func enforcedFoldersAreAllScanned() {
+        #expect(Self.enforcedFolders.isSubset(of: Set(DesignLint.scannedFolders)))
+        #expect(DesignLint.scannedFolders.contains("Sources/IslandKit"))
+    }
+
+    @Test func folderMembershipIsExact() {
+        let v = DesignLintViolation(file: "Sources/ShellKit/A.swift", line: 1, rule: "r", excerpt: "")
+        #expect(Self.folder(of: v) == "Sources/ShellKit")
+        // A sibling that merely starts with the same letters is not in the folder.
+        let other = DesignLintViolation(file: "Sources/ShellKitExtra/A.swift", line: 1, rule: "r", excerpt: "")
+        #expect(Self.folder(of: other) == nil)
+    }
+
+    // MARK: the repo (per-folder gate)
+
+    static func folder(of violation: DesignLintViolation) -> String? {
+        DesignLint.scannedFolders.first { violation.file.hasPrefix($0 + "/") }
+    }
 
     @Test func repositoryFollowsTheDesignSystem() {
         let violations = DesignLint.scan(root: Self.repoRoot)
-        if !violations.isEmpty {
-            print("DesignLint : \(violations.count) violation(s), enforce = \(Self.enforce)")
-            for violation in violations.prefix(200) { print("  \(violation)") }
+        let blocking = violations.filter { Self.folder(of: $0).map(Self.enforcedFolders.contains) ?? false }
+        let reported = violations.filter { !blocking.contains($0) }
+        if !reported.isEmpty {
+            print("DesignLint : \(reported.count) violation(s) report-only")
+            for violation in reported.prefix(200) { print("  \(violation)") }
         }
-        if Self.enforce {
-            #expect(violations.isEmpty, "\(violations.count) violation(s) du système de design")
-        }
+        let message = "\(blocking.count) violation(s) du système de design :\n"
+            + blocking.prefix(50).map(\.description).joined(separator: "\n")
+        #expect(blocking.isEmpty, Comment(rawValue: message))
     }
 }

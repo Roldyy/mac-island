@@ -25,7 +25,7 @@ public struct CompactStrip: View {
         .overlay(alignment: .topTrailing) {
             if let dot = layout.dot {
                 Image(systemName: dot.symbol)
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: IslandType.minimumSize, weight: .bold))
                     .foregroundStyle(dot.color)
                     .padding(.top, 3).padding(.trailing, 3)
                     .accessibilityLabel(Self.dotLabel(dot))
@@ -42,7 +42,7 @@ public struct CompactStrip: View {
                 glyph(item)
                 if let text = item.text, !text.isEmpty {
                     Text(text)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: IslandType.minimumSize, weight: .medium))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -66,7 +66,7 @@ public struct CompactStrip: View {
                     .rotationEffect(.degrees(-90))
             }
             Image(systemName: item.symbol)
-                .font(.system(size: item.progress == nil ? 12 : 9, weight: .semibold))
+                .font(.system(size: item.progress == nil ? 12 : IslandType.minimumSize, weight: .semibold))
                 .foregroundStyle(item.status.color)
         }
         .frame(width: 16, height: 16)
@@ -86,7 +86,6 @@ public struct CompactStrip: View {
         case .success: "réussite"
         case .warning: "attention"
         case .danger: "erreur"
-        @unknown default: nil
         }
     }
 

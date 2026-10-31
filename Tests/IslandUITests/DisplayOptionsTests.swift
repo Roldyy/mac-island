@@ -16,6 +16,27 @@ import Testing
         #expect(normal.border == IslandPalette.separator)
     }
 
+    @Test func reduceTransparencyGetsAStrongOutlineAndALighterDarkSurface() {
+        let spec = IslandGlassSpec.resolve(IslandDisplayOptions(reduceTransparency: true))
+        #expect(spec.border == IslandPalette.separatorStrong)
+        #expect(spec.borderWidth > IslandGlassSpec.resolve(.standard).borderWidth)
+        // About 0.19-0.20: far enough from the black notch and from a dark wallpaper to read as a surface.
+        #expect((0.19...0.20).contains(IslandSurface.solid.dark.red))
+    }
+
+    @Test func badgeSpeaksItsStatusWithoutRepeatingIt() {
+        #expect(IslandBadge.spokenLabel("Attention", status: .warning) == "Attention")
+        #expect(IslandBadge.spokenLabel("attention", status: .warning) == "attention")
+        #expect(IslandBadge.spokenLabel("Succès", status: .success) == "Succès")
+        #expect(IslandBadge.spokenLabel("Ventilateur lent", status: .warning) == "Attention : Ventilateur lent")
+        #expect(IslandBadge.spokenLabel("Prêt", status: .neutral) == "Neutre : Prêt")
+    }
+
+    @Test func successIsCalledSucces() {
+        #expect(IslandStatus.success.label == "Succès")
+        #expect(!IslandStatus.allCases.contains { $0.label == "Réussi" })
+    }
+
     @Test func reduceMotionRemovesAnimation() {
         #expect(IslandMotion.animation(.easeIn, reduceMotion: true) == nil)
         #expect(IslandMotion.animation(.easeIn, reduceMotion: false) != nil)
@@ -39,7 +60,7 @@ import Testing
         #expect(IslandHUD.clamped(-1) == 0)
         #expect(IslandHUD.clamped(2) == 1)
         #expect(IslandHUD.clamped(.nan) == 0)
-        #expect(IslandHUD.percentText(0.456) == "46 %")
+        #expect(IslandHUD.percentText(0.456) == "46\u{202F}%")
     }
 
     @Test func everyStatusHasASymbolAndAFrenchLabel() {

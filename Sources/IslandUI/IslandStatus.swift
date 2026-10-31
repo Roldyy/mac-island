@@ -21,7 +21,7 @@ public enum IslandStatus: String, CaseIterable, Sendable {
         switch self {
         case .neutral: "Neutre"
         case .info: "Information"
-        case .success: "Réussi"
+        case .success: "Succès"
         case .warning: "Attention"
         case .danger: "Erreur"
         }

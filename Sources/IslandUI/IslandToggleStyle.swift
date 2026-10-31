@@ -27,18 +27,20 @@ private struct IslandToggleBody: View {
                 Spacer(minLength: IslandSpacing.s)
                 ZStack(alignment: isOn ? .trailing : .leading) {
                     Capsule()
-                        .fill(isOn ? IslandPalette.prominentFill.color : IslandPalette.textTertiary.color.opacity(0.35))
+                        .fill(isOn ? Color.accentColor : IslandPalette.textTertiary.color.opacity(0.35))
+                    // The off track is a light wash, so its outline (3:1 on every surface) is what makes it visible.
                     Capsule()
                         .strokeBorder(
-                            display.options.increaseContrast ? IslandPalette.separatorStrong.color : IslandPalette.separator.color,
-                            lineWidth: display.options.increaseContrast ? 1.5 : 0.5)
+                            isOn && !display.options.increaseContrast
+                                ? IslandPalette.separator.color : IslandPalette.separatorStrong.color,
+                            lineWidth: display.options.increaseContrast ? 1.5 : (isOn ? 0.5 : 1))
                     Circle()
                         .fill(IslandPalette.onFill.color)
                         .frame(width: knob, height: knob)
                         .overlay {
                             Image(systemName: isOn ? "checkmark" : "minus")
                                 .font(.system(size: IslandType.minimumSize, weight: .bold))
-                                .foregroundStyle(isOn ? IslandPalette.prominentFill.color : IslandPalette.separatorStrong.color)
+                                .foregroundStyle(IslandPalette.knobGlyph.color)
                         }
                         .padding(2)
                 }

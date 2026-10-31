@@ -2,7 +2,7 @@ import Foundation
 import IslandKit
 
 /// Reads the old app's `featureHubKeptFeatures` value. Its stored shape was not observed, so every
-/// plausible one is accepted: a delimited string, a list, JSON in a Data, or a name-to-flag dictionary.
+/// plausible one is accepted: a delimited string, a list, JSON in a Data, or a name-to-flag dictionary (only `true` values count).
 public enum VorssaintHubSeed {
     public static let key = "featureHubKeptFeatures"
 
@@ -19,13 +19,19 @@ public enum VorssaintHubSeed {
         case let list as [Any]:
             return list.compactMap { $0 as? String }
         case let dict as [String: Any]:
-            return dict.filter { ($0.value as? Bool) ?? true }.map(\.key)
+            return dict.filter { isTrueBool($0.value) }.map(\.key)
         case let data as Data:
             guard let object = try? JSONSerialization.jsonObject(with: data) else { return [] }
             return tokens(in: object)
         default:
             return []
         }
+    }
+
+    /// Only a real Boolean true keeps a feature: not 1, 2, "YES" or "NO".
+    static func isTrueBool(_ value: Any) -> Bool {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
     }
 
     static func normalize(_ s: String) -> String {

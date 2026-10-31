@@ -18,10 +18,11 @@ public struct IslandHeader: View {
                 .accessibilityAddTraits(.isHeader)
             if let subtitle {
                 Text(subtitle)
-                    .font(.islandCaption)
-                    .foregroundStyle(IslandPalette.textSecondary.color)
+                    .font(.islandFootnote)
+                    .foregroundStyle(IslandPalette.textTertiary.color)
             }
         }
+        .padding(.bottom, IslandSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

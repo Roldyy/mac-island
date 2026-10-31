@@ -33,55 +33,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
         let defaults = AppDefaults.make() ?? .standard
-        let registry = FeatureRegistry(descriptors: ShellDescriptors.all, defaults: defaults)
+        let registry = FeatureRegistry(
+            descriptors: ShellDescriptors.all, defaults: defaults,
+            crashMarker: .standard(bundleID: Self.bundleID),
+            capabilityProvider: SystemCapabilities.provider(.live(defaults: defaults)))
         // The migrator does not carry the old "kept features" key, so fall back to its source domain.
         registry.seedFromVorssaint(defaults.object(forKey: VorssaintHubSeed.key)
             ?? UserDefaults.standard.persistentDomain(forName: Self.vorssaintDomain)?[VorssaintHubSeed.key])
-        // Each start() only arms what the user's settings and granted permissions allow; none prompts.
-        registry.launch(starters: [
-            "clipboard": { ClipboardFeature.start() },
-            "shelf": { ShelfFeature.start() },
-            "finder": { FinderFeature.start() },
-            "dock": { DockFeature.start() },
-            "display": { DisplayFeature.start() },
-            "audio": { AudioFeature.start() },
-            "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
-            "monitor": { MonitorFeature.start() },
-            "commandbar": { CommandBarFeature.start() },
-            "nowplaying": { NowPlayingFeature.start() },
-        ])
-        self.registry = registry
-
-        let tabs = ShellTabs.all
-        let navigation = ShellNavigation()
-        let quickAccess = QuickAccessModel(defaults: defaults)
-        let settings = SettingsWindowController(registry: registry, tabs: tabs) { permission in
-            if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
-        }
-        self.settings = settings
-        menuBar = MenuBarItemController(
-            onOpenSettings: { settings.show() },
-            onQuit: { NSApp.terminate(nil) })
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
         let live = ClaudeLiveMonitor(
             source: ClaudeLiveSource(reader: ClaudeSessionReader(directory: ClaudeSessionReader.defaultDirectory)),
             sink: ActivityCenterSink())
-        live.start()
         claudeLive = live
 
-        var islandRef: IslandController?
+        // Each start() only arms what the user's settings and granted permissions allow; none prompts.
+        // From here the registry also stops them: kill switch, safe mode and each switch call the stoppers.
+        // Shelf, Clipboard and Now Playing expose no stop(): their switch takes effect at the next launch
+        // and the Settings row says so.
+        registry.launch(
+            starters: [
+                "clipboard": { ClipboardFeature.start() },
+                "shelf": { ShelfFeature.start() },
+                "finder": { FinderFeature.start() },
+                "dock": { DockFeature.start() },
+                "display": { DisplayFeature.start() },
+                "audio": { AudioFeature.start() },
+                "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
+                "monitor": { MonitorFeature.start() },
+                "commandbar": { CommandBarFeature.start() },
+                "nowplaying": { NowPlayingFeature.start() },
+                "agents": { live.start() },
+            ],
+            stoppers: [
+                "finder": { FinderFeature.stop() },
+                "dock": { DockFeature.stop() },
+                "display": { DisplayFeature.stop() },
+                "audio": { AudioFeature.stop() },
+                "fans": { FansFeature.stop() },
+                "monitor": { MonitorFeature.stop() },
+                "commandbar": { CommandBarFeature.stop() },
+                "agents": { live.stop() },  // withdraws every Claude activity through the sink
+            ],
+            activitySources: ["agents": ClaudeActivityMapper.source])
+        self.registry = registry
+
+        let tabs = ShellTabs.all
+        let navigation = ShellNavigation()
+        let quickAccess = QuickAccessModel(defaults: defaults)
+        let settings = SettingsWindowController(
+            registry: registry, tabs: tabs,
+            openPermission: { permission in
+                if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
+            },
+            relaunch: Self.relaunchAction)
+        self.settings = settings
+        menuBar = MenuBarItemController(
+            onOpenSettings: { settings.show() },
+            onQuit: { NSApp.terminate(nil) })
+
+        weak var islandRef: IslandController?  // weak: the island owns this context
         let context = ShellContext(
             tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess,
-            closedStrip: { AnyView(ClosedStrip(notchWidth: islandRef?.state.notchWidth ?? 0)) },
-            onSectionChange: { _ in },
+            closedStrip: { AnyView(ClosedStrip()) },
+            onSectionChange: { id in islandRef?.setOpenHeight(ShellLayout.openHeight(forSection: id)) },
             alert: { MonitorFeature.currentAlert.map { ShellAlert(title: $0.title, message: $0.message) } },
             manualFansActive: { FansFeature.isManualActive },
             claudePill: { AnyView(ClaudeStatusPill(model: TerminalFeature.claudeStatus())) },
             openSettings: { settings.show() },
             onOpen: { KeepAwakeFeature.noteIslandActivity() })  // honours `notchKeepAwakeActivity`
         let island = IslandController { IslandShellView(context: context) }
-        island.openSize = CGSize(width: 720, height: 420)
+        island.openSize = CGSize(width: 720, height: ShellLayout.defaultOpenHeight)
         islandRef = island
         island.show()
         self.island = island
@@ -100,6 +122,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if navigation.select(tabID: tab.id) { island?.open() } else { settings.show() }
             }
         })
+    }
+
+    /// Re-applies permissions the user may have just granted in System Settings.
+    func applicationDidBecomeActive(_ notification: Notification) { registry?.refreshCapabilities() }
+
+    /// Starts a fresh instance of the app, then quits this one. Only possible from an app bundle.
+    private static var relaunchAction: (@MainActor () -> Void)? {
+        let url = Bundle.main.bundleURL
+        guard url.pathExtension == "app" else { return nil }
+        return {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = true
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+                guard error == nil else { return }
+                Task { @MainActor in NSApp.terminate(nil) }
+            }
+        }
     }
 
     /// First launch only: copy the Vorssaint settings across. Never touches the source.
@@ -147,8 +186,9 @@ final class ActivityCenterSink: ClaudeActivitySink {
 }
 
 /// The closed island's wings, redrawn whenever the activity engine publishes a new layout.
+/// The notch width comes from the environment, so the view holds no reference to the island.
 struct ClosedStrip: View {
-    let notchWidth: CGFloat
+    @EnvironmentObject private var state: IslandState
     @ObservedObject private var center = ActivityCenter.shared
-    var body: some View { CompactStrip(layout: center.layout, notchWidth: notchWidth) }
+    var body: some View { CompactStrip(layout: center.layout, notchWidth: state.notchWidth) }
 }

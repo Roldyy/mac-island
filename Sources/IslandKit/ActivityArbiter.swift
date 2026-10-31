@@ -17,7 +17,6 @@ public enum ActivityArbiter {
         case .info: 2
         case .warning: 3
         case .danger: 4
-        @unknown default: 2
         }
     }
 

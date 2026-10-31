@@ -38,7 +38,8 @@ public final class ClaudeLiveMonitor {
         loop = Task { [weak self, interval] in
             while !Task.isCancelled {
                 let fresh = await Task.detached(priority: .utility) { read() }.value
-                guard let self else { return }
+                // stop() may have run while the read was in flight: its result must not be posted.
+                guard !Task.isCancelled, let self else { return }
                 self.apply(fresh)
                 try? await Task.sleep(for: interval)
             }

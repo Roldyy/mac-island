@@ -49,7 +49,7 @@ private struct IslandButtonBody: View {
     private var fill: Color {
         switch variant {
         case .standard: IslandPalette.textPrimary.color.opacity(0.10)
-        case .prominent: IslandPalette.prominentFill.color
+        case .prominent: Color.accentColor
         case .destructive: IslandPalette.destructiveFill.color
         }
     }

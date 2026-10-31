@@ -1,32 +1,7 @@
 import Foundation
+@_exported import ClaudeHookCore
 
-/// Reads the per-session files `ClaudeHookRunner` writes. Same suspicion as for session files.
-public struct ClaudeHookStore: Sendable {
-    public static let maxFileBytes = 4 * 1024
-
-    public let directory: URL
-
-    public init(directory: URL = ClaudeHookRunner.defaultDirectory) {
-        self.directory = directory
-    }
-
-    /// Records by sanitised session id. Unknown states, bad names and bad files are skipped.
-    public func read() -> [String: ClaudeHookRecord] {
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return [:] }
-        var out: [String: ClaudeHookRecord] = [:]
-        for name in names where name.hasSuffix(".json") {
-            let id = String(name.dropLast(5))
-            guard ClaudeText.sanitizedID(id) == id,
-                  let data = SafeFileRead.data(atPath: directory.appendingPathComponent(name).path,
-                                               maxBytes: Self.maxFileBytes),
-                  var record = try? JSONDecoder().decode(ClaudeHookRecord.self, from: data),
-                  ClaudeHookStore.state(record.state) != nil, record.updatedAt.isFinite else { continue }
-            record.folderName = ClaudeText.folderName(fromCwd: record.folderName)
-            out[id] = record
-        }
-        return out
-    }
-
+extension ClaudeHookStore {
     static func state(_ raw: String) -> ClaudeSession.State? {
         switch raw {
         case "working": .working
@@ -49,7 +24,7 @@ public struct ClaudeLiveSource: Sendable {
     }
 
     public func snapshot() -> [ClaudeSession] {
-        Self.merge(sessions: reader.read(), hooks: hooks?.read() ?? [:])
+        Self.merge(sessions: reader.read(), hooks: hooks?.read(now: reader.clock()) ?? [:])
     }
 
     /// Hook state wins only while newer than the session file's own update time.

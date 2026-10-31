@@ -39,6 +39,27 @@ import Testing
         #expect(IslandPalette.contrastPairs.contains { $0.schemes.contains(.dark) })
     }
 
+    @Test func badgeTextIsHeldToFourPointFiveOnItsOwnTint() {
+        let names = IslandPalette.contrastPairs.filter { $0.name.hasPrefix("badge ") }
+        // 5 statuses on 2 surfaces.
+        #expect(names.count == IslandStatus.allCases.count * 2)
+        for pair in names {
+            #expect(pair.minimum == IslandContrast.textMinimum, "\(pair.name)")
+            // The tint must be visible at all: the background is not the bare surface.
+            #expect(pair.background != IslandSurface.solid && pair.background != IslandSurface.glassReference)
+        }
+    }
+
+    @Test func switchGlyphAndOutlineAreReadable() {
+        let glyph = IslandPalette.contrastPairs.first { $0.name == "glyphe sur bouton" }
+        #expect(glyph != nil)
+        for scheme in IslandScheme.allCases { #expect((glyph?.ratio(in: scheme) ?? 0) >= 3.0) }
+        // The off track is outlined with separatorStrong: held to 3:1 on every surface by the pairs above.
+        for surface in ["verre", "solide", "encoche"] {
+            #expect(IslandPalette.contrastPairs.contains { $0.name == "separatorStrong sur \(surface)" && $0.minimum == 3.0 })
+        }
+    }
+
     @Test func notchStaysBlack() {
         #expect(IslandSurface.notchBlackColor.light == IslandRGB(white: 0))
         #expect(IslandSurface.notchBlackColor.dark == IslandRGB(white: 0))

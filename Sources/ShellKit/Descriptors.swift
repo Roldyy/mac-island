@@ -14,7 +14,7 @@ public enum ShellDescriptors {
         .init(id: "keepawake", title: "Éveil", summary: "Garde le Mac éveillé, avec durée facultative.",
               systemImage: "cup.and.saucer", category: .daily, tabID: "keepawake"),
         .init(id: "nowplaying", title: "Lecture", summary: "Lecture en cours et touches multimédia.",
-              systemImage: "play.circle", category: .media, tabID: "nowplaying"),
+              systemImage: "play.circle", category: .media, permissions: [.automation], tabID: "nowplaying"),
         .init(id: "audio", title: "Mixer", summary: "Volume par application et priorité des sorties.",
               systemImage: "slider.vertical.3", category: .sound, permissions: [.audioCapture],
               risk: .touchesSystem, tabID: "audio"),

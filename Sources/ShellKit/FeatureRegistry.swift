@@ -9,7 +9,6 @@ public final class FeatureRegistry {
     enum Keys {
         static let kill = "shell.killSwitch"
         static let safe = "shell.safeMode"
-        static let starting = "shell.startingFeature"
         static let seeded = "shell.hubSeeded"
         static func enabled(_ id: String) -> String { "shell.enabled.\(id)" }
         static func crashes(_ id: String) -> String { "shell.crashCount.\(id)" }
@@ -21,27 +20,40 @@ public final class FeatureRegistry {
     @ObservationIgnored public let descriptors: [FeatureDescriptor]
     /// The user's switch per feature id; every id is present. Writes persist.
     public var switches: [String: Bool] {
-        didSet { persistSwitches(old: oldValue) }
+        didSet { persistSwitches(old: oldValue); reconcile() }
     }
-    public var killSwitch: Bool { didSet { defaults.set(killSwitch, forKey: Keys.kill) } }
-    public var safeMode: Bool { didSet { defaults.set(safeMode, forKey: Keys.safe) } }
+    public var killSwitch: Bool { didSet { defaults.set(killSwitch, forKey: Keys.kill); reconcile() } }
+    public var safeMode: Bool { didSet { defaults.set(safeMode, forKey: Keys.safe); reconcile() } }
     public private(set) var quarantined: Set<String>
     public private(set) var capabilities: [String: FeatureCapability] = [:]
 
-    @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let capabilityProvider: (FeatureDescriptor) -> FeatureCapability
+    /// Ids of features whose start() ran and that no stop() has undone.
+    public private(set) var running: Set<String> = []
 
-    public init(descriptors: [FeatureDescriptor], defaults: UserDefaults,
-                capabilityProvider: @escaping (FeatureDescriptor) -> FeatureCapability = { _ in .available }) {
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let crashMarker: CrashMarker
+    @ObservationIgnored private let capabilityProvider: (FeatureDescriptor) -> FeatureCapability
+    @ObservationIgnored private let withdraw: @MainActor (String) -> Void
+    @ObservationIgnored private var starters: [String: @MainActor () -> Void] = [:]
+    @ObservationIgnored private var stoppers: [String: @MainActor () -> Void] = [:]
+    @ObservationIgnored private var activitySources: [String: String] = [:]
+    @ObservationIgnored private var launched = false
+
+    /// `withdraw` drops what a stopped feature posted on the island (source name in, activities out).
+    public init(descriptors: [FeatureDescriptor], defaults: UserDefaults, crashMarker: CrashMarker,
+                capabilityProvider: @escaping (FeatureDescriptor) -> FeatureCapability = { _ in .available },
+                withdraw: @escaping @MainActor (String) -> Void = { ActivityCenter.shared.withdrawAll(source: $0) }) {
         self.descriptors = descriptors
         self.defaults = defaults
+        self.crashMarker = crashMarker
         self.capabilityProvider = capabilityProvider
+        self.withdraw = withdraw
         self.killSwitch = defaults.bool(forKey: Keys.kill)
         self.safeMode = defaults.bool(forKey: Keys.safe)
 
         // A start flag still set means the previous launch died inside that feature's start().
-        if let pending = defaults.string(forKey: Keys.starting) {
-            defaults.removeObject(forKey: Keys.starting)
+        if let pending = crashMarker.pending() {
+            crashMarker.clear()
             if descriptors.contains(where: { $0.id == pending }) {
                 defaults.set(defaults.integer(forKey: Keys.crashes(pending)) + 1, forKey: Keys.crashes(pending))
             }
@@ -67,6 +79,7 @@ public final class FeatureRegistry {
 
     public func refreshCapabilities() {
         capabilities = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, capabilityProvider($0)) })
+        reconcile()  // a granted permission can make a feature available
     }
 
     public func state(for id: String) -> FeatureState {
@@ -87,21 +100,51 @@ public final class FeatureRegistry {
     // MARK: - Start flag
 
     /// Call right before a feature's start(); a crash inside it is charged to that feature.
-    public func beginStart(_ id: String) { defaults.set(id, forKey: Keys.starting) }
+    public func beginStart(_ id: String) { crashMarker.begin(id) }
 
     /// Call when start() returned: clears the flag and the feature's crash history.
     public func endStart(_ id: String) {
-        if defaults.string(forKey: Keys.starting) == id { defaults.removeObject(forKey: Keys.starting) }
+        if crashMarker.pending() == id { crashMarker.clear() }
         defaults.removeObject(forKey: Keys.crashes(id))
     }
 
-    /// Starts every enabled feature that has a starter, one at a time, each wrapped in the start flag.
-    public func launch(starters: [String: @MainActor () -> Void]) {
-        for d in descriptors where isEnabled(d.id) {
+    // MARK: - Start and stop
+
+    /// Starts every enabled feature that has a starter, one at a time, each wrapped in the start flag, and
+    /// keeps the closures: from now on every switch, safe mode or kill switch change starts or stops them.
+    /// A feature with a starter and no stopper cannot be stopped live; see `needsRelaunch`.
+    /// `activitySources` maps a feature id to the source name it posts under when that differs from the id.
+    public func launch(starters: [String: @MainActor () -> Void],
+                       stoppers: [String: @MainActor () -> Void] = [:],
+                       activitySources: [String: String] = [:]) {
+        self.starters = starters
+        self.stoppers = stoppers
+        self.activitySources = activitySources
+        launched = true
+        reconcile()
+    }
+
+    /// True when the user's switches ask for a stop that this feature cannot do while the app runs.
+    public func needsRelaunch(_ id: String) -> Bool {
+        running.contains(id) && stoppers[id] == nil && !isEnabled(id)
+    }
+
+    /// Brings what runs in line with what `state(for:)` allows. Idempotent.
+    private func reconcile() {
+        guard launched else { return }
+        for d in descriptors {
             guard let start = starters[d.id] else { continue }
-            beginStart(d.id)
-            start()
-            endStart(d.id)
+            let wanted = isEnabled(d.id)
+            if wanted && !running.contains(d.id) {
+                beginStart(d.id)
+                start()
+                endStart(d.id)
+                running.insert(d.id)
+            } else if !wanted, running.contains(d.id), let stop = stoppers[d.id] {
+                stop()
+                withdraw(activitySources[d.id] ?? d.id)
+                running.remove(d.id)
+            }
         }
     }
 
@@ -119,15 +162,20 @@ public final class FeatureRegistry {
         switches = next
     }
 
-    /// One-shot seed from the old app's "kept features" value. Features it names start enabled unless the
-    /// user already chose; the rest keep their default. Returns false when it already ran.
+    /// One-shot seed from the old app's "kept features" value. When it names at least one known feature,
+    /// the named ones start enabled and every other feature starts off, except where the user already
+    /// chose. When it names none (missing, empty, unreadable) nothing changes. Returns false when it
+    /// already ran.
     @discardableResult
     public func seedFromVorssaint(_ raw: Any?) -> Bool {
         guard !defaults.bool(forKey: Keys.seeded) else { return false }
         defer { defaults.set(true, forKey: Keys.seeded) }
         let named = VorssaintHubSeed.featureIDs(in: raw, descriptors: descriptors)
+        guard !named.isEmpty else { return true }
         var next = switches
-        for id in named where defaults.object(forKey: Keys.enabled(id)) == nil { next[id] = true }
+        for d in descriptors where defaults.object(forKey: Keys.enabled(d.id)) == nil {
+            next[d.id] = named.contains(d.id)
+        }
         switches = next
         return true
     }

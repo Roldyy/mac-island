@@ -9,9 +9,12 @@ public final class SettingsWindowController {
     private let registry: FeatureRegistry
     private let tabs: [IslandTab]
     private let openPermission: @MainActor (FeaturePermission) -> Void
+    private let relaunch: (@MainActor () -> Void)?
 
     public init(registry: FeatureRegistry, tabs: [IslandTab],
-                openPermission: @escaping @MainActor (FeaturePermission) -> Void) {
+                openPermission: @escaping @MainActor (FeaturePermission) -> Void,
+                relaunch: (@MainActor () -> Void)? = nil) {
+        self.relaunch = relaunch
         self.registry = registry
         self.tabs = tabs
         self.openPermission = openPermission
@@ -21,7 +24,8 @@ public final class SettingsWindowController {
         if window == nil {
             let outside = Set(ShellLayout.tabsOutsideGroups(tabs.map(\.id)))
             let sheetTabs = Dictionary(uniqueKeysWithValues: tabs.filter { outside.contains($0.id) }.map { ($0.id, $0) })
-            let view = SettingsView(registry: registry, sheetTabs: sheetTabs, openPermission: openPermission)
+            let view = SettingsView(registry: registry, sheetTabs: sheetTabs, openPermission: openPermission,
+                                relaunch: relaunch)
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
             window.title = "Réglages de Mac Island"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]

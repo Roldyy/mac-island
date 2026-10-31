@@ -12,7 +12,7 @@ struct DesignLintViolation: Equatable, CustomStringConvertible {
 /// Source scanner behind DesignLintTests. Pure: a root directory in, violations out.
 enum DesignLint {
     /// Folders of the app that must follow the design system (IslandUI itself defines it).
-    static let scannedFolders = ["Sources/Features", "Sources/MacIsland", "Sources/ShellKit"]
+    static let scannedFolders = ["Sources/Features", "Sources/MacIsland", "Sources/ShellKit", "Sources/IslandKit"]
 
     static let englishWords = [
         "Settings", "Cancel", "Clear", "Close", "Delete", "Quit", "Save", "Done", "Loading", "Enable", "Disable", "Reset",

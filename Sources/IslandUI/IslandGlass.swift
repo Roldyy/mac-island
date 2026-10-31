@@ -8,10 +8,12 @@ public struct IslandGlassSpec: Equatable, Sendable {
     public let border: IslandAdaptiveColor
 
     public static func resolve(_ options: IslandDisplayOptions) -> IslandGlassSpec {
-        IslandGlassSpec(
+        // An opaque surface has no blur to set it off the wallpaper, so it gets the strong outline too.
+        let strongBorder = options.increaseContrast || options.reduceTransparency
+        return IslandGlassSpec(
             usesMaterial: !options.reduceTransparency,
-            borderWidth: options.increaseContrast ? 1.5 : 0.5,
-            border: options.increaseContrast ? IslandPalette.separatorStrong : IslandPalette.separator)
+            borderWidth: options.increaseContrast ? 1.5 : (options.reduceTransparency ? 1 : 0.5),
+            border: strongBorder ? IslandPalette.separatorStrong : IslandPalette.separator)
     }
 }
 

@@ -16,6 +16,9 @@ public final class NotchPanel: NSPanel {
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
         isFloatingPanel = true
+        // The island is always dark (it merges with the black notch): dark tokens and materials even in a
+        // light system appearance. Only the Settings window follows the system and uses the light tokens.
+        appearance = NSAppearance(named: .darkAqua)
         // Above the menu bar and above other notch overlays (Vorssaint, Glasswave) while they coexist.
         level = .screenSaver
         backgroundColor = .clear

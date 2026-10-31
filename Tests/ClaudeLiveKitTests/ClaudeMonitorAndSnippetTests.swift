@@ -71,6 +71,25 @@ final class Box: @unchecked Sendable {
         #expect(monitor.sessions.isEmpty)
     }
 
+    @Test func stopDuringAnInFlightReadDoesNotPostItsResult() async throws {
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let sink = RecordingSink()
+        let monitor = ClaudeLiveMonitor(
+            snapshot: { entered.signal(); release.wait(); return [ClaudeSession(id: "a", pid: 1, state: .working, folderName: "d")] },
+            sink: sink, interval: .milliseconds(10))
+        monitor.start()
+        // Wait until the read is blocked inside the snapshot (off the cooperative pool: wait() blocks).
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async { entered.wait(); continuation.resume() }
+        }
+        monitor.stop()
+        release.signal()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(sink.live.isEmpty, "a stopped monitor must not re-post")
+        #expect(monitor.sessions.isEmpty)
+    }
+
     @Test func pollingLoopPicksUpChanges() async throws {
         let box = Box([])
         let sink = RecordingSink()

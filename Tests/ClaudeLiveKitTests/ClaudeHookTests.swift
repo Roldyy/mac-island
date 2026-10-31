@@ -122,13 +122,13 @@ import Testing
 
     @Test func storeSkipsBadFilesAndUnknownStates() throws {
         let dir = TempDir()
-        let good = ClaudeHookRecord(state: "waiting", folderName: "demo", updatedAt: 5)
+        let good = ClaudeHookRecord(state: "waiting", folderName: "demo", updatedAt: Fixture.now.timeIntervalSince1970 - 5)
         dir.write("good.json", String(data: try JSONEncoder().encode(good), encoding: .utf8) ?? "")
         dir.write("badstate.json", "{\"state\":\"dancing\",\"folderName\":\"x\",\"updatedAt\":1}")
         dir.write("broken.json", "{")
         dir.write("bad name.json", "{\"state\":\"idle\",\"folderName\":\"x\",\"updatedAt\":1}")
         dir.write("note.txt", "x")
-        let records = ClaudeHookStore(directory: dir.url).read()
+        let records = ClaudeHookStore(directory: dir.url).read(now: Fixture.now)
         #expect(Array(records.keys) == ["good"])
         #expect(records["good"] == good)
     }

@@ -25,8 +25,13 @@ public enum ClaudeHookAction: Equatable, Sendable {
 public enum ClaudeHookRunner {
     public static let maxInputBytes = 64 * 1024
 
+    /// `MAC_ISLAND_HOOK_DIR` exists for the executable's own test; any process of this user can already
+    /// write to the default folder, so it widens nothing.
     public static var defaultDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let override = ProcessInfo.processInfo.environment["MAC_ISLAND_HOOK_DIR"], override.hasPrefix("/") {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/be.roldy.macisland/claude-hooks", isDirectory: true)
     }
 
@@ -52,26 +57,34 @@ public enum ClaudeHookRunner {
 
     /// Applies the decision on disk. Every failure is swallowed: a hook must never disturb Claude Code.
     @discardableResult
-    public static func run(input: Data, directory: URL, now: Date = Date()) -> Data {
+    public static func run(input: Data, directory: URL, now: Date = Date(), uid: uid_t = getuid()) -> Data {
         switch decide(input: input, now: now) {
         case .ignore: break
-        case .delete(let id): _ = unlink(directory.appendingPathComponent(id + ".json").path)
-        case .write(let id, let record): write(record, id: id, directory: directory)
+        case .delete(let id):
+            // A symlinked or foreign folder is somebody else's place: never unlink inside it.
+            if SafeFileRead.isTrustedDirectory(atPath: directory.path, uid: uid) {
+                _ = unlink(directory.appendingPathComponent(id + ".json").path)
+            }
+        case .write(let id, let record): write(record, id: id, directory: directory, uid: uid)
         }
         return Data()
     }
 
     /// Reads stdin up to the cap; a longer input is cut and then fails to parse, which means ignore.
+    /// The rest is drained so Claude Code never blocks on a full pipe.
     public static func readStandardInput() -> Data {
-        SafeFileRead.readCapped(fd: STDIN_FILENO, limit: maxInputBytes, rejectOverflow: false) ?? Data()
+        SafeFileRead.readCapped(fd: STDIN_FILENO, limit: maxInputBytes, rejectOverflow: false, drainRest: true) ?? Data()
     }
 
-    private static func write(_ record: ClaudeHookRecord, id: String, directory: URL) {
+    private static func write(_ record: ClaudeHookRecord, id: String, directory: URL, uid: uid_t) {
         guard let payload = try? JSONEncoder().encode(record) else { return }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
+        guard SafeFileRead.isTrustedDirectory(atPath: directory.path, uid: uid) else { return }
         let final = directory.appendingPathComponent(id + ".json").path
-        let temp = directory.appendingPathComponent(".\(id).\(getpid()).tmp").path
+        // pid alone is guessable; O_EXCL would only make a planted name block us, but keep it unique.
+        let suffix = String(UInt64.random(in: 0...UInt64.max), radix: 16)
+        let temp = directory.appendingPathComponent(".\(id).\(getpid()).\(suffix).tmp").path
         let fd = open(temp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard fd >= 0 else { return }
         var ok = true
