@@ -48,9 +48,9 @@ struct HomeIslandContent: View {
             VStack(spacing: 0) {
                 band
                 switch context.navigation.route {
-                case .home: HomeView(context: context, isActive: isOpen).padding(.top, HomeGeometry.bandGap)
-                case .explore: if isLive { ExploreView(context: context) } else { Color.clear }
-                case .page(let id): if isLive { HomePageView(tabID: id, context: context) } else { Color.clear }
+                case .home: HomeView(context: context, isActive: isOpen).padding(.top, HomeGeometry.bandGap).transition(.identity)
+                case .explore: if isLive { ExploreView(context: context).transition(.identity) } else { Color.clear }
+                case .page(let id): if isLive { HomePageView(tabID: id, context: context).transition(.identity) } else { Color.clear }
                 }
             }
         }

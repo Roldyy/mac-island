@@ -9,9 +9,10 @@ struct ExploreView: View {
     var body: some View {
         VStack(spacing: 0) {
             HomeBackHeader(title: "Explorer", context: context)
-            grid
+            grid.frame(maxWidth: .infinity)
             Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, IslandSpacing.l - 2)
     }
 
@@ -31,7 +32,10 @@ struct ExploreView: View {
     }
 
     private func tile(_ tab: IslandTab) -> some View {
-        Button { context.navigation.open(tabID: tab.id) } label: {
+        let enabled = context.registry.isEnabled(tab.id)
+        return Button {
+            if enabled { context.navigation.open(tabID: tab.id) } else { context.openSettings() }
+        } label: {
             VStack(spacing: IslandSpacing.xs) {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 18, weight: .medium))
@@ -45,10 +49,12 @@ struct ExploreView: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
+            .opacity(enabled ? 1 : 0.4)
             .contentShape(Rectangle())
         }
         .buttonStyle(HomeTapStyle())
-        .accessibilityLabel(tab.title)
+        .help(enabled ? tab.title : "\(tab.title) : désactivé. Ouvre les Réglages pour l'activer.")
+        .accessibilityLabel(enabled ? tab.title : "\(tab.title), désactivé")
     }
 }
 

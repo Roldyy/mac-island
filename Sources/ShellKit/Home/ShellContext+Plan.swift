@@ -3,9 +3,9 @@ import CoreGraphics
 /// What size the open island needs for the page it shows. Pure reads, so the app and the tests share it.
 @MainActor
 extension ShellContext {
-    /// Tab ids the Explorer lists: every enabled feature panel, grouped ones first.
+    /// Tab ids the Explorer lists: every feature panel, grouped ones first. A disabled one is shown dimmed.
     public var exploreTabIDs: [String] {
-        ShellLayout.exploreTabIDs(available: tabs.map(\.id)) { registry.isEnabled($0) }
+        ShellLayout.exploreTabIDs(available: tabs.map(\.id)) { _ in true }
     }
 
     /// Size of the black body for the current route.
