@@ -42,7 +42,7 @@ import Testing
 
     @Test func halfWidthCardsPairUpAndChartsTakeTheWholeRow() {
         let rows = AgentsCardLayout.rows([.limits, .spend, .live, .trend, .models, .projects, .activity])
-        #expect(rows == [[.limits, .spend], [.live], [.trend], [.models, .projects], [.activity]])
+        #expect(rows == [[.limits], [.spend, .live], [.trend], [.models, .projects], [.activity]])
         #expect(AgentsCardLayout.rows([.limits, .trend]) == [[.limits], [.trend]])
         #expect(AgentsCardLayout.rows([]).isEmpty)
     }

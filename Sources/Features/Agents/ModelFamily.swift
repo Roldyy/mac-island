@@ -24,6 +24,19 @@ enum ModelFamily: Int, CaseIterable, Comparable, Sendable {
     }
 }
 
+extension ModelFamily {
+    /// "claude-sonnet-4-5-20250929" -> "Sonnet 4.5". Anything unrecognised is shown as logged.
+    static func displayName(_ model: String) -> String {
+        var parts = model.split(separator: "-").map(String.init)
+        if parts.first?.lowercased() == "claude" { parts.removeFirst() }
+        if let last = parts.last, last.count == 8, last.allSatisfy(\.isNumber) { parts.removeLast() }
+        let words = parts.filter { $0.allSatisfy(\.isLetter) }
+        let numbers = parts.filter { $0.allSatisfy(\.isNumber) }
+        guard words.count == 1, parts.count == words.count + numbers.count, !numbers.isEmpty else { return model }
+        return "\(words[0].capitalized) \(numbers.joined(separator: "."))"
+    }
+}
+
 /// One slice of a trend bar.
 struct FamilyShare: Equatable, Sendable {
     var family: ModelFamily

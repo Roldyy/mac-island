@@ -24,34 +24,35 @@ struct AgentsSettingsPanel: View {
             IslandCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     labeled(AgentsStrings.text("limitsAs")) {
-                        Picker(AgentsStrings.text("limitsAs"), selection: $model.limitDisplay) {
-                            ForEach(AgentsLimitDisplay.allCases) { Text($0.title).tag($0) }
-                        }
-                        .pickerStyle(.segmented).labelsHidden()
+                        AgentsSegmentedControl(items: AgentsLimitDisplay.allCases, selection: $model.limitDisplay,
+                                               title: \.title, label: AgentsStrings.text("limitsAs"))
                     }
                     labeled(AgentsStrings.text("limitFocus")) {
-                        Picker(AgentsStrings.text("limitFocus"), selection: $model.limitFocus) {
-                            ForEach(AgentsLimitFocus.allCases) { Text($0.title).tag($0) }
-                        }
-                        .pickerStyle(.segmented).labelsHidden()
+                        AgentsSegmentedControl(items: AgentsLimitFocus.allCases, selection: $model.limitFocus,
+                                               title: \.title, label: AgentsStrings.text("limitFocus"))
                     }
-                    Stepper(value: budgetBinding, in: 0...1000, step: 5) {
-                        HStack {
-                            Text(AgentsStrings.text("budget")).font(.islandBody)
-                                .foregroundStyle(IslandPalette.textPrimary.color)
-                            Spacer(minLength: IslandSpacing.s)
-                            Text(model.dailyBudget.map { UsageFormat.cost($0, estimated: false) } ?? AgentsStrings.text("off"))
-                                .font(.islandValue).foregroundStyle(IslandPalette.textSecondary.color)
-                        }
+                    HStack(spacing: IslandSpacing.s) {
+                        Text(AgentsStrings.text("budget")).font(.islandBody)
+                            .foregroundStyle(IslandPalette.textPrimary.color)
+                        Spacer(minLength: IslandSpacing.s)
+                        Text(model.dailyBudget.map { UsageFormat.cost($0, estimated: false) } ?? AgentsStrings.text("off"))
+                            .font(.islandValue).foregroundStyle(IslandPalette.textSecondary.color)
+                            .frame(minWidth: 70, alignment: .trailing)
+                        Button(AgentsStrings.lessBudget, systemImage: "minus") { stepBudget(by: -5) }
+                            .labelStyle(.iconOnly).buttonStyle(.island)
+                            .disabled(model.dailyBudget == nil)
+                        Button(AgentsStrings.moreBudget, systemImage: "plus") { stepBudget(by: 5) }
+                            .labelStyle(.iconOnly).buttonStyle(.island)
                     }
                 }
             }
         }
     }
 
-    /// 0 = off, so the stepper has a floor that means something.
-    private var budgetBinding: Binding<Double> {
-        Binding(get: { model.dailyBudget ?? 0 }, set: { model.dailyBudget = $0 > 0 ? $0 : nil })
+    /// Steps of 5, from 0 (= off) to 1000; the system Stepper cannot be drawn in a snapshot.
+    private func stepBudget(by delta: Double) {
+        let next = min(1000, max(0, (model.dailyBudget ?? 0) + delta))
+        model.dailyBudget = next > 0 ? next : nil
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

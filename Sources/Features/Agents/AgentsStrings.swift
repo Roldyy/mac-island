@@ -58,6 +58,9 @@ enum AgentsStrings {
 
     static func format(_ key: String, _ arguments: String...) -> String { fill(text(key), arguments) }
 
+    /// Same for the wording that lives outside the parity table (a plain constant, not a key).
+    static func fill(constant template: String, _ arguments: String...) -> String { fill(template, arguments) }
+
     /// Fills `%1$@`, `%2$@` by position, then plain `%@` in order. No `String(format:)`: the
     /// arguments are plain Strings and a stray `%` in a value must stay as it is.
     static func fill(_ template: String, _ arguments: [String]) -> String {
@@ -84,4 +87,22 @@ enum AgentsStrings {
     static let renewsAt = "Renouvellement à"
     static let working = "Travaille"
     static let waiting = "Attend"
+    static let levelComfortable = "Confortable"
+    static let levelWatch = "À surveiller"
+    static let levelCritical = "Presque épuisé"
+    static let paceLegend = "Trait blanc : rythme régulier sur la période"
+    static let extraUsageFormat = "Usage supplémentaire : %@"
+    static let sessionEstimatedNote = "Session estimée depuis ce Mac : la dernière mesure du forfait date d’avant cette session"
+    static let tokensLabel = "Jetons"
+    static let cacheLabel = "Cache"
+    static let writtenLabel = "Écrits"
+    static let moreFormat = "+ %@ autres"
+    static let peakFormat = "Pic : %@"
+    static let totalFormat = "Total : %@"
+    static let less = "Moins"
+    static let more = "Plus"
+    static let tokensUnknown = "jetons sur ce Mac"
+    static let lessBudget = "Réduire le budget"
+    static let moreBudget = "Augmenter le budget"
+    static let inFormat = "dans %@"
 }

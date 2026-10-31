@@ -15,13 +15,16 @@ extension AgentsCard {
     }
 }
 
-/// Header (tinted symbol + title) over the card content, in the standard glass card.
-struct AgentsCardFrame<Content: View>: View {
+/// Header (tinted symbol + title, optional trailing control) over the card content, in the standard glass
+/// card. The content hugs the top and the card stretches, so two cards of a row end on the same line.
+struct AgentsCardFrame<Content: View, Trailing: View>: View {
     let card: AgentsCard
+    let trailing: Trailing
     let content: Content
 
-    init(_ card: AgentsCard, @ViewBuilder content: () -> Content) {
+    init(_ card: AgentsCard, @ViewBuilder trailing: () -> Trailing, @ViewBuilder content: () -> Content) {
         self.card = card
+        self.trailing = trailing()
         self.content = content()
     }
 
@@ -37,10 +40,19 @@ struct AgentsCardFrame<Content: View>: View {
                         .font(.islandBodyEmphasis)
                         .foregroundStyle(IslandPalette.textPrimary.color)
                         .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: IslandSpacing.s)
+                    trailing
                 }
                 content
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+    }
+}
+
+extension AgentsCardFrame where Trailing == EmptyView {
+    init(_ card: AgentsCard, @ViewBuilder content: () -> Content) {
+        self.init(card, trailing: { EmptyView() }, content: content)
     }
 }
 

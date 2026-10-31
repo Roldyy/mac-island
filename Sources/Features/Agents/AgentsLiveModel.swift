@@ -17,7 +17,10 @@ final class AgentsLiveModel {
     }
 
     /// Working first, then waiting, then idle; same state by folder name for a stable list.
-    var sessions: [ClaudeSession] { Self.sorted(monitor.sessions) }
+    var sessions: [ClaudeSession] { Self.sorted(previewSessions ?? monitor.sessions) }
+
+    /// Fixed list for snapshots and previews; nil in the app.
+    var previewSessions: [ClaudeSession]?
 
     func start() { monitor.start() }
     func stop() { monitor.stop() }

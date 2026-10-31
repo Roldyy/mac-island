@@ -23,7 +23,12 @@ enum JSONLStream {
         var consumed = offset
         var skippingOversized = false
         var outcome = Outcome(committedOffset: offset)
-        while let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty {
+        // One pool per chunk: `FileHandle.read` hands back autoreleased buffers, and without a drain a
+        // 1.5 GB log folder was held in memory until the whole pass ended (measured on real data).
+        var more = true
+        while more {
+            try autoreleasepool {
+            guard let chunk = try handle.read(upToCount: chunkSize), !chunk.isEmpty else { more = false; return }
             carry.append(chunk)
             var lineStart = 0
             carry.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
@@ -49,6 +54,7 @@ enum JSONLStream {
                 carry = Data()
                 // The rest of that line is thrown away up to its newline; committedOffset catches up there.
                 outcome.committedOffset = consumed
+            }
             }
         }
         if !carry.isEmpty, !skippingOversized {

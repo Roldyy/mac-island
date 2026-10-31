@@ -10,7 +10,7 @@ struct ShareRow: Identifiable, Equatable {
     var id: String { name }
 }
 
-/// "Modèles" and "Projets": name, share bar (of the period's tokens), tokens and cost.
+/// "Modèles" and "Projets": name, share of the period's tokens, tokens and cost, aligned in columns.
 struct AgentsShareCard: View {
     let card: AgentsCard
     let rows: [ShareRow]
@@ -25,18 +25,39 @@ struct AgentsShareCard: View {
                 }
                 let total = max(rows.reduce(0) { $0 + $1.tokens }, 1)
                 ForEach(rows.prefix(Self.limit)) { row in
-                    VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
-                        Text(row.name).font(.islandCaption).foregroundStyle(IslandPalette.textPrimary.color)
-                            .lineLimit(1).truncationMode(.middle)
-                        AgentsMeter(fill: Double(row.tokens) / Double(total), marker: nil)
-                        Text("\(UsageFormat.tokens(row.tokens)) · \(UsageFormat.cost(row.cost, estimated: row.estimated))")
-                            .font(.islandValue).foregroundStyle(IslandPalette.textSecondary.color)
+                    let share = Double(row.tokens) / Double(total)
+                    VStack(alignment: .leading, spacing: IslandSpacing.xs) {
+                        HStack(alignment: .firstTextBaseline, spacing: IslandSpacing.xs) {
+                            Text(card == .models ? ModelFamily.displayName(row.name) : row.name).font(.islandCaptionEmphasis)
+                                .foregroundStyle(IslandPalette.textPrimary.color)
+                                .lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: IslandSpacing.xs)
+                            column(UsageFormat.percent(share), width: 44, primary: false)
+                            column(UsageFormat.tokens(row.tokens), width: 56, primary: false)
+                            column(UsageFormat.cost(row.cost, estimated: row.estimated), width: 78, primary: true)
+                        }
+                        AgentsMeter(fill: share, marker: nil, tint: tint(row), barHeight: 5)
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(row.name)
-                    .accessibilityValue("\(UsageFormat.percent(Double(row.tokens) / Double(total))), \(UsageFormat.exactTokens(row.tokens)) tokens, \(UsageFormat.cost(row.cost, estimated: row.estimated))")
+                    .accessibilityValue("\(UsageFormat.percent(share)), \(UsageFormat.exactTokens(row.tokens)) tokens, \(UsageFormat.cost(row.cost, estimated: row.estimated))")
+                }
+                if rows.count > Self.limit {
+                    AgentsNote(AgentsStrings.fill(constant: AgentsStrings.moreFormat, "\(rows.count - Self.limit)"))
                 }
             }
         }
+    }
+
+    private func column(_ text: String, width: CGFloat, primary: Bool) -> some View {
+        Text(text).font(.islandValue)
+            .foregroundStyle(primary ? IslandPalette.textPrimary.color : IslandPalette.textSecondary.color)
+            .lineLimit(1)
+            .frame(width: width, alignment: .trailing)
+    }
+
+    /// Models take their family color (the same one as the trend chart); projects stay on the accent.
+    private func tint(_ row: ShareRow) -> Color {
+        card == .models ? ModelFamily(model: row.name).color : IslandPalette.accent.color
     }
 }

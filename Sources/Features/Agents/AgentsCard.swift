@@ -22,6 +22,6 @@ enum AgentsCard: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Charts take the full width; the rest share a row two by two.
-    var isFullWidth: Bool { self == .trend || self == .activity }
+    /// The limits (the first thing a person looks for) and the charts take the full width; the rest share a row two by two.
+    var isFullWidth: Bool { self == .limits || self == .trend || self == .activity }
 }

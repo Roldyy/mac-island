@@ -1,4 +1,5 @@
 import Foundation
+import IslandUI
 
 /// One meter of the "Limites" card.
 struct LimitRow: Equatable, Identifiable, Sendable {
@@ -26,9 +27,40 @@ struct LimitRow: Equatable, Identifiable, Sendable {
         elapsed.map { display == .used ? $0 : 1 - $0 }
     }
 
+    /// Whole percent still available; nil when unknown.
+    var leftPercent: Int? { usedPercent.map { 100 - $0 } }
+
+    var level: LimitLevel? { leftPercent.map(LimitLevel.init(leftPercent:)) }
+
     func valueText(_ display: AgentsLimitDisplay) -> String? {
         guard let fill = fill(display) else { return nil }
         return AgentsStrings.format(display == .used ? "usedFormat" : "leftFormat", UsageFormat.percent(fill))
+    }
+}
+
+/// How much of a limit is left, as a word and a symbol: color is never the only signal.
+enum LimitLevel: Equatable, Sendable {
+    case comfortable, watch, critical
+
+    /// More than 50 % left is comfortable, 20 to 50 % to watch, under 20 % critical.
+    init(leftPercent: Int) {
+        self = leftPercent > 50 ? .comfortable : leftPercent >= 20 ? .watch : .critical
+    }
+
+    var status: IslandStatus {
+        switch self {
+        case .comfortable: .success
+        case .watch: .warning
+        case .critical: .danger
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .comfortable: AgentsStrings.levelComfortable
+        case .watch: AgentsStrings.levelWatch
+        case .critical: AgentsStrings.levelCritical
+        }
     }
 }
 
@@ -43,6 +75,8 @@ struct LimitsState: Equatable, Sendable {
     var updated: Date?
     var isStale = false
     var extraUsage: Int?
+    /// A row of a plan-file state that fell back to the log estimate (its reading predates the window).
+    var hasEstimatedRow = false
 
     /// Share of a window elapsed at `now`, nil when the bounds do not make a window.
     static func elapsedFraction(now: Date, start: Date, end: Date) -> Double? {
@@ -61,8 +95,16 @@ struct LimitsState: Equatable, Sendable {
                                     extraUsage: sample.extraUsage)
             if let fiveHour = sample.fiveHour {
                 let bounds = sessionBounds()
-                state.rows.append(LimitRow(kind: .session, usedPercent: fiveHour, elapsed: bounds.elapsed,
-                                           renewal: bounds.renewal))
+                // A reading taken before the open 5 h block began describes the previous window: showing
+                // it as the current one would be wrong, so the session falls back to the log estimate.
+                if let block, block.end > now, sample.date < block.start {
+                    state.rows.append(LimitRow(kind: .session, usedPercent: nil, elapsed: bounds.elapsed,
+                                               renewal: bounds.renewal, tokens: block.tokens))
+                    state.hasEstimatedRow = true
+                } else {
+                    state.rows.append(LimitRow(kind: .session, usedPercent: fiveHour, elapsed: bounds.elapsed,
+                                               renewal: bounds.renewal))
+                }
             }
             if let sevenDay = sample.sevenDay { state.rows.append(LimitRow(kind: .weekly, usedPercent: sevenDay)) }
             return state

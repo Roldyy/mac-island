@@ -52,6 +52,9 @@ final class AgentsUsageModel {
         self.clock = clock
     }
 
+    /// The model's clock: the page draws "in 40 min" from it, so a snapshot can pin the time.
+    var now: Date { clock() }
+
     var summary: UsageSummary { snapshot.summary(for: period) }
 
     /// Codex data exists only once a Codex source returned records (the source is still a stub).
@@ -90,6 +93,16 @@ final class AgentsUsageModel {
         unreadableFiles = output.1.reduce(0) { $0 + $1.unreadableFiles }
         hasLoaded = true
         status = AgentsDataStatus.resolve(hasLoaded: true, sources: output.1, recordCount: output.2)
+    }
+
+    /// Injects a finished state (snapshots and previews: `.task` does not run there).
+    func preload(snapshot: UsageSnapshot, limits: LimitsState, plan: PlanTier?, status: AgentsDataStatus = .ready,
+                 hasLoaded: Bool = true) {
+        self.snapshot = snapshot
+        self.limits = limits
+        self.plan = plan
+        self.status = status
+        self.hasLoaded = hasLoaded
     }
 
     /// Refresh now, then every `interval` seconds. Cancelled by SwiftUI when the view disappears.
