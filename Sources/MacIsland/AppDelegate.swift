@@ -2,6 +2,7 @@ import AgentsFeature
 import AppKit
 import ClaudeLiveKit
 import ClipboardFeature
+import Combine
 import CommandBarFeature
 import FansFeature
 import MonitorFeature
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarItemController?
     private var claudeLive: ClaudeLiveMonitor?
     private var systemActions: SystemActions?
+    private var layoutSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
@@ -91,22 +93,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.settings = settings
         menuBar = MenuBarItemController(
             onOpenSettings: { settings.show() },
-            onQuit: { NSApp.terminate(nil) })
+            onQuit: { NSApp.terminate(nil) },
+            onRelaunch: Self.relaunchAction)
 
+        let home = HomeModel(defaults: defaults)
         weak var islandRef: IslandController?  // weak: the island owns this context
         let context = ShellContext(
-            tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess,
-            closedStrip: { AnyView(ClosedStrip()) },
-            onSectionChange: { id in islandRef?.setOpenHeight(ShellLayout.openHeight(forSection: id)) },
+            tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess, home: home,
+            closedStrip: { AnyView(ClosedStrip(claude: live)) },
             alert: { MonitorFeature.currentAlert.map { ShellAlert(title: $0.title, message: $0.message) } },
             manualFansActive: { FansFeature.isManualActive },
             claudePill: { AnyView(ClaudeStatusPill(model: TerminalFeature.claudeStatus())) },
             openSettings: { settings.show() },
-            onOpen: { KeepAwakeFeature.noteIslandActivity() })  // honours `notchKeepAwakeActivity`
+            onOpen: { KeepAwakeFeature.noteIslandActivity() },  // honours `notchKeepAwakeActivity`
+            onOpenSize: { size in
+                // Width first (openSize is read by the next open), then the height, which moves an open panel.
+                islandRef?.openSize.width = size.width
+                islandRef?.setOpenHeight(size.height)
+            },
+            quit: { NSApp.terminate(nil) },
+            relaunch: Self.relaunchAction)
         let island = IslandController { IslandShellView(context: context) }
-        island.openSize = CGSize(width: 720, height: ShellLayout.defaultOpenHeight)
+        island.openSize = context.panelSize
         islandRef = island
         island.show()
+
+        // The home's now-playing card follows the music wing of the closed island (title and play state only:
+        // artwork and artist need a public accessor on the Now Playing feature, which this lane may not add).
+        layoutSubscription = ActivityCenter.shared.$layout.sink { layout in
+            MainActor.assumeIsolated { home.track = Self.musicTrack(from: layout) }
+        }
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         self.island = island
 
@@ -126,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandBarFeature.register(commands: tabs.map { tab in
             BarCommand(id: "island.tab.\(tab.id)", title: "Ouvrir \(tab.title)",
                        keywords: ["île", "island", tab.id, tab.title]) { [weak island] in
-                if navigation.select(tabID: tab.id) { island?.open() } else { settings.show() }
+                navigation.open(tabID: tab.id)  // any panel opens in the island, grouped or not
+                island?.open()
             }
         })
     }
@@ -200,5 +217,37 @@ final class ActivityCenterSink: ClaudeActivitySink {
 struct ClosedStrip: View {
     @EnvironmentObject private var state: IslandState
     @ObservedObject private var center = ActivityCenter.shared
-    var body: some View { CompactStrip(layout: center.layout, notchWidth: state.notchWidth) }
+    /// Read inside `body`, so a session changing state redraws the wing.
+    let claude: ClaudeLiveMonitor
+
+    var body: some View {
+        if let sample = ClaudeWing.pick(Self.samples(claude.sessions)), ClaudeWing.isClaudeWing(center.layout.leading) {
+            // "Claude | 7:33": the clock ticks once a second, only while a Claude wing is showing.
+            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                CompactStrip(layout: ClaudeWing.layout(center.layout, sample: sample, now: timeline.date),
+                             notchWidth: state.notchWidth)
+            }
+        } else {
+            CompactStrip(layout: center.layout, notchWidth: state.notchWidth)
+        }
+    }
+
+    /// Working and waiting sessions only; `updatedAt` is when they entered that state.
+    static func samples(_ sessions: [ClaudeSession]) -> [ClaudeWorkSample] {
+        sessions.compactMap { session in
+            switch session.state {
+            case .working: ClaudeWorkSample(id: session.id, isWaiting: false, since: session.updatedAt)
+            case .waiting: ClaudeWorkSample(id: session.id, isWaiting: true, since: session.updatedAt)
+            case .idle, .unknown: nil
+            }
+        }
+    }
+}
+
+extension AppDelegate {
+    /// The playing track as far as the closed island's music wing tells it (title only).
+    static func musicTrack(from layout: ActivityLayout) -> HomeTrack? {
+        guard let item = layout.trailing, item.symbol == "waveform", let title = item.text, !title.isEmpty else { return nil }
+        return HomeTrack(title: title, isPlaying: true, progress: layout.leading?.symbol == "music.note" ? layout.leading?.progress : nil)
+    }
 }

@@ -52,6 +52,15 @@ public enum ShellLayout {
         return visible.first?.id
     }
 
+    // MARK: - Explorer
+
+    /// Tabs the Explorer grid lists: the grouped ones first in island order, then the rest, enabled only.
+    public static func exploreTabIDs(available: [String], isEnabled: (String) -> Bool) -> [String] {
+        let grouped = groups.flatMap { $0.sections.map(\.id) }.filter(available.contains)
+        let others = available.filter { !grouped.contains($0) }
+        return (grouped + others).filter(isEnabled)
+    }
+
     // MARK: - Open size
 
     /// Solid band at the top of the open island, behind the hardware notch; the header starts under it.
@@ -61,7 +70,7 @@ public enum ShellLayout {
     public static let defaultOpenHeight: CGFloat = 420
     /// Content-driven heights: a terminal needs room, a now-playing card does not.
     static let openHeights: [String: CGFloat] = [
-        "terminal": 480, "agents": 420, "clipboard": 420, "shelf": 400,
+        "terminal": 480, "agents": 560, "clipboard": 420, "shelf": 400,
         "nowplaying": 320, "audio": 380, "keepawake": 320, "monitor": 360, "fans": 380,
     ]
 

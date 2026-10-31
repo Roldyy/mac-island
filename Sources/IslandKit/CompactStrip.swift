@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import IslandUI
 
@@ -39,7 +40,7 @@ public struct CompactStrip: View {
     private func wingView(_ item: CompactItem?) -> some View {
         if let item {
             HStack(spacing: 4) {
-                glyph(item)
+                if !item.symbol.isEmpty { glyph(item) }
                 if let text = item.text, !text.isEmpty {
                     Text(text)
                         .font(.system(size: IslandType.minimumSize, weight: .medium))
@@ -100,5 +101,61 @@ public struct CompactStrip: View {
     static func dotLabel(_ status: IslandStatus) -> String {
         guard let word = statusWord(status) else { return "Pastille d'état" }
         return "Pastille d'état : \(word)"
+    }
+}
+
+// MARK: - Elapsed time (Claude wing)
+
+/// `m:ss`, or `h:mm:ss` from one hour. Negative and non-finite values read `0:00`.
+public enum ElapsedTime {
+    public static func text(_ seconds: TimeInterval) -> String {
+        let total = seconds.isFinite ? Int(min(max(seconds, 0), 359_999)) : 0
+        let hours = total / 3600, minutes = (total % 3600) / 60, secs = total % 60
+        let two = { (n: Int) in n < 10 ? "0\(n)" : "\(n)" }
+        return hours > 0 ? "\(hours):\(two(minutes)):\(two(secs))" : "\(minutes):\(two(secs))"
+    }
+
+    public static func text(since start: Date, now: Date) -> String { text(now.timeIntervalSince(start)) }
+}
+
+/// What the closed island needs to know about one Claude session to show its elapsed time.
+public struct ClaudeWorkSample: Equatable, Sendable {
+    public let id: String
+    public let isWaiting: Bool
+    /// When the session entered its current state (`ClaudeSession.updatedAt`).
+    public let since: Date?
+
+    public init(id: String, isWaiting: Bool, since: Date?) {
+        self.id = id
+        self.isWaiting = isWaiting
+        self.since = since
+    }
+}
+
+/// Turns the wing that shows a working or waiting Claude session into "glyph | elapsed time".
+/// Pure: the caller feeds the date, so a one-second timeline can redraw it.
+public enum ClaudeWing {
+    static let workingSymbol = "sparkles"
+    static let waitingSymbol = "hand.raised.fill"
+
+    /// The Claude mapper's glyph has no text; other `sparkles` users (cleaning countdown) do.
+    public static func isClaudeWing(_ item: CompactItem?) -> Bool {
+        guard let item, item.text == nil else { return false }
+        return (item.symbol == workingSymbol && item.status == .info)
+            || (item.symbol == waitingSymbol && item.status == .warning)
+    }
+
+    /// Same winner as `ActivityArbiter`: waiting before working, then the smallest id.
+    public static func pick(_ samples: [ClaudeWorkSample]) -> ClaudeWorkSample? {
+        samples.min { a, b in a.isWaiting != b.isWaiting ? a.isWaiting : a.id < b.id }
+    }
+
+    public static func layout(_ base: ActivityLayout, sample: ClaudeWorkSample?, now: Date) -> ActivityLayout {
+        guard isClaudeWing(base.leading), let leading = base.leading,
+              let since = sample?.since else { return base }
+        var out = base
+        // Glyph on the left, the clock alone on the right (no glyph: the wing is narrow).
+        out.trailing = CompactItem(symbol: "", text: ElapsedTime.text(since: since, now: now), status: leading.status)
+        return out
     }
 }
