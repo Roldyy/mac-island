@@ -6,15 +6,7 @@ It runs on macOS 14 or later, on Apple silicon. The interface is in French for n
 
 ## Install
 
-One command:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Roldyy/mac-island/main/install.sh | bash
-```
-
-The script downloads the notarized disk image of the latest release, checks its SHA-256 and its signature (team `U3TUL63HHK`), copies the app to `/Applications` and starts it. It does not use `sudo`.
-
-From source, with only the Command Line Tools installed:
+Build it from source. You need the Command Line Tools and nothing else:
 
 ```sh
 git clone https://github.com/Roldyy/mac-island
@@ -22,7 +14,15 @@ cd mac-island
 make install
 ```
 
-`make install` builds the app and signs it locally with an ad-hoc signature. macOS ties each privacy permission to the app's signature, so after a rebuild you may have to grant a permission again.
+`make install` builds the app, signs it and copies it to `/Applications`. By default the signature is ad hoc, and macOS ties each privacy permission to the app's signature, so after a rebuild you may have to grant a permission again. With a Developer ID certificate the signature stays the same and permissions persist:
+
+```sh
+make install SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+```
+
+The helper for fan control only accepts an app signed with a Developer ID, so it needs this variant.
+
+A one-command installer for a notarized release exists in the repository (`install.sh`), but no release is published yet. It will be announced here when it is.
 
 ## Using it
 
