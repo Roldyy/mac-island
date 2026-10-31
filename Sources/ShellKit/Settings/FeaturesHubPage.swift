@@ -4,7 +4,7 @@ import IslandUI
 import SwiftUI
 
 /// The feature hub: one switch per feature, grouped by category.
-struct SettingsView: View {
+struct FeaturesHubPage: View {
     @Bindable var registry: FeatureRegistry
     /// Tabs of features that have no place in the island's four groups: their settings open in a sheet.
     let sheetTabs: [String: IslandTab]
@@ -31,7 +31,6 @@ struct SettingsView: View {
                 Section { claudeHooks } header: { IslandHeader("Claude") }
             }
         }
-        .frame(minWidth: 560, minHeight: 480)
         .sheet(item: $sheetTab) { tab in
             VStack(spacing: 0) {
                 HStack {

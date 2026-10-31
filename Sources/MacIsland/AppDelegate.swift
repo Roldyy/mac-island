@@ -91,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             relaunch: Self.relaunchAction)
         self.settings = settings
+        KeepAwakeShortcutService.shared.arm(defaults: defaults) { KeepAwakeFeature.toggle() }
         menuBar = MenuBarItemController(
             onOpenSettings: { settings.show() },
             onQuit: { NSApp.terminate(nil) },
@@ -150,6 +151,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Cleaning mode must never outlive the app.
     func applicationWillTerminate(_ notification: Notification) { FinderFeature.endCleaning() }
+
+    /// Clicking the app again (Finder, Dock, `open`) opens Settings: the app has no other window to show.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings?.show()
+        return true
+    }
 
     /// Re-applies permissions the user may have just granted in System Settings.
     func applicationDidBecomeActive(_ notification: Notification) { registry?.refreshCapabilities() }

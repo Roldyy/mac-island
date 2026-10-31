@@ -1,0 +1,65 @@
+// Controls noted from the reference app's pages, one DSL line each (see SettingsItem.parse).
+// Only short labels are kept; every explanatory text is written by hand elsewhere.
+extension SettingsPageContent {
+    static let essentials: [String: [String]] = [
+        "general": [
+        ],
+        "menubar": [
+            #"S||Garder éveillé;Écrans;Mélangeur de volume;Système;Réseau;Disques;Énergie;Contrôle des ventilateurs;Utilitaires;Contrôles;Actions rapides;Fond d’écran|"#,
+            #"T|Garder éveillé"#,
+            #"T|Écrans"#,
+            #"T|Mélangeur de volume"#,
+            #"T|Système"#,
+            #"T|Réseau"#,
+            #"T|Disques"#,
+            #"T|Énergie"#,
+            #"L|Contrôle des ventilateurs"#,
+            #"T|Utilitaires"#,
+            #"T|Contrôles"#,
+            #"T|Actions rapides"#,
+            #"T|Fond d’écran"#,
+            #"L|Icône de la barre des menus"#,
+            #"S|Icône de la barre des menus|Utiliser l’icône de Mac Island;Flash;Favori;Amour;Flamme;Scintillement;Feuille;Goutte D’eau;Averse De Neige;Luminosité Maximale;Nuit Claire;Ciel Couvert;mountain.2.fill;Cercle;Carré;Triangle;Losange;hexagon.fill;seal.fill;circle.lefthalf.filled;circle.hexagongrid.fill;infinity;Commande;cpu.fill;memorychip.fill;gauge.with.dots.needle.67percent;fanblades.fill;gearshape.fill;terminal.fill;waveform;wand.and.stars;Mots De Passe;crown.fill;Manette De Jeu;Livre Audio;Morceau;Envoyer;Motif De Patte;cat.fill;Augmenter La Vitesse;Diminuer La Vitesse;Autre symbole|"#,
+            #"L|Vous ne trouvez pas l’icône ?"#,
+            #"B|Afficher l’icône dans la barre des menus"#,
+        ],
+        "features": [
+        ],
+        "island": [
+            #"T|Activer Dynamic Island"#,
+            #"P|Dynamic Island|Disposition"#,
+            #"S||Ouvrir Dynamic Island;Modifier le bouton, Explorer;Modifier le bouton, Presse-papiers;Ajouter un bouton, Gauche;Contenu;Modifier le bouton, Réglages…;Modifier le bouton, Mélangeur de volume;Ajouter un bouton, Droite;Modifier le bouton, Commandes;Modifier le bouton, Garder éveillé;Ajouter un bouton, En bas|"#,
+            #"S|Taille|Compacte;Spacieuse;Personnalisé|"#,
+            #"T|Fond translucide"#,
+            #"T|Afficher le contour"#,
+            #"T|Masquer l’espace sous l’encoche"#,
+            #"D|Ajustement à l’encoche, Largeur|0"#,
+            #"D|0|0"#,
+        ],
+        "monitor": [
+            #"H|Dans la barre des menus"#,
+            #"S||CPU;Température CPU;GPU;Température GPU;Mémoire;Batterie;Autonomie restante;Température batterie;Batterie des périphériques;Réseau;Utilisation du disque;Activité en direct;Appareils connectés;Énergie;Vitesse des ventilateurs|"#,
+            #"L|Affichage de l’utilisation"#,
+            #"S|Affichage de l’utilisation|Valeurs;Barres|"#,
+            #"T|Combiner utilisation et température"#,
+            #"S|Espacement dans la barre|Standard;Compact|Compact"#,
+            #"T|Masquer l’icône de l’app quand des métriques sont affichées"#,
+            #"T|Séparer les mesures en éléments dédiés"#,
+            #"H|Dans le panneau"#,
+            #"L|Système"#,
+            #"T|Afficher l’échelle des graphiques"#,
+            #"L|Contrôle des ventilateurs"#,
+            #"T|Afficher le contrôle des ventilateurs dans le panneau"#,
+            #"H|Mesures et alertes"#,
+            #"L|Actualiser toutes les"#,
+            #"S|Actualiser toutes les|1 seconde;2 secondes;5 secondes|"#,
+            #"S|Températures|°C;°F|°C"#,
+            #"S|Unité de débit réseau|MB/s;Mbps|MB/s"#,
+            #"S|Mesurer la mémoire comme|Mémoire utilisée;Mémoire des apps|Mémoire utilisée"#,
+            #"P|Répéter la même alerte après|15 minutes"#,
+        ],
+        "fans": [
+            #"T|Afficher le contrôle des ventilateurs dans le panneau"#,
+        ],
+    ]
+}

@@ -12,28 +12,40 @@ public final class SettingsWindowController {
     private let relaunch: (@MainActor () -> Void)?
     private var poller: Timer?
     private var observers: [NSObjectProtocol] = []
+    private let defaults: UserDefaults
+    private var router: SettingsRouter?
 
     public init(registry: FeatureRegistry, tabs: [IslandTab],
                 openPermission: @escaping @MainActor (FeaturePermission) -> Void,
-                relaunch: (@MainActor () -> Void)? = nil) {
+                relaunch: (@MainActor () -> Void)? = nil,
+                defaults: UserDefaults = AppDefaults.make() ?? .standard) {
+        self.defaults = defaults
         self.relaunch = relaunch
         self.registry = registry
         self.tabs = tabs
         self.openPermission = openPermission
+        AppearancePreference.load(from: defaults).apply()  // the whole app follows the choice from launch
     }
 
     public func show() {
         if window == nil {
             let outside = Set(ShellLayout.tabsOutsideGroups(tabs.map(\.id)))
             let sheetTabs = Dictionary(uniqueKeysWithValues: tabs.filter { outside.contains($0.id) }.map { ($0.id, $0) })
-            let view = SettingsView(registry: registry, sheetTabs: sheetTabs, openPermission: openPermission,
-                                relaunch: relaunch)
-            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            let router = SettingsRouter(defaults: defaults)
+            self.router = router
+            let env = SettingsEnvironment(
+                registry: registry, defaults: defaults, sheetTabs: sheetTabs, openPermission: openPermission,
+                relaunch: relaunch, login: LoginItemModel(defaults: defaults),
+                backup: SettingsBackup(defaults: defaults, domain: AppDefaults.identifier))
+            AppearancePreference.load(from: defaults).apply()
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(env: env, router: router)))
             window.title = "Réglages de Mac Island"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
-            window.setContentSize(NSSize(width: 620, height: 600))
-            window.center()
+            window.contentMinSize = NSSize(width: 772, height: 528)
+            window.setContentSize(NSSize(width: 900, height: 640))
+            window.setFrameAutosaveName("MacIslandSettings")
+            if !window.setFrameUsingName("MacIslandSettings") { window.center() }
             self.window = window
             // Mac Island is an accessory app and gets no activation signal when the user comes back from
             // System Settings, so poll while the window is on screen and refresh on every key/close event.

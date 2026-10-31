@@ -1,0 +1,139 @@
+import Foundation
+
+/// Which rows of which page really work. Everything else on a page is shown greyed and marked "Bientôt".
+///
+/// The keys are the ones the feature modules already read (see each feature's settings type): ShellKit
+/// does not depend on the feature targets, so the names live here as plain strings and a test keeps
+/// them honest.
+public enum SettingsLive {
+    public struct Page: Sendable {
+        /// Row label (as noted from the reference page) to the control that replaces it.
+        public var bound: [String: LiveControl] = [:]
+        /// Controls with no matching row, shown first.
+        public var extras: [LiveControl] = []
+        /// More registry features whose switch and status open the page (besides the page's own).
+        public var featureIDs: [String] = []
+    }
+
+    public static func controls(for pageID: String) -> Page? { table[pageID] }
+
+    /// True when the page has no working control of its own.
+    public static func isEmpty(pageID: String) -> Bool {
+        guard let page = table[pageID] else { return true }
+        return page.bound.isEmpty && page.extras.isEmpty && page.featureIDs.isEmpty
+    }
+
+    private typealias C = LiveControl
+
+    private static func flag(_ key: String, _ fallback: Bool, inverted: Bool = false, title: String? = nil, hint: String? = nil) -> C {
+        C(key, .toggle(defaultValue: fallback, inverted: inverted), title: title, hint: hint)
+    }
+
+    private static func source(_ id: String) -> C { flag(CommandBarKeys.source(id), true) }
+
+    enum CommandBarKeys {
+        static func source(_ id: String) -> String { "commandBarSource" + id.prefix(1).uppercased() + id.dropFirst() }
+    }
+
+    static let table: [String: Page] = [
+        "monitor": Page(
+            bound: [
+                "Répéter la même alerte après": C("monitorAlertCooldownMinutes", .choice(options: [
+                    .init("5 minutes", 5), .init("15 minutes", 15), .init("30 minutes", 30),
+                    .init("1 heure", 60), .init("2 heures", 120),
+                ], defaultValue: 15)),
+            ],
+            extras: [
+                flag("monitorAlertsEnabled", false, title: "Alertes de charge",
+                     hint: "Prévient quand le processeur ou la mémoire reste trop haut. Éteint tant que vous ne l’activez pas."),
+                C("monitorAlertCPUThreshold", .slider(range: 1...100, defaultValue: 90, unit: "%"), title: "Seuil du processeur"),
+                C("monitorAlertMemoryThreshold", .slider(range: 1...100, defaultValue: 90, unit: "%"), title: "Seuil de la mémoire"),
+                C("monitorAlertSustainedSeconds", .stepper(range: 0...3600, defaultValue: 30, unit: "s"),
+                  title: "Durée au-dessus du seuil", hint: "Combien de secondes la charge doit durer avant l’alerte."),
+                flag("monitorSystemNotificationsEnabled", false, title: "Notifications système",
+                     hint: "Affiche aussi l’alerte dans le centre de notifications."),
+            ]),
+        "commandbar": Page(
+            bound: [
+                "Apps": source("apps"), "Fichiers": source("files"), "Calculs et conversions": source("calculator"),
+                "Actions Mac Island": source("commands"),
+                "Raccourci": C("commandBarHotkey", .shortcut(defaultValue: "option:space")),
+            ],
+            extras: [
+                flag("commandBarEnabled", true, title: "Activer la barre de commande"),
+                flag("commandBarHabitsEnabled", true, title: "Retenir ce que j’utilise le plus",
+                     hint: "Remonte vos choix habituels dans les résultats."),
+                source("web").withTitle("Recherche sur le web"),
+            ]),
+        "keepawake": Page(
+            bound: [
+                "Durée par défaut": C("defaultDurationMinutes", .choice(options: [
+                    .init("15 minutes", 15), .init("30 minutes", 30), .init("1 heure", 60), .init("2 heures", 120),
+                    .init("4 heures", 240), .init("8 heures", 480), .init("Indéfinie", 0),
+                ], defaultValue: 0)),
+                "Déplacer légèrement le pointeur": flag("keepAwakeMouseJiggleEnabled", false),
+                "Intervalle": C("keepAwakeMouseJiggleIntervalMinutes", .choice(options: [
+                    .init("1 min", 1), .init("2 min", 2), .init("5 min", 5), .init("10 min", 10),
+                ], defaultValue: 1)),
+                "Autoriser l’écran à s’éteindre": flag("keepAwakePreventDisplaySleep", true, inverted: true),
+            ],
+            extras: [
+                flag("notchKeepAwakeActivity", true, title: "Rester éveillé tant que l’île est utilisée",
+                     hint: "Ouvrir ou utiliser l’île retarde la veille."),
+            ]),
+        "displays": Page(bound: ["Contrôler les écrans": flag("brightnessControlEnabled", true)]),
+        "dockpreview": Page(bound: [
+            "Prévisualiser les fenêtres dans le Dock": flag("dockPreviewEnabled", false),
+            "Délai d’ouverture": C("dockPreviewDelayMilliseconds", .stepper(range: 100...2000, defaultValue: 400, unit: "ms")),
+        ]),
+        "dockclicks": Page(bound: [
+            "Réduire d’un clic sur le Dock": flag("dockClickMinimize", false),
+            "Masquer l’app d’un clic sur le Dock": flag("dockClickHide", false),
+            "Clic sur le Dock pour alterner les fenêtres": flag("dockClickCycleWindows", false),
+        ]),
+        "quitonclose": Page(
+            bound: ["Quitter les apps à la fermeture de leur dernière fenêtre": flag("autoQuitEnabled", false)],
+            extras: [
+                C("autoQuitDelayMinutes", .stepper(range: 1...1440, defaultValue: 30, unit: "min"),
+                  title: "Minutes sans fenêtre visible", hint: "Délai avant qu’une app soit annoncée comme à quitter."),
+                flag("autoQuitDryRun", true, title: "Simulation",
+                     hint: "Annonce ce qui serait quitté sans rien fermer. Laissée active jusqu’à votre choix."),
+            ]),
+        "clipboard": Page(
+            bound: [
+                "Garder l’historique du presse-papiers": flag("clipboardHistoryEnabled", true),
+                "Limite": C("clipboardHistoryLimit", .choice(options: [
+                    .init("10", 10), .init("25", 25), .init("50", 50), .init("100", 100), .init("200", 200), .init("500", 500),
+                ], defaultValue: 50)),
+                "Vider le presse-papiers automatiquement après": flag("clipboardAutoClearOnDelay", false),
+                "Coller les images copiées comme fichiers": flag("finderPasteImageAsFile", true),
+            ],
+            extras: [
+                C("clipboardAutoClearDelaySeconds", .stepper(range: 1...3600, defaultValue: 20, unit: "s"),
+                  title: "Délai avant effacement", hint: "Compte seulement si l’effacement automatique est activé."),
+            ]),
+        "pasteplain": Page(bound: [
+            "Coller en texte brut": flag("pastePlainEnabled", true),
+            "Raccourci": C("pastePlainShortcut", .shortcut(defaultValue: "option+command:9")),
+        ]),
+        "cutpaste": Page(bound: ["Couper-coller dans le Finder": flag("finderCutPasteEnabled", false)]),
+        "shelf": Page(
+            bound: ["Activer l’étagère": flag("shelfEnabled", true)],
+            extras: [
+                flag("shelfDownloadsEnabled", true, title: "Montrer les téléchargements récents",
+                     hint: "Les derniers fichiers téléchargés apparaissent sur l’étagère."),
+                C("shelfDownloadsLimit", .stepper(range: 1...50, defaultValue: 8, unit: ""), title: "Nombre de téléchargements affichés"),
+            ]),
+        "island": Page(
+            extras: [
+                C("notchIdleContent", .stringFlag(on: "agents", off: "none", defaultValue: false),
+                  title: "Limites Claude quand l’île est fermée",
+                  hint: "Affiche votre consommation à côté de l’encoche, au repos."),
+            ],
+            featureIDs: ["agents", "nowplaying", "terminal"]),
+    ]
+}
+
+private extension LiveControl {
+    func withTitle(_ title: String) -> LiveControl { LiveControl(key, kind, title: title, hint: hint) }
+}
