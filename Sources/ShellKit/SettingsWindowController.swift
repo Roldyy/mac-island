@@ -10,6 +10,8 @@ public final class SettingsWindowController {
     private let tabs: [IslandTab]
     private let openPermission: @MainActor (FeaturePermission) -> Void
     private let relaunch: (@MainActor () -> Void)?
+    private var poller: Timer?
+    private var observers: [NSObjectProtocol] = []
 
     public init(registry: FeatureRegistry, tabs: [IslandTab],
                 openPermission: @escaping @MainActor (FeaturePermission) -> Void,
@@ -33,9 +35,34 @@ public final class SettingsWindowController {
             window.setContentSize(NSSize(width: 620, height: 600))
             window.center()
             self.window = window
+            // Mac Island is an accessory app and gets no activation signal when the user comes back from
+            // System Settings, so poll while the window is on screen and refresh on every key/close event.
+            let center = NotificationCenter.default
+            observers = [
+                center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.startPolling() }
+                },
+                center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.stopPolling() }
+                },
+            ]
         }
+        startPolling()
         registry.refreshCapabilities()  // the user may have just granted something in System Settings
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func startPolling() {
+        registry.refreshCapabilities()
+        guard poller == nil else { return }
+        poller = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.registry.refreshCapabilities() }
+        }
+    }
+
+    private func stopPolling() {
+        poller?.invalidate()
+        poller = nil
     }
 }
