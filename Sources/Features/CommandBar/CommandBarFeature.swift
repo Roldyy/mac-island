@@ -39,6 +39,9 @@ public enum CommandBarFeature {
     /// Register the global hotkey (when enabled in the settings). Idempotent.
     @MainActor public static func start() { shared.start() }
 
+    /// Opens the bar now, whatever the hotkey state. The caller closes the island first.
+    @MainActor public static func show() { shared.show() }
+
     /// Unregister the hotkey and close the panel. Idempotent.
     @MainActor public static func stop() { shared.stop() }
 }

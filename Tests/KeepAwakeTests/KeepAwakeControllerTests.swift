@@ -59,6 +59,14 @@ struct Rig {
 }
 
 @Suite @MainActor struct KeepAwakeControllerTests {
+    @Test func toggleStartsThenStops() {
+        let r = Rig()
+        r.controller.toggle()
+        #expect(r.controller.isActive && r.power.live.count == 1)
+        r.controller.toggle()
+        #expect(!r.controller.isActive && r.power.live.isEmpty)
+    }
+
     @Test func startCreatesOneIdleSystemAssertionAndStopReleasesIt() {
         let r = Rig()
         r.controller.start(duration: nil)

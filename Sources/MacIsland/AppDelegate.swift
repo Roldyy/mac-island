@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController?
     private var menuBar: MenuBarItemController?
     private var claudeLive: ClaudeLiveMonitor?
+    private var systemActions: SystemActions?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
@@ -108,12 +109,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         island.show()
         self.island = island
 
-        // Quick-access actions that exist today; the others stay dimmed until their feature lands.
-        quickAccess.table.register("settings") { settings.show() }
-        quickAccess.table.register("keepawake") { [weak island] in
-            navigation.select(tabID: "keepawake")
-            island?.open()
-        }
+        // The six quick-access buttons. Each one acts or opens the System Settings pane it needs.
+        let actions = SystemActions(closeIsland: { [weak island] in island?.close() })
+        systemActions = actions
+        let table = quickAccess.table
+        table.register("commands") { actions.showCommands() }
+        table.register("capture") { actions.capture() }
+        table.register("lockScreen") { actions.lockScreen() }
+        table.register("cleaning") { actions.cleaning() }
+        table.register("keepawake") { actions.toggleKeepAwake() }
+        table.registerState("keepawake") { KeepAwakeFeature.isActive }
+        table.register("settings") { settings.show() }
 
         // The command bar can jump to any tab of the island.
         CommandBarFeature.register(commands: tabs.map { tab in
@@ -123,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         })
     }
+
+    /// Cleaning mode must never outlive the app.
+    func applicationWillTerminate(_ notification: Notification) { FinderFeature.endCleaning() }
 
     /// Re-applies permissions the user may have just granted in System Settings.
     func applicationDidBecomeActive(_ notification: Notification) { registry?.refreshCapabilities() }

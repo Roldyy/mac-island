@@ -43,6 +43,13 @@ private final class FakePresenter: CommandBarPresenting {
         #expect(c.status == .active("\u{2325}Space"))
     }
 
+    @Test @MainActor func showOpensTheBarWithoutTheHotkeyAndNeverTwice() {
+        let (c, reg, pres, _, _) = make()
+        c.show(); c.show()
+        #expect(pres.shows == 1 && pres.isVisible)
+        #expect(reg.registered.isEmpty)   // no hotkey needed
+    }
+
     @Test @MainActor func stopIsIdempotentAndHidesPanel() {
         let (c, reg, pres, _, _) = make()
         c.stop()                                   // never started: nothing to undo

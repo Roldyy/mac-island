@@ -55,6 +55,11 @@ final class CommandBarController {
         status = .off
     }
 
+    /// Opens the bar from a button (not the hotkey); a bar already open stays open.
+    func show() {
+        if !presenter.isVisible { presenter.show() }
+    }
+
     func toggle() {
         if presenter.isVisible { presenter.hide() } else { presenter.show() }
     }

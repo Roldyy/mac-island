@@ -13,6 +13,9 @@ public enum KeepAwakeFeature {
     /// True while a user-started keep-awake session runs.
     @MainActor public static var isActive: Bool { controller.isActive }
 
+    /// Quick-access button: stops the session when one runs, otherwise starts one without a limit.
+    @MainActor public static func toggle() { controller.toggle() }
+
     /// Call when the island opens or is used; honours `notchKeepAwakeActivity`.
     @MainActor public static func noteIslandActivity() { controller.noteIslandActivity() }
 }

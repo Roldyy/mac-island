@@ -64,6 +64,11 @@ final class KeepAwakeController {
         ensureLoop()
     }
 
+    /// Quick-access button: stops a running session, otherwise starts one with no time limit.
+    func toggle() {
+        if isActive { stop() } else { start(duration: nil) }
+    }
+
     func stop() {
         session.releaseAll()
         plan = nil

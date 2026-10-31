@@ -8,6 +8,16 @@ public struct QuickAccessItem: Identifiable, Equatable, Sendable {
     /// Short label under the icon; the full title is the tooltip and the VoiceOver label.
     public let shortTitle: String
     public let systemImage: String
+    /// Icon while the button is "on" (a toggle such as keep-awake); nil = the icon never changes.
+    public let activeSystemImage: String?
+
+    public init(id: String, title: String, shortTitle: String, systemImage: String, activeSystemImage: String? = nil) {
+        self.id = id
+        self.title = title
+        self.shortTitle = shortTitle
+        self.systemImage = systemImage
+        self.activeSystemImage = activeSystemImage
+    }
 }
 
 public enum QuickAccessCatalog {
@@ -16,7 +26,8 @@ public enum QuickAccessCatalog {
         QuickAccessItem(id: "capture", title: "Capture", shortTitle: "Capture", systemImage: "camera.viewfinder"),
         QuickAccessItem(id: "lockScreen", title: "Verrouiller l'écran", shortTitle: "Verrouiller", systemImage: "lock"),
         QuickAccessItem(id: "cleaning", title: "Mode nettoyage", shortTitle: "Nettoyage", systemImage: "sparkles.rectangle.stack"),
-        QuickAccessItem(id: "keepawake", title: "Éveil", shortTitle: "Éveil", systemImage: "cup.and.saucer"),
+        QuickAccessItem(id: "keepawake", title: "Éveil", shortTitle: "Éveil", systemImage: "cup.and.saucer",
+                        activeSystemImage: "cup.and.saucer.fill"),
         QuickAccessItem(id: "settings", title: "Réglages", shortTitle: "Réglages", systemImage: "gearshape"),
     ]
     public static let defaultIDs = items.map(\.id)
@@ -38,6 +49,7 @@ public enum QuickAccessCatalog {
 @MainActor @Observable
 public final class QuickActionTable {
     @ObservationIgnored private var actions: [String: @MainActor () -> Void] = [:]
+    @ObservationIgnored private var states: [String: @MainActor () -> Bool] = [:]
     /// Bumped on every registration so views re-read `isAvailable`.
     public private(set) var revision = 0
 
@@ -47,6 +59,15 @@ public final class QuickActionTable {
         actions[id] = action
         revision += 1
     }
+
+    /// A toggle button reports whether it is on. The closure runs inside the bar's `body`, so it should read
+    /// observable state: the button then redraws on its own.
+    public func registerState(_ id: String, _ isOn: @escaping @MainActor () -> Bool) {
+        states[id] = isOn
+        revision += 1
+    }
+
+    public func isOn(_ id: String) -> Bool { _ = revision; return states[id]?() ?? false }
 
     public func isAvailable(_ id: String) -> Bool { _ = revision; return actions[id] != nil }
 
