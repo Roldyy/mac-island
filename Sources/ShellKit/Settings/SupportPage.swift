@@ -8,7 +8,7 @@ struct SupportPage: View {
 
     var body: some View {
         SettingsPageScaffold(page: page) {
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.m) {
                     Text("Merci d’utiliser Mac Island.").font(.islandBodyEmphasis)
                     Text("Le projet est libre et gratuit. Une étoile sur GitHub aide d’autres personnes à le trouver.")

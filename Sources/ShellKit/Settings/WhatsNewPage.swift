@@ -10,7 +10,7 @@ struct WhatsNewPage: View {
             ForEach(ChangelogEntry.all) { entry in
                 VStack(alignment: .leading, spacing: IslandSpacing.xs) {
                     IslandHeader("v\(entry.version) · \(entry.date)")
-                    IslandCard {
+                    SettingsCard {
                         VStack(alignment: .leading, spacing: IslandSpacing.m) {
                             group("Ajouts", "plus.circle", entry.added)
                             group("Modifications", "arrow.triangle.2.circlepath", entry.changed)

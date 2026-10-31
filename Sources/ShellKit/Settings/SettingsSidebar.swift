@@ -17,7 +17,7 @@ struct SettingsSidebar: View {
                     .textFieldStyle(.plain)
                     .font(.islandBody)
                     .onSubmit {
-                        if let first = SettingsSearch.filter(SettingsPageCatalog.all, query: router.query).first {
+                        if let first = SettingsSearchIndex.shared.filter(query: router.query).first {
                             router.open(first.id)
                         }
                     }
@@ -32,27 +32,31 @@ struct SettingsSidebar: View {
 
             List(selection: selection) {
                 if router.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                    ForEach(SettingsSearch.sections(SettingsPageCatalog.all), id: \.section) { group in
+                    ForEach(SettingsSearchIndex.shared.sections, id: \.section) { group in
                         Section(group.section.title) {
-                            ForEach(group.pages) { row($0) }
+                            ForEach(group.pages) { SettingsSidebarRow(page: $0).tag($0.id) }
                         }
                     }
                 } else {
-                    let matches = SettingsSearch.filter(SettingsPageCatalog.all, query: router.query)
+                    let matches = SettingsSearchIndex.shared.filter(query: router.query)
                     if matches.isEmpty {
                         Text("Aucun réglage trouvé").font(.islandCaption).foregroundStyle(.secondary)
                     }
-                    ForEach(matches) { row($0) }
+                    ForEach(matches) { SettingsSidebarRow(page: $0).tag($0.id) }
                 }
             }
             .listStyle(.sidebar)
         }
     }
+}
 
-    private func row(_ page: SettingsPage) -> some View {
+/// One sidebar row. Equatable on the page, so a selection or poll change redraws only the rows that differ.
+struct SettingsSidebarRow: View, Equatable {
+    let page: SettingsPage
+
+    var body: some View {
         Label(page.title, systemImage: page.symbol)
             .font(.islandBody)
             .lineLimit(1)
-            .tag(page.id)
     }
 }

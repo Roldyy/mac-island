@@ -78,7 +78,9 @@ public final class FeatureRegistry {
     public func descriptor(_ id: String) -> FeatureDescriptor? { descriptors.first { $0.id == id } }
 
     public func refreshCapabilities() {
-        capabilities = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, capabilityProvider($0)) })
+        let fresh = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, capabilityProvider($0)) })
+        // Assigning an equal dictionary still publishes: the 1.5 s poll would redraw every page for nothing.
+        if fresh != capabilities { capabilities = fresh }
         reconcile()  // a granted permission can make a feature available
     }
 

@@ -51,7 +51,10 @@ public struct SettingsBackup {
     }
 
     /// Newest first.
-    public func list() -> [URL] {
+    public func list() -> [URL] { Self.list(in: directory) }
+
+    /// Directory listing only, so a page can run it off the main thread without capturing `UserDefaults`.
+    public static func list(in directory: URL) -> [URL] {
         let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return urls.filter { $0.lastPathComponent.hasPrefix(Self.filePrefix) && $0.pathExtension == "plist" }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }

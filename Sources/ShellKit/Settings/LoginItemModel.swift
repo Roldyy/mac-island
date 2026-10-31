@@ -34,12 +34,22 @@ public protocol LoginItemService {
     func register() throws
     func unregister() throws
     func openSystemSettings()
+    /// The status read without blocking the main thread. Defaults to the synchronous read.
+    func currentStatus() async -> LoginItemStatus
+}
+
+extension LoginItemService {
+    public func currentStatus() async -> LoginItemStatus { status }
 }
 
 @MainActor
 public struct SystemLoginItemService: LoginItemService {
     public init() {}
     public var status: LoginItemStatus { LoginItemStatus(SMAppService.mainApp.status) }
+    /// `SMAppService.status` talks to a system daemon: read it on a background thread.
+    public func currentStatus() async -> LoginItemStatus {
+        await Task.detached(priority: .userInitiated) { LoginItemStatus(SMAppService.mainApp.status) }.value
+    }
     public func register() throws { try SMAppService.mainApp.register() }
     public func unregister() throws { try SMAppService.mainApp.unregister() }
     public func openSystemSettings() { SMAppService.openSystemSettingsLoginItems() }
@@ -68,6 +78,12 @@ public final class LoginItemModel {
     public var isOn: Bool { status == .enabled || status == .requiresApproval }
 
     public func refresh() { status = service.status }
+
+    /// Shows the last known status at once and updates it when the system answers.
+    public func refreshInBackground() async {
+        let fresh = await service.currentStatus()
+        if fresh != status { status = fresh }
+    }
 
     public func set(_ on: Bool) {
         errorMessage = nil

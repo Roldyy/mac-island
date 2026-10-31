@@ -21,7 +21,11 @@ struct AdvancedPage: View {
             backupCard
             permissionsCard
         }
-        .onAppear { backups = backup.list() }
+        .task {
+            // The folder is read off the main thread; the page shows "Aucune sauvegarde" for a moment at worst.
+            let directory = backup.directory
+            backups = await Task.detached(priority: .userInitiated) { SettingsBackup.list(in: directory) }.value
+        }
         .confirmationDialog("Restaurer ces réglages ?", isPresented: Binding(
             get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }), titleVisibility: .visible) {
             Button("Restaurer", role: .destructive) { restore() }
@@ -34,7 +38,7 @@ struct AdvancedPage: View {
     private var backupCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Sauvegarde", subtitle: "Vos réglages sont copiés dans un fichier du dossier Sauvegardes. Rien d’autre : ni presse-papiers, ni étagère, ni autorisations.")
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     HStack(spacing: IslandSpacing.s) {
                         Button("Sauvegarder maintenant", systemImage: "square.and.arrow.up") { save() }
@@ -70,7 +74,7 @@ struct AdvancedPage: View {
     private var permissionsCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Autorisations", subtitle: "Mac Island ne peut pas retirer ses autorisations lui-même : macOS les garde. Voici comment les revoir ou repartir de zéro.")
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     Text("Revoir une autorisation").font(.islandBodyEmphasis)
                     HStack(spacing: IslandSpacing.s) {

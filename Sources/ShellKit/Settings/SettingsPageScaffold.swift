@@ -14,7 +14,7 @@ struct SettingsPageScaffold<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: IslandSpacing.l) {
+            LazyVStack(alignment: .leading, spacing: IslandSpacing.l) {
                 VStack(alignment: .leading, spacing: IslandSpacing.xs) {
                     HStack(spacing: IslandSpacing.s) {
                         Text(page.title)
@@ -46,7 +46,7 @@ struct FeatureStatusCard: View {
         if let d = registry.descriptor(featureID) {
             let state = registry.state(for: featureID)
             let badge = registry.needsRelaunch(featureID) ? FeatureBadge.pendingRelaunch : FeatureBadge(state)
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     HStack(spacing: IslandSpacing.s) {
                         Image(systemName: d.systemImage).frame(width: 20)

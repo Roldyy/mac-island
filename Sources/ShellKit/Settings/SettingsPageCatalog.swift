@@ -4,9 +4,12 @@ import Foundation
 public enum SettingsPageCatalog {
     public static let all: [SettingsPage] = essentials + utilities + sound + energy + windows + input + files + apps + app
 
-    public static func page(_ id: String) -> SettingsPage? { all.first { $0.id == id } }
+    private static let byID: [String: SettingsPage] = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    private static let bySection: [SettingsSection: [SettingsPage]] = Dictionary(grouping: all, by: \.section)
 
-    public static func pages(in section: SettingsSection) -> [SettingsPage] { all.filter { $0.section == section } }
+    public static func page(_ id: String) -> SettingsPage? { byID[id] }
+
+    public static func pages(in section: SettingsSection) -> [SettingsPage] { bySection[section] ?? [] }
 
     public static let defaultPageID = "general"
 

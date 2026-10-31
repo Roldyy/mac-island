@@ -28,12 +28,12 @@ struct GeneralPage: View {
             appearance = AppearancePreference.load(from: defaults)
             shortcutOn = KeepAwakeShortcutService.enabled(in: defaults)
             shortcut = KeepAwakeShortcutService.shortcut(in: defaults)
-            login.refresh()
         }
+        .task { await login.refreshInBackground() }
     }
 
     private var loginCard: some View {
-        IslandCard {
+        SettingsCard {
             VStack(alignment: .leading, spacing: IslandSpacing.m) {
                 VStack(alignment: .leading, spacing: IslandSpacing.xs) {
                     Toggle("Ouvrir à l’ouverture de session", isOn: Binding(get: { login.isOn }, set: { login.set($0) }))
@@ -70,7 +70,7 @@ struct GeneralPage: View {
     private var appearanceCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Apparence")
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     HStack(spacing: IslandSpacing.m) {
                         ForEach(AppearancePreference.allCases) { option in
@@ -112,7 +112,7 @@ struct GeneralPage: View {
     private var shortcutCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Raccourci global")
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     Toggle("Activer le raccourci pour « Garder éveillé »", isOn: $shortcutOn)
                         .toggleStyle(IslandToggleStyle())
@@ -159,7 +159,7 @@ struct GeneralPage: View {
     }
 
     private var feedbackCard: some View {
-        IslandCard {
+        SettingsCard {
             HStack(spacing: IslandSpacing.m) {
                 Image(systemName: "bubble.left.and.text.bubble.right").frame(width: 20).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
@@ -179,7 +179,7 @@ struct GeneralPage: View {
     private var appCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Application")
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     HStack(spacing: IslandSpacing.s) {
                         Button("Relancer Mac Island") { relaunchFailed = !AppLifecycle.relaunch() }

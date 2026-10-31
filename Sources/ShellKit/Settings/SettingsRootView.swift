@@ -40,8 +40,11 @@ struct SettingsRootView: View {
     }
 
     @ViewBuilder private var detail: some View {
+        // A new id replaces the page outright; no layout animation (it made the old and new page
+        // lay out together). Not animating also honours Reduce Motion.
         SettingsPageView(pageID: router.selection, env: env)
             .id(router.selection)
+            .transaction { $0.animation = nil }
     }
 }
 

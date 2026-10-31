@@ -12,7 +12,7 @@ struct AboutPage: View {
 
     var body: some View {
         SettingsPageScaffold(page: page) {
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     HStack(spacing: IslandSpacing.m) {
                         Image(systemName: "rectangle.topthird.inset.filled")
@@ -27,7 +27,7 @@ struct AboutPage: View {
                         .font(.islandBody).foregroundStyle(IslandPalette.textSecondary.color)
                 }
             }
-            IslandCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.s) {
                     link("Voir le projet sur GitHub", "chevron.left.forwardslash.chevron.right", "https://github.com/Roldyy/mac-island")
                     link("Lire la licence (MIT)", "doc.text", "https://github.com/Roldyy/mac-island/blob/main/LICENSE")
