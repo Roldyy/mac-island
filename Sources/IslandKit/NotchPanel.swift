@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Borderless panel that floats over the menu bar. It takes the keyboard only when asked
@@ -37,6 +38,8 @@ public final class IslandController {
     private var screenObserver: NSObjectProtocol?
     private var isOpen = false
     private var closeWork: DispatchWorkItem?
+    private var layout = ActivityLayout.empty
+    private var layoutSubscription: AnyCancellable?
 
     public let state = IslandState()
 
@@ -46,15 +49,22 @@ public final class IslandController {
     }
 
     /// `content` reads `IslandState` from the environment to know whether the island is open.
-    public init<Content: View>(screen: NSScreen? = nil, @ViewBuilder content: () -> Content) {
+    public init<Content: View>(
+        screen: NSScreen? = nil, activityCenter: ActivityCenter? = nil, @ViewBuilder content: () -> Content
+    ) {
         self.screen = screen ?? Self.preferredScreen()
         self.followsScreenChanges = screen == nil
         let actions = IslandActions(
             focusKeyboard: { [weak self] in self?.focusKeyboard() },
             close: { [weak self] in self?.close() })
         panel.contentView = NSHostingView(
-            rootView: content().environmentObject(state).environment(\.islandActions, actions))
-        panel.setFrame(idleFrame, display: false)
+            rootView: NotchBackdrop(content: content()).environmentObject(state).environment(\.islandActions, actions))
+        updateNotchMetrics()
+        panel.setFrame(closedFrame, display: false)
+        // Receives the current layout at once, then every change.
+        layoutSubscription = (activityCenter ?? .shared).$layout.sink { [weak self] layout in
+            MainActor.assumeIsolated { self?.layoutChanged(layout) }
+        }
         if followsScreenChanges {
             // Lid closed or opened, a display plugged in or removed, a new primary display.
             screenObserver = NotificationCenter.default.addObserver(
@@ -73,16 +83,51 @@ public final class IslandController {
         screen = Self.preferredScreen()
         let frame = isOpen
             ? NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame)
-            : idleFrame
+            : closedFrame
+        updateNotchMetrics()
         panel.setFrame(frame, display: true)
         pointerInside = false
         NSLog("IslandKit: screens changed, now on %@ (notch=%d)", screen.localizedName,
               idleGeometry.hasNotch ? 1 : 0)
     }
 
-    /// Visible "wings" on each side of the notch: the notch itself has no pixels to draw on.
-    private let wing: CGFloat = 16
-    private var idleFrame: CGRect { idleGeometry.frame.insetBy(dx: -wing, dy: 0) }
+    /// The notch pill with its base wings, widened by the wings of the current layout and by nothing else.
+    private var closedFrame: CGRect {
+        NotchGeometry.closedFrame(
+            from: idleGeometry, wingExtent: NotchGeometry.wingExtent(for: layout), screenFrame: screen.frame)
+    }
+
+    private func updateNotchMetrics() {
+        state.notchWidth = idleGeometry.frame.width
+        state.notchHeight = idleGeometry.frame.height
+    }
+
+    private func layoutChanged(_ new: ActivityLayout) {
+        guard new != layout else { return }
+        layout = new
+        if !isOpen { move(to: closedFrame, duration: 0.2, curve: .easeOut) }
+    }
+
+    /// Animated frame change, instant when the user asked for Reduce Motion.
+    private func move(to frame: CGRect, duration: TimeInterval, curve: CAMediaTimingFunctionName) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            panel.setFrame(frame, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = duration
+            ctx.timingFunction = CAMediaTimingFunction(name: curve)
+            panel.animator().setFrame(frame, display: true)
+        }
+    }
+
+    /// Each tab may ask for its own open height; the width stays the shell's.
+    public func setOpenHeight(_ height: CGFloat) {
+        openSize.height = NotchGeometry.clampedOpenHeight(height, screenFrame: screen.frame)
+        guard isOpen else { return }
+        move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame),
+             duration: 0.18, curve: .easeOut)
+    }
     private var monitors: [Any] = []
 
     private var idleGeometry: NotchGeometry {
@@ -107,11 +152,7 @@ public final class IslandController {
         isOpen = true
         state.isOpen = true
         let target = NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame)
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(target, display: true)
-        }
+        move(to: target, duration: 0.18, curve: .easeOut)
     }
 
     public func close() {
@@ -120,11 +161,7 @@ public final class IslandController {
         state.isOpen = false
         panel.acceptsKeyboard = false
         panel.resignKey()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.16
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().setFrame(idleFrame, display: true)
-        }
+        move(to: closedFrame, duration: 0.16, curve: .easeIn)
     }
 
     /// Called by content that needs typing (note, search, terminal) after a click.
@@ -157,7 +194,7 @@ public final class IslandController {
 
     private func pointerMoved() {
         // Open: stay open over the whole panel. Closed: react to the wings and the notch strip.
-        var zone = isOpen ? panel.frame : idleFrame
+        var zone = isOpen ? panel.frame : closedFrame
         zone.size.height += 2  // reach the very top edge, where the pointer stops
         let inside = zone.contains(NSEvent.mouseLocation)
         guard inside != pointerInside else { return }
@@ -185,5 +222,8 @@ public final class IslandController {
 @MainActor
 public final class IslandState: ObservableObject {
     @Published public var isOpen = false
+    /// Hardware notch (or pill) size, so content can leave the gap clear and the backdrop can fill it.
+    @Published public var notchWidth: CGFloat = NotchGeometry.pillWidth
+    @Published public var notchHeight: CGFloat = NotchGeometry.pillHeight
 }
 

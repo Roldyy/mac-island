@@ -1,5 +1,8 @@
+import ClaudeLiveKit
 import Foundation
 
-// W0 stub: lane L4 owns this executable. Contract: reads the hook JSON on stdin, writes at most one
-// small state file, and prints NOTHING on stdout (Claude Code reads hook stdout).
+// Hook entry point. Prints NOTHING on stdout (Claude Code reads it) and always exits 0.
+let stdout = ClaudeHookRunner.run(input: ClaudeHookRunner.readStandardInput(),
+                                  directory: ClaudeHookRunner.defaultDirectory)
+if !stdout.isEmpty { FileHandle.standardOutput.write(stdout) }
 exit(0)
