@@ -11,12 +11,13 @@ struct HomeView: View {
     var body: some View {
         let home = context.home
         VStack(spacing: HomeGeometry.gap) {
+            // A level the system does not offer (no keyboard backlight) is left out: the others share the width.
             HStack(spacing: IslandSpacing.m) {
-                HomeLevelSlider(level: home.volume)
-                HomeLevelSlider(level: home.brightness)
-                HomeLevelSlider(level: home.keyboardLight)
+                ForEach(home.availableLevels, id: \.title) { HomeLevelSlider(level: $0) }
             }
+            .frame(maxWidth: .infinity)
             .frame(height: HomeGeometry.slidersRow)
+            .help(home.unavailableLevelsHelp ?? "")
             HomeNowPlayingCard(track: home.track) { home.transport($0) }
             tiles(home.tileActions)
             Spacer(minLength: 0)

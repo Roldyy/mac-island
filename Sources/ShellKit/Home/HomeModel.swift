@@ -129,6 +129,16 @@ public final class HomeModel {
         keyboardLight.refresh()
     }
 
+    /// The sliders the home shows, in order: only the levels the system lets us read.
+    public var availableLevels: [HomeLevel] { [volume, brightness, keyboardLight].filter(\.isAvailable) }
+
+    /// Why a slider is missing, for the tooltip of the sliders row. Nil when all three are there.
+    public var unavailableLevelsHelp: String? {
+        let missing = [volume, brightness, keyboardLight].filter { !$0.isAvailable }
+        guard !missing.isEmpty else { return nil }
+        return missing.map { "\($0.title) : \($0.unavailableReason)" }.joined(separator: "\n")
+    }
+
     // MARK: - Derived sizes
 
     /// Solid black strip at the top of the body, behind the hardware notch.

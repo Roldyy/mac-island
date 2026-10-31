@@ -25,16 +25,20 @@ public struct IslandShellView: View {
     public var body: some View {
         let progress: Double = state.isOpen ? 1 : 0
         let closedSize = CGSize(width: state.closedWidth, height: state.closedHeight)
+        // One source of truth for the open size: the route decides it, this view takes it at once, and the
+        // reveal shape is that size too. The panel window (bigger for a moment on a shrink, see
+        // `IslandFramePlan`) only holds it: the silhouette never lags behind the route.
+        let open = context.panelSize
         ZStack(alignment: .top) {
-            // Fills the panel; the open island is laid out at its own fixed size inside it.
             Color.clear
+                .frame(width: open.width, height: open.height)
                 .overlay(alignment: .top) {
                     HomeIslandContent(context: context, notchWidth: state.notchWidth, notchHeight: state.notchHeight,
                                       isOpen: state.isOpen, isLive: contentLive)
-                        .frame(width: context.panelSize.width, height: context.panelSize.height, alignment: .top)
+                        .frame(width: open.width, height: open.height, alignment: .top)
                 }
-                .modifier(IslandOpenReveal(progress: progress, closedSize: closedSize,
-                                           translucent: context.home.translucentBackground))
+                .modifier(HomeOpenReveal(progress: progress, closedSize: closedSize,
+                                         translucent: context.home.translucentBackground))
                 .allowsHitTesting(state.isOpen)
                 .accessibilityHidden(!state.isOpen)
             if stripLive {
@@ -45,6 +49,7 @@ public struct IslandShellView: View {
                     .allowsHitTesting(!state.isOpen)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(IslandRevealCurve.animation(opening: state.isOpen, reduceMotion: reduceMotion), value: state.isOpen)
         .onAppear { context.onOpenSize(context.panelSize) }
         // The panel follows the size mode, the Explorer and each page; Reduce Motion cuts the resize animation.
