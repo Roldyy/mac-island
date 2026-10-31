@@ -16,8 +16,9 @@ let package = Package(
         .target(name: "IslandUI"),
         .target(name: "IslandKit", dependencies: ["IslandUI"]),
         .target(name: "IslandTestSupport"),
-        .target(name: "ClaudeLiveKit", dependencies: ["IslandKit"]),
-        .executableTarget(name: "ClaudeHook", dependencies: ["ClaudeLiveKit"]),
+        .target(name: "ClaudeHookCore"),
+        .target(name: "ClaudeLiveKit", dependencies: ["IslandKit", "ClaudeHookCore"]),
+        .executableTarget(name: "ClaudeHook", dependencies: ["ClaudeHookCore"]),
         .target(name: "ShellKit", dependencies: ["IslandKit", "IslandUI", "SettingsKit", "ClaudeLiveKit"]),
 
         // Features: one module per lane, disjoint write surfaces.

@@ -23,6 +23,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Library/LaunchDaemons"
 cp "$BIN/MacIsland" "$APP/Contents/MacOS/MacIsland"
 cp "$BIN/FanHelper" "$APP/Contents/MacOS/FanHelper"
+cp "$BIN/ClaudeHook" "$APP/Contents/MacOS/ClaudeHook"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 sed -e "s/@VERSION@/$VERSION/" -e "s/@BUILD@/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
 cp "Sources/Features/Fans/be.roldy.macisland.fanhelper.plist.template" \
@@ -38,6 +39,8 @@ else
 fi
 # shellcheck disable=SC2086
 codesign --force $RT $TS -s "$IDENTITY" -i "$HELPER_ID" "$APP/Contents/MacOS/FanHelper"
+# shellcheck disable=SC2086
+codesign --force $RT $TS -s "$IDENTITY" -i "be.roldy.macisland.claudehook" "$APP/Contents/MacOS/ClaudeHook"
 # shellcheck disable=SC2086
 codesign --force $RT $TS --entitlements Resources/MacIsland.entitlements \
   -s "$IDENTITY" -i "$APP_ID" "$APP"
