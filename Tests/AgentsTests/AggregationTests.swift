@@ -33,13 +33,13 @@ import Testing
         #expect(abs(p.cost(of: r) - 22.05) < 1e-9)
     }
 
-    @Test func aggregatesCurrentMonthOnly() {
+    @Test func aggregatesRolling30DaysOnly() {
         let now = Self.date("2026-10-20T12:00:00Z")
         let records = [
             Self.rec("1", "claude-sonnet-5-5", "2026-10-01T00:00:00Z", i: 100, o: 100),
             Self.rec("2", "claude-sonnet-5-5", "2026-10-05T23:59:59Z", o: 50),
             Self.rec("3", "claude-opus-5-5", "2026-10-05T01:00:00Z", o: 10),
-            Self.rec("4", "claude-sonnet-5-5", "2026-09-30T23:59:59Z", o: 999),
+            Self.rec("4", "claude-sonnet-5-5", "2026-09-20T23:59:59Z", o: 999),
             Self.rec("5", "claude-sonnet-5-5", "2026-11-01T00:00:00Z", o: 999),
         ]
         let s = UsageAggregator.summarize(records, now: now, calendar: Self.calendar)

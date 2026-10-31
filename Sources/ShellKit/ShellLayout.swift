@@ -19,7 +19,7 @@ public struct ShellGroup: Identifiable, Equatable, Sendable {
 public enum ShellLayout {
     public static let groups: [ShellGroup] = [
         ShellGroup(id: "terminal", title: "Terminal", systemImage: "terminal", sections: [
-            ShellSection(id: "terminal", title: "Terminal"), ShellSection(id: "agents", title: "Agents"),
+            ShellSection(id: "terminal", title: "Terminal"), ShellSection(id: "agents", title: "Claude"),
         ]),
         ShellGroup(id: "clipboard", title: "Presse-papiers", systemImage: "doc.on.clipboard", sections: [
             ShellSection(id: "clipboard", title: "Presse-papiers"), ShellSection(id: "shelf", title: "Étagère"),

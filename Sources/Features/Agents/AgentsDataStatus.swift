@@ -7,7 +7,7 @@ enum AgentsDataStatus: Equatable, Sendable {
     case noSource
     /// Files exist but none could be read.
     case unreadable
-    /// Readable, but nothing in the last 12 weeks.
+    /// Readable, but nothing in the last 13 weeks.
     case empty
     case ready
 

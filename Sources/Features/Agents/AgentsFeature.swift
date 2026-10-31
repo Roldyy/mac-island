@@ -12,4 +12,22 @@ public enum AgentsFeature {
     @MainActor public static func idleView() -> AnyView {
         AnyView(AgentsIdleView())
     }
+
+    @MainActor private static var resting: AgentsRestingController?
+
+    /// Posts the focused plan limit to the closed island (ambient, id `agents.resting`) when the migrated
+    /// `notchIdleContent` is "agents", refreshed every minute. Idempotent. The host calls it once at launch.
+    @MainActor public static func startResting() {
+        guard resting == nil else { return }
+        let controller = AgentsRestingController(
+            settings: AgentsSettings(store: AppDefaults.make() ?? .standard), poster: ActivityCenter.shared)
+        resting = controller
+        controller.start()
+    }
+
+    /// Stops the refresh and withdraws the activity.
+    @MainActor public static func stopResting() {
+        resting?.stop()
+        resting = nil
+    }
 }

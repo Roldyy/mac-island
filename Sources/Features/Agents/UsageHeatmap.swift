@@ -10,10 +10,10 @@ struct HeatCell: Equatable, Identifiable, Sendable {
     var id: Date { day }
 }
 
-/// 12 columns (weeks) x 7 rows (weekdays, first weekday of the calendar on top), the last column being
+/// 13 columns (weeks) x 7 rows (weekdays, first weekday of the calendar on top), the last column being
 /// the current week. Pure.
 struct UsageHeatmap: Equatable, Sendable {
-    static let weeks = 12
+    static let weeks = 13
     static let daysPerWeek = 7
 
     /// `columns[week][weekday row]`.

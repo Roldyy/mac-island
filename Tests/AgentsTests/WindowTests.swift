@@ -104,16 +104,16 @@ import Testing
 
     // MARK: heatmap
 
-    @Test func heatmapIsTwelveWeeksBySevenDaysEndingInTheCurrentWeek() {
+    @Test func heatmapIsThirteenWeeksBySevenDaysEndingInTheCurrentWeek() {
         let map = UsageHeatmap.build([], now: Self.now, calendar: Self.calendar)
-        #expect(map.columns.count == 12)
+        #expect(map.columns.count == 13)
         #expect(map.columns.allSatisfy { $0.count == 7 })
         // Monday first: the last column starts Monday 2026-10-19, today is its third row.
-        #expect(map.columns[11][0].day == AggregationTests.date("2026-10-19T00:00:00Z"))
-        #expect(map.columns[11][2].day == AggregationTests.date("2026-10-21T00:00:00Z"))
-        #expect(map.columns[11][3].isFuture)
-        #expect(!map.columns[11][2].isFuture)
-        #expect(map.columns[0][0].day == AggregationTests.date("2026-08-03T00:00:00Z"))
+        #expect(map.columns[12][0].day == AggregationTests.date("2026-10-19T00:00:00Z"))
+        #expect(map.columns[12][2].day == AggregationTests.date("2026-10-21T00:00:00Z"))
+        #expect(map.columns[12][3].isFuture)
+        #expect(!map.columns[12][2].isFuture)
+        #expect(map.columns[0][0].day == AggregationTests.date("2026-07-27T00:00:00Z"))
     }
 
     @Test func heatmapBucketsTokensPerDayWithLevelsRelativeToPeak() {
@@ -127,10 +127,10 @@ import Testing
         ]
         let map = UsageHeatmap.build(records, now: Self.now, calendar: Self.calendar)
         #expect(map.peak == 2000)
-        #expect(map.columns[11][2].tokens == 2000 && map.columns[11][2].level == 4)
-        #expect(map.columns[11][1].tokens == 1000 && map.columns[11][1].level == 2)
-        #expect(map.columns[11][0].level == 1)
-        #expect(map.columns[11][3].level == 0 && map.columns[11][3].tokens == 0)
+        #expect(map.columns[12][2].tokens == 2000 && map.columns[12][2].level == 4)
+        #expect(map.columns[12][1].tokens == 1000 && map.columns[12][1].level == 2)
+        #expect(map.columns[12][0].level == 1)
+        #expect(map.columns[12][3].level == 0 && map.columns[12][3].tokens == 0)
     }
 
     @Test func snapshotCombinesWindowsAndWeekTotal() {
@@ -143,7 +143,7 @@ import Testing
         #expect(snap.week.tokens == 30)
         #expect(snap.block?.tokens == 10)
         #expect(UsageSnapshot.windowStart(now: Self.now, calendar: Self.calendar)
-            == AggregationTests.date("2026-08-03T00:00:00Z"))
+            == AggregationTests.date("2026-07-27T00:00:00Z"))
     }
 
     // MARK: settings and status

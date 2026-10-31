@@ -107,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         island.openSize = CGSize(width: 720, height: ShellLayout.defaultOpenHeight)
         islandRef = island
         island.show()
+        AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         self.island = island
 
         // The six quick-access buttons. Each one acts or opens the System Settings pane it needs.

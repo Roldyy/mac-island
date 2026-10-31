@@ -15,8 +15,8 @@ struct UsageSnapshot: Equatable, Sendable {
 
     func summary(for period: UsagePeriod) -> UsageSummary { summaries[period] ?? UsageSummary() }
 
-    /// Oldest instant any widget needs: the heatmap reaches back furthest, the month starts inside it
-    /// only when the grid is 12 weeks wide, so take the earliest of both.
+    /// Oldest instant any widget needs: the heatmap reaches back furthest (13 weeks, the 30-day window
+    /// starts inside it), so take the earliest of both.
     static func windowStart(now: Date, calendar: Calendar) -> Date {
         min(UsageHeatmap.gridStart(now: now, calendar: calendar),
             UsagePeriod.month.interval(now: now, calendar: calendar).start)

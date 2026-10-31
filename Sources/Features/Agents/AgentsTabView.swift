@@ -2,125 +2,108 @@ import ClaudeLiveKit
 import IslandUI
 import SwiftUI
 
-/// TEMPORARY layout: the data layer behind it is final, the screen is being replaced by the Vorssaint one.
+/// The "Agents IA" page: a header with the period menu, then cards two per row (charts full width).
 struct AgentsTabView: View {
     @State private var model = AgentsUsageModel.shared
     @State private var live = AgentsLiveModel.shared
+    @State private var showsSettings = false
 
     var body: some View {
-        @Bindable var model = model
         ScrollView {
             VStack(alignment: .leading, spacing: IslandSpacing.m) {
-                Picker("Période", selection: $model.period) {
-                    ForEach(UsagePeriod.allCases) { Text($0.title).tag($0) }
+                header
+                if showsSettings {
+                    AgentsSettingsPanel(model: model) { showsSettings = false }
+                } else {
+                    content
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .onChange(of: model.period) { model.persistPeriod() }
-
-                content
-                liveSessions
             }
             .padding(IslandSpacing.m)
         }
         .task { await model.refreshWhileVisible() }
         .onAppear { live.start() }
         .onDisappear { live.stop() }
+        .onChange(of: live.sessions) { live.observe() }
     }
+
+    private var header: some View {
+        @Bindable var model = model
+        return HStack(spacing: IslandSpacing.s) {
+            Text(AgentsStrings.text("title"))
+                .font(.islandBodyEmphasis)
+                .foregroundStyle(IslandPalette.textPrimary.color)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: IslandSpacing.s)
+            Menu {
+                Picker(AgentsStrings.periodLabel, selection: $model.period) {
+                    ForEach(UsagePeriod.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Text(model.period.title).font(.islandCaptionEmphasis)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.island)
+            .fixedSize()
+            .accessibilityLabel(AgentsStrings.periodLabel)
+            .accessibilityValue(model.period.title)
+            Button(AgentsStrings.settingsLabel, systemImage: "gearshape") { showsSettings.toggle() }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.island)
+        }
+        .onChange(of: model.period) { model.persistPeriod() }
+    }
+
+    // MARK: states
 
     @ViewBuilder private var content: some View {
-        switch model.status {
-        case .loading:
-            IslandEmptyState(symbol: "hourglass", message: "Lecture de la consommation…")
-        case .noSource:
-            IslandEmptyState(symbol: "tray", message: "Aucun journal Claude Code trouvé sur ce Mac.")
-        case .unreadable:
-            IslandEmptyState(symbol: "exclamationmark.triangle", message: "Les journaux Claude Code sont illisibles.")
-        case .empty:
-            IslandEmptyState(symbol: "tray", message: "Aucune consommation sur les 12 dernières semaines.")
-        case .ready:
-            summaryCards
-        }
-    }
-
-    private var summaryCards: some View {
-        let s = model.summary
-        let snap = model.snapshot
-        return VStack(alignment: .leading, spacing: IslandSpacing.m) {
-            IslandCard {
-                HStack(alignment: .firstTextBaseline) {
-                    figure(UsageFormat.tokens(s.totalTokens), "tokens \(model.period.phrase)")
-                    Spacer()
-                    figure(UsageFormat.cost(s.totalCost, estimated: s.costIsEstimated),
-                           s.costIsEstimated ? "coût estimé" : "coût")
-                }
-            }
-            IslandCard {
-                if let block = snap.block {
-                    IslandRow("Bloc de 5 h en cours",
-                              subtitle: "Il reste \(UsageFormat.duration(block.remaining(at: Date())))") {
-                        Text("\(UsageFormat.tokens(block.tokens)) · \(UsageFormat.cost(block.cost, estimated: block.estimated))")
-                            .font(.islandValue)
-                    }
-                } else {
-                    IslandRow("Bloc de 5 h en cours", subtitle: "Aucun bloc actif")
-                }
-                IslandRow("7 derniers jours") {
-                    Text("\(UsageFormat.tokens(snap.week.tokens)) · \(UsageFormat.cost(snap.week.cost, estimated: snap.week.estimated))")
-                        .font(.islandValue)
-                }
-            }
-            DailyBarsView(days: model.period == .today ? s.perHour : s.perDay, hourly: model.period == .today)
-            IslandCard {
-                ForEach(s.perModel) { row in
-                    IslandRow(row.model) {
-                        Text("\(UsageFormat.tokens(row.tokens)) · \(UsageFormat.cost(row.cost, estimated: row.estimated))")
-                            .font(.islandValue)
+        let cards = model.visibleCards
+        if !model.hasLoaded {
+            IslandEmptyState(symbol: "hourglass", message: AgentsStrings.text("loading"))
+        } else if model.status != .ready && model.limits.source != .planFile {
+            IslandEmptyState(symbol: "tray", message: AgentsStrings.text("empty"))
+        } else if cards.isEmpty {
+            IslandEmptyState(symbol: "rectangle.dashed", message: AgentsStrings.text("noCards"))
+        } else {
+            ForEach(Array(AgentsCardLayout.rows(cards).enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: IslandSpacing.m) {
+                    ForEach(row) { card in
+                        view(for: card).frame(maxWidth: .infinity, alignment: .top)
                     }
                 }
-            }
-            IslandCard {
-                ForEach(s.perProject.prefix(6)) { row in
-                    IslandRow(row.name) {
-                        Text(UsageFormat.cost(row.cost, estimated: row.estimated)).font(.islandValue)
-                    }
-                }
-            }
-            if model.unreadableFiles > 0 {
-                Text("\(model.unreadableFiles) fichier(s) illisible(s) ignoré(s)")
-                    .font(.islandFootnote)
-                    .foregroundStyle(IslandPalette.textTertiary.color)
             }
         }
     }
 
-    private func figure(_ value: String, _ caption: String) -> some View {
-        VStack(alignment: .leading, spacing: IslandSpacing.xxs) {
-            Text(value)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(IslandPalette.textPrimary.color)
-            Text(caption).font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var liveSessions: some View {
-        VStack(alignment: .leading, spacing: IslandSpacing.xs) {
-            IslandHeader("Sessions en direct")
-            IslandCard {
-                if live.sessions.isEmpty {
-                    Text("Aucune session Claude Code ouverte")
-                        .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
-                }
-                ForEach(live.sessions) { session in
-                    IslandRow(session.folderName.isEmpty ? "Session sans nom" : session.folderName,
-                              status: Self.status(session.state)) {
-                        Text(AgentsLiveModel.label(for: session.state)).font(.islandCaption)
-                            .foregroundStyle(IslandPalette.textSecondary.color)
-                    }
-                }
-            }
+    @ViewBuilder private func view(for card: AgentsCard) -> some View {
+        let summary = model.summary
+        switch card {
+        case .limits:
+            AgentsLimitsCard(limits: model.limits, display: model.limitDisplay)
+        case .spend:
+            let today = model.snapshot.summary(for: .today)
+            AgentsSpendCard(summary: summary, period: model.period, plan: model.plan,
+                            todayCost: today.totalCost, todayEstimated: today.costIsEstimated,
+                            dailyBudget: model.dailyBudget)
+        case .live:
+            AgentsLiveCard(sessions: live.sessions, lastFinished: live.lastFinished)
+        case .trend:
+            AgentsTrendCard(buckets: TrendBuckets.make(summary: summary, period: model.period, now: Date(),
+                                                       calendar: UsageFormat.calendar),
+                            hourly: model.period == .today, estimated: summary.costIsEstimated)
+        case .models:
+            AgentsShareCard(card: .models, rows: summary.perModel.map {
+                ShareRow(name: $0.model, tokens: $0.tokens, cost: $0.cost, estimated: $0.estimated)
+            })
+        case .projects:
+            AgentsShareCard(card: .projects, rows: summary.perProject.map {
+                ShareRow(name: $0.name, tokens: $0.tokens, cost: $0.cost, estimated: $0.estimated)
+            })
+        case .activity:
+            AgentsActivityCard(heatmap: model.snapshot.heatmap,
+                               stats: HeatmapStats.compute(model.snapshot.heatmap, now: Date(), calendar: UsageFormat.calendar))
+        case .resets:
+            EmptyView()   // Codex only, and the Codex source is a stub: `visibleCards` never lists it
         }
     }
 
