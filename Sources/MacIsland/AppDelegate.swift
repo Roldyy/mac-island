@@ -12,6 +12,7 @@ import DisplayFeature
 import AudioFeature
 import KeepAwakeFeature
 import NowPlayingFeature
+import Observation
 import os
 import ShelfFeature
 import IslandKit
@@ -32,6 +33,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var claudeLive: ClaudeLiveMonitor?
     private var systemActions: SystemActions?
     private var layoutSubscription: AnyCancellable?
+    /// The closed island's indicators: Claude, limits, music and alerts arrive through the activity engine;
+    /// battery and keep awake post here directly.
+    private let ambient = AmbientCenter.shared
+    private var battery: BatterySource?
+    private var screenObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
@@ -98,10 +104,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRelaunch: Self.relaunchAction)
 
         let home = HomeModel(defaults: defaults)
+        let ambientCenter = ambient
         weak var islandRef: IslandController?  // weak: the island owns this context
         let context = ShellContext(
             tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess, home: home,
-            closedStrip: { AnyView(ClosedStrip(claude: live)) },
+            closedStrip: { AnyView(ClosedStrip(ambient: ambientCenter)) },
             alert: { MonitorFeature.currentAlert.map { ShellAlert(title: $0.title, message: $0.message) } },
             manualFansActive: { FansFeature.isManualActive },
             claudePill: { AnyView(ClaudeStatusPill(model: TerminalFeature.claudeStatus())) },
@@ -114,7 +121,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             quit: { NSApp.terminate(nil) },
             relaunch: Self.relaunchAction)
-        let island = IslandController { IslandShellView(context: context) }
+        // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
+        // wing need more room than the arbiter's one item per wing says.
+        let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }
         island.openSize = context.panelSize
         islandRef = island
         island.show()
@@ -125,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { home.track = Self.musicTrack(from: layout) }
         }
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
+        startAmbientSources(live: live)
         self.island = island
 
         // The six quick-access buttons. Each one acts or opens the System Settings pane it needs.
@@ -147,6 +157,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 island?.open()
             }
         })
+    }
+
+    // MARK: - Closed island indicators
+
+    /// Event-driven sources only: IOKit's power notification, Observation on the keep-awake plan and on the
+    /// Claude sessions, the screen-change notification. Nothing polls and nothing asks for a permission.
+    private func startAmbientSources(live: ClaudeLiveMonitor) {
+        syncNotch()
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncNotch() }
+        }
+        let battery = BatterySource(center: ambient)
+        battery.start()
+        self.battery = battery
+        observeKeepAwake()
+        observeClaude(live)
+    }
+
+    /// Same rule as `IslandController`: the notched screen when there is one, otherwise the main screen.
+    private func syncNotch() {
+        ambient.isNotched = NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
+    }
+
+    private func observeKeepAwake() {
+        let active = withObservationTracking({ KeepAwakeFeature.isActive }, onChange: { [weak self] in
+            // Fires just before the change lands; the next main-actor turn sees the new value.
+            Task { @MainActor in self?.observeKeepAwake() }
+        })
+        if active {
+            ambient.post(AmbientIndicator(
+                id: "keepawake", channel: AmbientChannel.keepAwake, symbol: "cup.and.saucer.fill", status: .info,
+                wing: .trailing, label: "Maintien d’éveil actif"))
+        } else {
+            ambient.withdraw(id: "keepawake")
+        }
+    }
+
+    private func observeClaude(_ live: ClaudeLiveMonitor) {
+        let sample = withObservationTracking({ ClaudeWing.pick(ClosedStrip.samples(live.sessions)) }, onChange: { [weak self, weak live] in
+            Task { @MainActor in
+                guard let self, let live else { return }
+                self.observeClaude(live)
+            }
+        })
+        ambient.setClaude(sample)
     }
 
     /// Cleaning mode must never outlive the app.
@@ -215,28 +272,28 @@ enum ShellTabs {
 /// Bridges Claude sessions to the shared activity engine.
 @MainActor
 final class ActivityCenterSink: ClaudeActivitySink {
-    func post(_ activity: IslandActivity) { ActivityCenter.shared.post(activity) }
+    /// The closed island shows Claude as one indicator with its clock, so the folder name no longer takes the
+    /// trailing wing: that frees it for the music title while Claude works.
+    func post(_ activity: IslandActivity) {
+        var activity = activity
+        activity.trailing = nil
+        ActivityCenter.shared.post(activity)
+    }
     func withdraw(id: String) { ActivityCenter.shared.withdraw(id: id) }
 }
 
-/// The closed island's wings, redrawn whenever the activity engine publishes a new layout.
-/// The notch width comes from the environment, so the view holds no reference to the island.
+/// The closed island, redrawn whenever the ambient center publishes new content. The sizes come from the
+/// environment, so the view holds no reference to the island. While it is on screen the center may rotate.
 struct ClosedStrip: View {
     @EnvironmentObject private var state: IslandState
-    @ObservedObject private var center = ActivityCenter.shared
-    /// Read inside `body`, so a session changing state redraws the wing.
-    let claude: ClaudeLiveMonitor
+    @ObservedObject var ambient: AmbientCenter
 
     var body: some View {
-        if let sample = ClaudeWing.pick(Self.samples(claude.sessions)), ClaudeWing.isClaudeWing(center.layout.leading) {
-            // "Claude | 7:33": the clock ticks once a second, only while a Claude wing is showing.
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                CompactStrip(layout: ClaudeWing.layout(center.layout, sample: sample, now: timeline.date),
-                             notchWidth: state.notchWidth)
-            }
-        } else {
-            CompactStrip(layout: center.layout, notchWidth: state.notchWidth)
-        }
+        AmbientStrip(
+            content: ambient.content, notchWidth: state.notchWidth, isNotched: ambient.isNotched,
+            size: CGSize(width: state.closedWidth, height: state.closedHeight))
+            .onAppear { ambient.setVisible(true) }
+            .onDisappear { ambient.setVisible(false) }
     }
 
     /// Working and waiting sessions only; `updatedAt` is when they entered that state.

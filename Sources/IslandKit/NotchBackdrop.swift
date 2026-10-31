@@ -30,8 +30,9 @@ public enum IslandRevealCurve {
     public static let contentFadeStart = 0.4
     public static let contentFadeEnd = 0.9
 
-    public static let closedTopRadius: CGFloat = 10
-    public static let closedBottomRadius: CGFloat = 10
+    /// The resting pill: continuous corners, rounder than before so it reads as a pill on a screen with no notch.
+    public static let closedTopRadius: CGFloat = 14
+    public static let closedBottomRadius: CGFloat = 14
     public static let openTopRadius: CGFloat = 12
     public static let openBottomRadius: CGFloat = 26
 
