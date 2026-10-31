@@ -18,6 +18,9 @@ struct HomeCircleButton: View {
                     Image(systemName: on ? action.activeSystemImage ?? action.systemImage : action.systemImage)
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(on ? IslandSurface.notchBlack : IslandPalette.textPrimary.color)
+                    if HomeClaude.isClaude(action) {
+                        ClaudeStatusDot().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    }
                 }
                 .frame(width: HomeGeometry.circleDiameter, height: HomeGeometry.circleDiameter)
                 .shadow(color: .black.opacity(0.45), radius: 5, y: 2)
@@ -28,11 +31,18 @@ struct HomeCircleButton: View {
             .help(available ? title : "\(title) : pas encore disponible")
             .accessibilityLabel(title)
             .accessibilityValue(action.activeSystemImage == nil ? "" : (on ? "activé" : "désactivé"))
-            .contextMenu { menu }
+            .overlay(alignment: .bottomTrailing) {
+                if HomeClaude.isClaude(action) { ClaudeOpenAppButton(context: context).offset(x: 5, y: 5) }
+            }
+            .contextMenu { menu(for: action) }
         }
     }
 
-    @ViewBuilder private var menu: some View {
+    @ViewBuilder private func menu(for action: HomeAction) -> some View {
+        if HomeClaude.isClaude(action) {
+            ClaudeOpenAppMenuItem(context: context)
+            Divider()
+        }
         let layout = context.home.buttons
         let row = layout.buttons(on: button.side)
         let index = row.firstIndex { $0.id == button.id } ?? 0

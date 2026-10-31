@@ -30,7 +30,28 @@ public final class NotchPanel: NSPanel {
     }
 }
 
-/// Owns the panel, follows hover, and animates between the idle notch and the open island.
+/// How the panel frame follows a size change without being resized every frame: it grows at once (to the
+/// union of the old and new frames, both are top-centred) and shrinks only after SwiftUI has finished
+/// animating the shape inside it. The window server never sees an animated frame.
+public struct IslandFramePlan: Equatable, Sendable {
+    /// Set right away.
+    public let immediate: CGRect
+    /// Set `IslandRevealCurve.settleDelay` later, when the shape no longer needs the room. Nil when none.
+    public let settled: CGRect?
+
+    public static func make(current: CGRect, target: CGRect, animated: Bool) -> IslandFramePlan {
+        guard animated, current != target, !current.isEmpty else {
+            return IslandFramePlan(immediate: target, settled: nil)
+        }
+        let union = current.union(target)
+        return IslandFramePlan(immediate: union, settled: union == target ? nil : target)
+    }
+}
+
+/// Owns the panel, follows hover, and opens or closes the island.
+///
+/// Open and close are one SwiftUI animation on a single progress value (`IslandRevealCurve`); the panel frame
+/// is set once per transition, never animated. The content is built once and kept alive.
 @MainActor
 public final class IslandController {
     public let panel = NotchPanel()
@@ -41,6 +62,7 @@ public final class IslandController {
     private var screenObserver: NSObjectProtocol?
     private var isOpen = false
     private var closeWork: DispatchWorkItem?
+    private var settleTask: Task<Void, Never>?
     private var layout = ActivityLayout.empty
     private var layoutSubscription: AnyCancellable?
 
@@ -60,8 +82,11 @@ public final class IslandController {
         let actions = IslandActions(
             focusKeyboard: { [weak self] in self?.focusKeyboard() },
             close: { [weak self] in self?.close() })
-        panel.contentView = NSHostingView(
+        let host = NSHostingView(
             rootView: NotchBackdrop(content: content()).environmentObject(state).environment(\.islandActions, actions))
+        // The panel is sized by the controller only: no min/max/intrinsic size feedback from the content.
+        host.sizingOptions = []
+        panel.contentView = host
         updateNotchMetrics()
         panel.setFrame(closedFrame, display: false)
         // Receives the current layout at once, then every change.
@@ -84,11 +109,11 @@ public final class IslandController {
 
     private func screensChanged() {
         screen = Self.preferredScreen()
+        updateNotchMetrics()
         let frame = isOpen
             ? NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame)
             : closedFrame
-        updateNotchMetrics()
-        panel.setFrame(frame, display: true)
+        move(to: frame, animated: false)
         pointerInside = false
         NSLog("IslandKit: screens changed, now on %@ (notch=%d)", screen.localizedName,
               idleGeometry.hasNotch ? 1 : 0)
@@ -103,24 +128,37 @@ public final class IslandController {
     private func updateNotchMetrics() {
         state.notchWidth = idleGeometry.frame.width
         state.notchHeight = idleGeometry.frame.height
+        updateClosedMetrics()
+    }
+
+    /// The closed strip is drawn at this fixed size inside the (possibly larger) panel.
+    private func updateClosedMetrics() {
+        let size = closedFrame.size
+        if state.closedWidth != size.width { state.closedWidth = size.width }
+        if state.closedHeight != size.height { state.closedHeight = size.height }
     }
 
     private func layoutChanged(_ new: ActivityLayout) {
         guard new != layout else { return }
         layout = new
-        if !isOpen { move(to: closedFrame, duration: 0.2, curve: .easeOut) }
+        updateClosedMetrics()
+        if !isOpen { move(to: closedFrame) }
     }
 
-    /// Animated frame change, instant when the user asked for Reduce Motion.
-    private func move(to frame: CGRect, duration: TimeInterval, curve: CAMediaTimingFunctionName) {
-        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
-            panel.setFrame(frame, display: true)
-            return
-        }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = duration
-            ctx.timingFunction = CAMediaTimingFunction(name: curve)
-            panel.animator().setFrame(frame, display: true)
+    /// Frame change without a per-frame resize: grow now, shrink once the SwiftUI animation is over.
+    /// Instant when the user asked for Reduce Motion.
+    private func move(to frame: CGRect, animated: Bool = true) {
+        settleTask?.cancel()
+        settleTask = nil
+        let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let plan = IslandFramePlan.make(current: panel.frame, target: frame, animated: animated && !reduce)
+        if panel.frame != plan.immediate { panel.setFrame(plan.immediate, display: true) }
+        guard let settled = plan.settled else { return }
+        settleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(IslandRevealCurve.settleDelay))
+            guard !Task.isCancelled, let self else { return }
+            self.panel.setFrame(settled, display: true)
+            self.settleTask = nil
         }
     }
 
@@ -128,8 +166,7 @@ public final class IslandController {
     public func setOpenHeight(_ height: CGFloat) {
         openSize.height = NotchGeometry.clampedOpenHeight(height, screenFrame: screen.frame)
         guard isOpen else { return }
-        move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame),
-             duration: 0.18, curve: .easeOut)
+        move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame))
     }
     private var monitors: [Any] = []
 
@@ -153,9 +190,9 @@ public final class IslandController {
         closeWork?.cancel()
         guard !isOpen else { return }
         isOpen = true
+        // Panel first (at its final size, at once), then the one animation that reveals the content inside it.
+        move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame))
         state.isOpen = true
-        let target = NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame)
-        move(to: target, duration: 0.18, curve: .easeOut)
     }
 
     public func close() {
@@ -164,7 +201,7 @@ public final class IslandController {
         state.isOpen = false
         panel.acceptsKeyboard = false
         panel.resignKey()
-        move(to: closedFrame, duration: 0.16, curve: .easeIn)
+        move(to: closedFrame)
     }
 
     /// Called by content that needs typing (note, search, terminal) after a click.
@@ -228,5 +265,8 @@ public final class IslandState: ObservableObject {
     /// Hardware notch (or pill) size, so content can leave the gap clear and the backdrop can fill it.
     @Published public var notchWidth: CGFloat = NotchGeometry.pillWidth
     @Published public var notchHeight: CGFloat = NotchGeometry.pillHeight
+    /// Size of the closed island (notch plus wings). The panel can be larger while it opens or closes.
+    @Published public var closedWidth: CGFloat = NotchGeometry.pillWidth
+    @Published public var closedHeight: CGFloat = NotchGeometry.pillHeight
 }
 

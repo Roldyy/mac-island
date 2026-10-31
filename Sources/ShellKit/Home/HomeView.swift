@@ -5,6 +5,8 @@ import SwiftUI
 /// Sits inside the black body, below the notch band.
 struct HomeView: View {
     let context: ShellContext
+    /// The island is open: only then are the levels polled.
+    var isActive = true
 
     var body: some View {
         let home = context.home
@@ -20,9 +22,11 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, IslandSpacing.l - 2)
-        .task {
+        .task(id: isActive) {
             // A volume key or the Control Center moves the level while the island is open.
-            while !Task.isCancelled {
+            // The content is still invisible during the first frames of the open animation: read after them.
+            if isActive { try? await Task.sleep(for: .milliseconds(60)) }
+            while isActive, !Task.isCancelled {
                 home.refreshLevels()
                 try? await Task.sleep(for: .seconds(1))
             }

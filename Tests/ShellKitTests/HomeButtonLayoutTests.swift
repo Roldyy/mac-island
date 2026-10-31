@@ -6,7 +6,7 @@ import Testing
 @Suite struct HomeButtonLayoutTests {
     @Test func defaultsFollowTheScreenshotLayout() {
         let layout = HomeButtonLayout.initial
-        #expect(layout.buttons(on: .left).map(\.actionID) == ["explore", "clipboard"])
+        #expect(layout.buttons(on: .left).map(\.actionID) == ["explore", "clipboard", "agents"])
         #expect(layout.buttons(on: .right).map(\.actionID) == ["settings", "mixer"])
         #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake"])
         #expect(layout.sanitized() == layout)  // every default is a known action
@@ -36,9 +36,11 @@ import Testing
         let explore = layout.buttons(on: .left)[0].id
         let ok8 = layout.reorder(id: explore, by: 1)
         #expect(ok8)
-        #expect(layout.buttons(on: .left).map(\.actionID) == ["clipboard", "explore"])
+        #expect(layout.buttons(on: .left).map(\.actionID) == ["clipboard", "explore", "agents"])
         let ok9 = layout.reorder(id: explore, by: 1)
-        #expect(!ok9)
+        #expect(ok9)
+        let ok9b = layout.reorder(id: explore, by: 1)
+        #expect(!ok9b)
         let ok10 = layout.move(id: explore, to: .bottom)
         #expect(ok10)
         #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake", "explore"])
@@ -46,7 +48,7 @@ import Testing
         let ok11 = layout.move(id: clipboard, to: .bottom)
         #expect(!ok11)
         layout.remove(id: clipboard)
-        #expect(layout.buttons(on: .left).isEmpty)
+        #expect(layout.buttons(on: .left).map(\.actionID) == ["agents"])
     }
 
     @Test func sanitizingDropsUnknownRepeatedAndExtraButtons() {
@@ -97,7 +99,7 @@ import Testing
 
         let reopened = HomeModel(defaults: bench.defaults, volume: .unsupported("x"), brightness: .unsupported("x"))
         #expect(reopened.buttons == expected)
-        #expect(reopened.buttons.buttons(on: .left).map(\.actionID) == ["clipboard", "explore"])
+        #expect(reopened.buttons.buttons(on: .left).map(\.actionID) == ["clipboard", "explore", "agents"])
         #expect(reopened.buttons.buttons(on: .right).map(\.actionID) == ["mixer", "capture"])
     }
 }

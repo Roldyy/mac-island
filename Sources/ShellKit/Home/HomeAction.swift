@@ -67,8 +67,8 @@ public enum HomeActionCatalog {
 
     /// The tiles of the home grid, in order; the mode decides how many rows show.
     public static let tileIDs = [
-        "mixer", "keepawake", "commands", "capture",
-        "lockScreen", "cleaning", "monitor", "shelf",
-        "clipboard", "terminal", "agents", "nowplaying",
+        "mixer", "keepawake", "agents", "commands",
+        "capture", "lockScreen", "cleaning", "monitor",
+        "shelf", "clipboard", "terminal", "nowplaying",
     ]
 }

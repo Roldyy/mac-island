@@ -7,6 +7,10 @@ struct HomeIslandContent: View {
     let context: ShellContext
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    /// False while the island is closed: the home stays built but stops polling the system levels.
+    var isOpen = true
+    /// False while no page or Explorer should be mounted (closed): they own tasks, timers and focus.
+    var isLive = true
 
     private var home: HomeModel { context.home }
 
@@ -44,9 +48,9 @@ struct HomeIslandContent: View {
             VStack(spacing: 0) {
                 band
                 switch context.navigation.route {
-                case .home: HomeView(context: context).padding(.top, HomeGeometry.bandGap)
-                case .explore: ExploreView(context: context)
-                case .page(let id): HomePageView(tabID: id, context: context)
+                case .home: HomeView(context: context, isActive: isOpen).padding(.top, HomeGeometry.bandGap)
+                case .explore: if isLive { ExploreView(context: context) } else { Color.clear }
+                case .page(let id): if isLive { HomePageView(tabID: id, context: context) } else { Color.clear }
                 }
             }
         }

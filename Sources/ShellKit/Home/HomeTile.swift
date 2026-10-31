@@ -16,6 +16,10 @@ struct HomeTile: View {
                     Image(systemName: on ? action.activeSystemImage ?? action.systemImage : action.systemImage)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(on ? IslandSurface.notchBlack : IslandPalette.textPrimary.color)
+                    if HomeClaude.isClaude(action) {
+                        ClaudeStatusDot().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .offset(x: 3, y: -3)
+                    }
                 }
                 .frame(width: 34, height: 34)
                 Text(action.title)
@@ -34,5 +38,12 @@ struct HomeTile: View {
         .help(available ? action.title : "\(action.title) : pas encore disponible")
         .accessibilityLabel(action.title)
         .accessibilityValue(action.activeSystemImage == nil ? "" : (on ? "activé" : "désactivé"))
+        .overlay(alignment: .top) {
+            // Beside the glyph, outside the tile's own button: a button cannot sit inside another one.
+            if HomeClaude.isClaude(action) { ClaudeOpenAppButton(context: context).offset(x: 20, y: 22) }
+        }
+        .contextMenu {
+            if HomeClaude.isClaude(action) { ClaudeOpenAppMenuItem(context: context) }
+        }
     }
 }

@@ -49,6 +49,39 @@ import Testing
         #expect(png.count > 4_000)  // a collapsed view encodes to almost nothing
     }
 
+    /// Cost of building the open home once (what used to happen on every hover) versus flipping the reveal
+    /// progress on a view that is already built. Prints the numbers; the bound is generous on purpose.
+    @Test func buildingTheHomeCostsMoreThanRevealingIt() throws {
+        let bench = TestDefaults.make()
+        let marker = CrashMarker(url: FileManager.default.temporaryDirectory.appendingPathComponent("mis-cost-marker-\(UUID().uuidString)"))
+        defer { bench.cleanup(); marker.clear() }
+        let context = makeContext(bench.defaults, marker: marker)
+        let size = context.panelSize
+        let clock = ContinuousClock()
+        func build() -> NSHostingView<AnyView> {
+            let host = NSHostingView(rootView: AnyView(
+                HomeIslandContent(context: context, notchWidth: 200, notchHeight: 32)
+                    .frame(width: size.width, height: size.height, alignment: .top)))
+            host.sizingOptions = []
+            host.frame = CGRect(origin: .zero, size: size)
+            host.layoutSubtreeIfNeeded()
+            return host
+        }
+        let cold = clock.measure { _ = build() }
+        let warm = clock.measure { for _ in 0..<5 { _ = build() } } / 5
+        let host = build()
+        let relayout = clock.measure {
+            for _ in 0..<20 {
+                host.frame = CGRect(origin: .zero, size: CGSize(width: size.width, height: size.height - 1))
+                host.layoutSubtreeIfNeeded()
+                host.frame = CGRect(origin: .zero, size: size)
+                host.layoutSubtreeIfNeeded()
+            }
+        } / 40
+        print("MIS_COST build-cold=\(cold) build-warm=\(warm) relayout-per-frame=\(relayout)")
+        #expect(cold < .seconds(5))
+    }
+
     @Test func homeAtTheThreeSizesAndExplorer() throws {
         let bench = TestDefaults.make()
         let marker = CrashMarker(url: FileManager.default.temporaryDirectory.appendingPathComponent("mis-home-marker-\(UUID().uuidString)"))

@@ -38,10 +38,11 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
 
     public init(buttons: [HomeButton]) { self.buttons = buttons }
 
-    /// Left: Explorer, Presse-papiers. Right: Réglages, Mélangeur. Bottom: Commandes, Garder éveillé.
+    /// Left: Explorer, Presse-papiers, Claude. Right: Réglages, Mélangeur. Bottom: Commandes, Garder éveillé.
     public static let initial = HomeButtonLayout(buttons: [
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000001")!, actionID: "explore", side: .left),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000002")!, actionID: "clipboard", side: .left),
+        HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000007")!, actionID: "agents", side: .left),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000003")!, actionID: "settings", side: .right),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000004")!, actionID: "mixer", side: .right),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000005")!, actionID: "commands", side: .bottom),
@@ -64,6 +65,16 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
               let target = side ?? firstFreeSide, hasRoom(on: target) else { return false }
         buttons.append(HomeButton(actionID: resolved, side: target))
         return true
+    }
+
+    /// Offers the Claude shortcut to a layout that does not have it: left first, then right, then the bottom row.
+    /// A layout with no room left stays as it is.
+    public func addingClaudeShortcut() -> HomeButtonLayout {
+        var copy = self
+        for side in [HomeButtonSide.left, .right, .bottom] where copy.hasRoom(on: side) {
+            if copy.add(actionID: HomeClaude.actionID, side: side) { break }
+        }
+        return copy
     }
 
     public mutating func remove(id: UUID) { buttons.removeAll { $0.id == id } }

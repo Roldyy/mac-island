@@ -16,6 +16,8 @@ public final class HomeModel {
         static let fitWidth = "notchCameraFitWidth"
         static let fitHeight = "notchCameraFitHeight"
         static let layout = "notchQuickAccessLayout"
+        /// Set once the Claude round button has been offered to a layout stored by an older build.
+        static let claudeShortcutSeeded = "notchClaudeShortcutSeeded"
     }
 
     public static let fitWidthRange: ClosedRange<Double> = -10...10
@@ -73,6 +75,9 @@ public final class HomeModel {
     public var track: HomeTrack?
     @ObservationIgnored public var transport: @MainActor (HomeTransport) -> Void
 
+    /// Launches the Claude desktop app from the Claude shortcut.
+    @ObservationIgnored public var claudeApp = ClaudeAppLauncher()
+
     @ObservationIgnored private let defaults: UserDefaults
 
     public init(defaults: UserDefaults,
@@ -89,7 +94,18 @@ public final class HomeModel {
         hidesNotchGap = defaults.bool(forKey: Keys.hideGap)
         notchFitWidth = Self.stored(defaults, Keys.fitWidth, 0, Self.fitWidthRange)
         notchFitHeight = Self.stored(defaults, Keys.fitHeight, 0, Self.fitHeightRange)
-        buttons = HomeButtonLayout.decode(defaults.data(forKey: Keys.layout))
+        let storedLayout = defaults.data(forKey: Keys.layout)
+        var layout = HomeButtonLayout.decode(storedLayout)
+        if !defaults.bool(forKey: Keys.claudeShortcutSeeded) {
+            // A layout saved before the Claude shortcut existed gets it once, where there is room. A user who
+            // removes it afterwards keeps it removed. Same JSON shape and version, nothing else changes.
+            defaults.set(true, forKey: Keys.claudeShortcutSeeded)
+            if storedLayout != nil {
+                layout = layout.addingClaudeShortcut()
+                if let data = layout.encoded() { defaults.set(data, forKey: Keys.layout) }
+            }
+        }
+        buttons = layout
         self.volume = HomeLevel(title: "Volume", systemImage: "speaker.wave.2.fill", backend: volume)
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
         self.keyboardLight = HomeLevel(title: "Rétroéclairage du clavier", systemImage: "light.max", backend: keyboardLight)
