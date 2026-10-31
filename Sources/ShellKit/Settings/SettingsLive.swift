@@ -1,4 +1,5 @@
 import Foundation
+import IslandKit
 
 /// Which rows of which page really work. Everything else on a page is shown greyed and marked "Bientôt".
 ///
@@ -126,9 +127,14 @@ public enum SettingsLive {
             ]),
         "island": Page(
             extras: [
-                C("notchIdleContent", .stringFlag(on: "agents", off: "none", defaultValue: false),
-                  title: "Limites Claude quand l’île est fermée",
-                  hint: "Affiche votre consommation à côté de l’encoche, au repos."),
+                flag("notchIdleShowLimits", true, title: "Limites Claude", hint: AmbientChannel.hint("limits")),
+                flag("notchIdleShowClaude", true, title: "Claude au travail", hint: AmbientChannel.hint("claude")),
+                flag("notchIdleShowMusic", true, title: "Lecture en cours", hint: AmbientChannel.hint("music")),
+                flag("notchIdleShowBattery", true, title: "Batterie", hint: AmbientChannel.hint("battery")),
+                flag("notchIdleShowKeepAwake", true, title: "Maintien d’éveil", hint: AmbientChannel.hint("keepawake")),
+                flag("notchIdleRotates", true, title: "Faire défiler les indicateurs"),
+                C("notchIdlePerWing", .choice(options: [.init("1", 1), .init("2", 2)], defaultValue: 2),
+                  title: "Indicateurs par côté"),
             ],
             featureIDs: ["agents", "nowplaying", "terminal"]),
     ]
