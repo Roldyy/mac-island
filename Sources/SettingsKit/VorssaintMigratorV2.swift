@@ -66,6 +66,12 @@ extension VorssaintMigrator {
     static let skippedPrefixesV2 = [
         "whatsNew", "onboarding", "migration", "vorss", "SU", "NS", "AppleLanguages",
     ]
+    /// Upstream raw feature ids whose switch one of our own modules already owns under another id.
+    /// Mirrors `PortFeatureIDs.existing` (PortKit); SettingsKit cannot depend on PortKit.
+    static let upstreamToRegistryID: [String: String] = [
+        "keepAwake": "keepawake", "clipboardHistory": "clipboard", "commandBar": "commandbar",
+        "mixer": "audio", "fanControl": "fans",
+    ]
     static let switchPrefix = "featureAvailable."
     static let switchTargetPrefix = "shell.enabled."
 
@@ -115,7 +121,7 @@ extension VorssaintMigrator {
 
             if key.hasPrefix(Self.switchPrefix) {
                 let id = String(key.dropFirst(Self.switchPrefix.count))
-                let target = Self.switchTargetPrefix + id
+                let target = Self.switchTargetPrefix + (Self.upstreamToRegistryID[id] ?? id)
                 guard Self.isValidSwitchID(id), Self.isBoolean(value) else {
                     plan.report.typeMismatchKeys.append(key)
                     continue
@@ -193,5 +199,28 @@ extension VorssaintMigrator {
         }
         defaults.set(true, forKey: purgeRuntimeKeysDoneKey)
         return removed
+    }
+
+    public static let switchIDRepairDoneKey = "migration.v2.switchIDRepair.done"
+
+    /// Pass 2 first wrote `shell.enabled.<upstream id>` for the five features our own modules own under
+    /// another id (`keepAwake` -> `keepawake`...). Moves such a value to the key the registry reads, only when
+    /// that key is absent, and removes the stray one. Runs once; returns how many switches moved (count only).
+    @discardableResult
+    public static func repairSwitchIDsV2(in defaults: UserDefaults) -> Int {
+        guard !defaults.bool(forKey: switchIDRepairDoneKey) else { return 0 }
+        var moved = 0
+        for (upstream, registry) in upstreamToRegistryID.sorted(by: { $0.key < $1.key }) {
+            let stray = switchTargetPrefix + upstream
+            let right = switchTargetPrefix + registry
+            guard let value = defaults.object(forKey: stray) else { continue }
+            if defaults.object(forKey: right) == nil, isBoolean(value) {
+                defaults.set(value, forKey: right)
+                moved += 1
+            }
+            defaults.removeObject(forKey: stray)
+        }
+        defaults.set(true, forKey: switchIDRepairDoneKey)
+        return moved
     }
 }
