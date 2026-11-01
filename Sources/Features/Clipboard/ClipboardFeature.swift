@@ -21,4 +21,7 @@ public enum ClipboardFeature {
 
     /// Start the pasteboard watcher and the plain-paste hotkey. Idempotent.
     @MainActor public static func start() { shared.start() }
+
+    /// Releases the plain-paste hotkey (the next `start()` registers it again).
+    @MainActor public static func stop() { shared.stop() }
 }

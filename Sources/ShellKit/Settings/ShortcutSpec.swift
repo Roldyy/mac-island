@@ -1,7 +1,9 @@
 import AppKit
 import Foundation
 
-/// A global shortcut in the stored style "option+command:9" (modifiers, ":", key).
+/// A global shortcut in the stored style "option+command:9" (modifiers, ":", key). A number after the ":" is a
+/// virtual key code (Vorssaint's form: 9 is V), a word is a key name ("k"), and "option+command+v" (no colon) is
+/// read too. Digit keys are written as codes, so the number reading never collides with the digit's name.
 /// The same text the Clipboard and Command bar features read, so a value written here works for them.
 public struct ShortcutSpec: Equatable, Sendable {
     public struct Modifiers: OptionSet, Hashable, Sendable {
@@ -32,7 +34,8 @@ public struct ShortcutSpec: Equatable, Sendable {
         if modifiers.contains(.option) { names.append("option") }
         if modifiers.contains(.shift) { names.append("shift") }
         if modifiers.contains(.command) { names.append("command") }
-        return names.joined(separator: "+") + ":" + key
+        let keyText = (Int(key) == nil && Self.keyCodes[key] != nil) ? key : String(keyCode)
+        return names.joined(separator: "+") + ":" + keyText
     }
 
     /// "⌃⌥⌘K".
@@ -57,12 +60,31 @@ public struct ShortcutSpec: Equatable, Sendable {
     }
 
     public static func parse(_ raw: String) -> ShortcutSpec? {
-        let parts = raw.split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 2 else { return nil }
-        let name = parts[1].trimmingCharacters(in: .whitespaces).lowercased()
-        guard let code = keyCodes[name] else { return nil }
+        let modifierText: Substring
+        let keyText: Substring
+        if let colon = raw.firstIndex(of: ":") {
+            guard !raw[raw.index(after: colon)...].contains(":") else { return nil }
+            modifierText = raw[..<colon]
+            keyText = raw[raw.index(after: colon)...]
+        } else {
+            guard let plus = raw.lastIndex(of: "+"), plus != raw.index(before: raw.endIndex) else { return nil }
+            modifierText = raw[..<plus]
+            keyText = raw[raw.index(after: plus)...]
+        }
+        let text = keyText.trimmingCharacters(in: .whitespaces).lowercased()
+        let name: String
+        let code: UInt32
+        if let n = UInt32(text) {
+            guard n <= 127 else { return nil }
+            name = keyNames[n] ?? "key\(n)"
+            code = n
+        } else {
+            guard let c = keyCodes[text] else { return nil }
+            name = text
+            code = c
+        }
         var mods: Modifiers = []
-        for token in parts[0].split(separator: "+") {
+        for token in modifierText.split(separator: "+") {
             switch token.trimmingCharacters(in: .whitespaces).lowercased() {
             case "command", "cmd": mods.insert(.command)
             case "option", "alt", "opt": mods.insert(.option)

@@ -8,10 +8,19 @@ enum PlainPasteOutcome: Equatable {
     case nothingToPaste
 }
 
+/// What the model needs from a global hotkey: tests substitute a fake that records registrations.
+@MainActor
+protocol PlainPasteHotkeyRegistering: AnyObject {
+    var onTrigger: () -> Void { get set }
+    var registered: HotkeyShortcut? { get }
+    @discardableResult func register(_ shortcut: HotkeyShortcut) -> Bool
+    func unregister()
+}
+
 /// Global "paste as plain text" shortcut. Carbon `RegisterEventHotKey` needs no permission;
 /// the synthetic Cmd+V needs Accessibility. We only ever read `AXIsProcessTrusted()`, never prompt.
 @MainActor
-final class PlainPasteHotkeyService {
+final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     private static weak var active: PlainPasteHotkeyService?
     nonisolated static let signature: OSType = 0x4D49_434C   // 'MICL'
     nonisolated static let hotKeyID: UInt32 = 1

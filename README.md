@@ -32,7 +32,7 @@ Hover over the notch to open the island. Hovering never takes the keyboard from 
 |---|---|
 | Terminal | A login shell that keeps running when the island closes. A pill shows what Claude Code is doing (working, waiting, done). A button clears the screen and the scrollback. |
 | Agents | Tokens and estimated cost for the month, read from the Claude Code logs on your Mac. Prices are estimates. |
-| Presse-papiers | Clipboard history (50 entries, images included), a scratchpad, and `⌥⌘9` to paste as plain text. Items marked as concealed by password managers are never recorded. |
+| Presse-papiers | Clipboard history (50 entries, images included), a scratchpad, and `⌥⌘V` to paste as plain text. Items marked as concealed by password managers are never recorded. |
 | Étagère | A shelf for files you drop on the island, and your latest finished downloads. Drag items out to any app. |
 | Éveil | Keeps the Mac awake for a chosen time, with an optional mouse nudge. |
 | Lecture | What Spotify and Music are playing, with play, pause, next and previous. |

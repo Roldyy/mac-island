@@ -28,7 +28,8 @@ final class ClipboardModel {
     @ObservationIgnored private let autoClear: AutoClearScheduler
     @ObservationIgnored private let accessibilityCheck: () -> Bool
     @ObservationIgnored private let sendPaste: () -> Void
-    @ObservationIgnored private let hotkey = PlainPasteHotkeyService()
+    @ObservationIgnored private let hotkey: any PlainPasteHotkeyRegistering
+    @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
     @ObservationIgnored private var started = false
     @ObservationIgnored private var padSaveTask: Task<Void, Never>?
     @ObservationIgnored private var thumbnails: [String: NSImage] = [:]
@@ -36,7 +37,9 @@ final class ClipboardModel {
     init(dataDirectory: URL, pasteboard: NSPasteboard = .general,
          settings: @escaping () -> ClipboardSettings = { ClipboardSettings() },
          accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
-         sendPaste: @escaping () -> Void = { PlainPasteHotkeyService.postCommandV() }) {
+         sendPaste: @escaping () -> Void = { PlainPasteHotkeyService.postCommandV() },
+         hotkey: (any PlainPasteHotkeyRegistering)? = nil) {
+        self.hotkey = hotkey ?? PlainPasteHotkeyService()
         self.accessibilityCheck = accessibilityTrusted
         self.accessibilityTrusted = accessibilityTrusted()
         self.sendPaste = sendPaste
@@ -48,9 +51,12 @@ final class ClipboardModel {
         autoClear = AutoClearScheduler(pasteboard: pasteboard)
     }
 
-    /// Idempotent: loads data, starts the watcher and registers the hotkey once.
+    /// Idempotent for the data and the watcher; the hotkey is reconciled with the settings on EVERY call, so the
+    /// registry restarting the feature (a permission grant, a switch back on) re-registers a hotkey that was
+    /// dropped or whose shortcut changed meanwhile.
     func start() {
-        guard !started else { return }
+        hotkeyWanted = true
+        guard !started else { reconcileHotkey(); return }
         started = true
         store.load()
         scratch.load()
@@ -64,6 +70,19 @@ final class ClipboardModel {
 
         hotkey.onTrigger = { [weak self] in self?.plainPasteTriggered() }
         configureHotkey()
+        // The Settings page writes the switch and the shortcut to the defaults: follow them live.
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reconcileHotkey() }
+        }
+    }
+
+    /// Releases the hotkey (the watcher keeps running: it is the history). `start()` re-arms it.
+    func stop() {
+        hotkeyWanted = false
+        hotkey.unregister()
+        hotkeyRegistered = false
+        updatePlainPasteStatus()
     }
 
     // MARK: - Capture
@@ -139,11 +158,22 @@ final class ClipboardModel {
     private func configureHotkey() {
         let s = settings()
         hotkey.unregister()
-        if s.pastePlainEnabled { hotkeyRegistered = hotkey.register(s.pastePlainShortcut) }
+        hotkeyRegistered = s.pastePlainEnabled && hotkey.register(s.pastePlainShortcut)
         refreshAccessibility()
     }
 
+    /// Registers, moves or releases the hotkey only when the settings no longer match what is registered.
+    private func reconcileHotkey() {
+        guard hotkeyWanted else { return }
+        let s = settings()
+        let wanted: HotkeyShortcut? = s.pastePlainEnabled ? s.pastePlainShortcut : nil
+        guard hotkey.registered != wanted else { return }
+        configureHotkey()
+    }
+
     @ObservationIgnored private var hotkeyRegistered = false
+    /// False between `stop()` and the next `start()`: settings changes must not re-arm a released hotkey.
+    @ObservationIgnored private var hotkeyWanted = false
 
     @discardableResult
     func plainPasteTriggered() -> PlainPasteOutcome {
