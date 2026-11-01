@@ -60,6 +60,8 @@ public final class IslandController {
     private var screen: NSScreen
     private let followsScreenChanges: Bool
     private var screenObserver: NSObjectProtocol?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var isShown = false
     private var isOpen = false
     private var closeWork: DispatchWorkItem?
     private var settleTask: Task<Void, Never>?
@@ -100,13 +102,25 @@ public final class IslandController {
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.screensChanged() }
             }
+            // A Space switch, a display waking from sleep or a fullscreen app can leave the panel unordered or
+            // on a stale frame without any screen-parameter notification: put it back each time.
+            let workspace = NSWorkspace.shared.notificationCenter
+            for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didWakeNotification,
+                         NSWorkspace.screensDidWakeNotification] {
+                workspaceObservers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.screensChanged() }
+                })
+            }
         }
     }
 
     deinit {
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        for observer in workspaceObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
     }
 
+    /// Screens, Spaces or sleep changed: pick the screen again, put the panel on its frame and keep it ordered
+    /// front. The closed island is always on screen, so nothing here may leave the panel hidden.
     private func screensChanged() {
         screen = Self.preferredScreen()
         updateNotchMetrics()
@@ -115,8 +129,9 @@ public final class IslandController {
             : closedFrame
         move(to: frame, animated: false)
         pointerInside = false
-        NSLog("IslandKit: screens changed, now on %@ (notch=%d)", screen.localizedName,
-              idleGeometry.hasNotch ? 1 : 0)
+        if isShown { panel.orderFrontRegardless() }
+        NSLog("IslandKit: screens changed, now on %@ (notch=%d) visible=%d", screen.localizedName,
+              idleGeometry.hasNotch ? 1 : 0, panel.isVisible ? 1 : 0)
     }
 
     /// The notch pill with its base wings, widened by the wings of the current layout and by nothing else.
@@ -177,6 +192,7 @@ public final class IslandController {
     }
 
     public func show() {
+        isShown = true
         panel.orderFrontRegardless()
         installHoverMonitors()
         let g = idleGeometry

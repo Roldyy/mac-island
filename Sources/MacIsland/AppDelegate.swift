@@ -286,20 +286,7 @@ final class ActivityCenterSink: ClaudeActivitySink {
     func withdraw(id: String) { ActivityCenter.shared.withdraw(id: id) }
 }
 
-/// The closed island, redrawn whenever the ambient center publishes new content. The sizes come from the
-/// environment, so the view holds no reference to the island. While it is on screen the center may rotate.
-struct ClosedStrip: View {
-    @EnvironmentObject private var state: IslandState
-    @ObservedObject var ambient: AmbientCenter
-
-    var body: some View {
-        AmbientStrip(
-            content: ambient.content, notchWidth: state.notchWidth, isNotched: ambient.isNotched,
-            size: CGSize(width: state.closedWidth, height: state.closedHeight))
-            .onAppear { ambient.setVisible(true) }
-            .onDisappear { ambient.setVisible(false) }
-    }
-
+extension ClosedStrip {
     /// Working and waiting sessions only; `updatedAt` is when they entered that state.
     static func samples(_ sessions: [ClaudeSession]) -> [ClaudeWorkSample] {
         sessions.compactMap { session in

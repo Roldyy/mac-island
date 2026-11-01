@@ -9,8 +9,11 @@ import SwiftUI
 /// the closed strip fades out underneath. The panel is not resized per frame (`IslandController`).
 public struct IslandShellView: View {
     @EnvironmentObject private var state: IslandState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     private let context: ShellContext
+    /// The environment value is read-only, so tests force Reduce Motion here; the app leaves it nil.
+    private let reduceMotionOverride: Bool?
+    private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
 
     /// Feature pages and the Explorer are mounted from the moment the island opens until the close animation
     /// ends (they own tasks, timers and focus); the home is built once and stays.
@@ -18,7 +21,10 @@ public struct IslandShellView: View {
     /// The closed strip (a one-second clock while Claude works) is unmounted once the island is fully open.
     @State private var stripLive = true
 
-    public init(context: ShellContext) { self.context = context }
+    public init(context: ShellContext, reduceMotionOverride: Bool? = nil) {
+        self.context = context
+        self.reduceMotionOverride = reduceMotionOverride
+    }
 
     private static let debugBackground = ProcessInfo.processInfo.environment["MIS_DEBUG"] != nil
 
@@ -29,7 +35,21 @@ public struct IslandShellView: View {
         // reveal shape is that size too. The panel window (bigger for a moment on a shrink, see
         // `IslandFramePlan`) only holds it: the silhouette never lags behind the route.
         let open = context.panelSize
+        // The ZStack is exactly the panel (the clear base fills whatever the window proposes). The open layer is a
+        // `background`: it is laid out at its own fixed size, may overflow the panel (the window clips it), and
+        // never takes part in the size of this view. Sized by it, the root would be taller than a closed panel
+        // and the hosting view would centre it vertically, pushing the closed pill out of the window.
         ZStack(alignment: .top) {
+            Color.clear
+            if stripLive {
+                closedLayer
+                    .frame(width: closedSize.width, height: closedSize.height)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: closedSize)
+                    .modifier(IslandClosedReveal(progress: progress))
+                    .allowsHitTesting(!state.isOpen)
+            }
+        }
+        .background(alignment: .top) {
             Color.clear
                 .frame(width: open.width, height: open.height)
                 .overlay(alignment: .top) {
@@ -41,13 +61,6 @@ public struct IslandShellView: View {
                                          translucent: context.home.translucentBackground))
                 .allowsHitTesting(state.isOpen)
                 .accessibilityHidden(!state.isOpen)
-            if stripLive {
-                closedLayer
-                    .frame(width: closedSize.width, height: closedSize.height)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: closedSize)
-                    .modifier(IslandClosedReveal(progress: progress))
-                    .allowsHitTesting(!state.isOpen)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(IslandRevealCurve.animation(opening: state.isOpen, reduceMotion: reduceMotion), value: state.isOpen)
