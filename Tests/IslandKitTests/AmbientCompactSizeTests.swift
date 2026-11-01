@@ -81,7 +81,7 @@ import Testing
         #expect(NotchGeometry.maxWingExtent == 64)
         #expect(NotchGeometry.baseWing <= 3)  // a rim, not a minimum width
         #expect(AmbientMetrics.glyphSize == 14)
-        #expect(AmbientMetrics.elementGap == 6)
+        #expect(AmbientMetrics.elementGap == 4)
         #expect(AmbientMetrics.wingPadding >= 3 && AmbientMetrics.wingPadding <= 8)
     }
 

@@ -193,8 +193,9 @@ extension NSBitmapImageRep {
 
 @MainActor
 @Suite struct HomeClosedPillTests {
-    /// The smallest closed island on a screen with no notch: 200 pt pill plus a 16 pt wing each side.
-    static let minimumWidth: CGFloat = 190
+    /// The closed island is never narrower than what it covers: the hardware notch, or the 200 pt pill on a
+    /// screen without one. Wings come on top only as far as the visible indicators need them.
+    static func minimumWidth(for rig: ClosedPillRig) -> CGFloat { rig.idle.frame.width }
     static let minimumHeight: CGFloat = 28
 
     /// A black, opaque pill of at least the minimum size sits at the top centre, whatever it shows.
@@ -217,7 +218,7 @@ extension NSBitmapImageRep {
         let row = closed.height / 2
         while left > 0, rep.coverage(x: left - 1, y: row, viewWidth: width) > 0.5 { left -= 1 }
         while right < width, rep.coverage(x: right + 1, y: row, viewWidth: width) > 0.5 { right += 1 }
-        #expect(right - left >= Self.minimumWidth, "\(step): pill is \(right - left) pt wide", sourceLocation: sourceLocation)
+        #expect(right - left >= Self.minimumWidth(for: rig), "\(step): pill is \(right - left) pt wide", sourceLocation: sourceLocation)
 
         // Vertical run through the centre column, from the top edge.
         var bottom: CGFloat = 0

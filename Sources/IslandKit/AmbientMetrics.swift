@@ -9,14 +9,14 @@ public enum AmbientMetrics {
     public static let glyphSize: CGFloat = 14
     /// The battery outline is wider than it is tall.
     public static let batteryWidth: CGFloat = 17
-    public static let iconGap: CGFloat = 4
-    public static let elementGap: CGFloat = 6
-    /// Space kept free at each end of a wing (4 beside the notch, 4 at the outer edge: the wing hugs its content).
-    public static let wingPadding: CGFloat = 4
+    public static let iconGap: CGFloat = 3
+    public static let elementGap: CGFloat = 4
+    /// Space kept free at each end of a wing (3 beside the notch, 3 at the outer edge: the wing hugs its content).
+    public static let wingPadding: CGFloat = 3
     /// Gap between the two groups of the pill, where the separator sits.
-    public static let groupGap: CGFloat = 10
+    public static let groupGap: CGFloat = 8
     /// Free space at each end of the pill.
-    public static let pillPadding: CGFloat = 8
+    public static let pillPadding: CGFloat = 6
     /// A title or an alert wider than this scrolls (or is cut under Reduce Motion).
     public static let maxTextWidth: CGFloat = 64
 
@@ -58,7 +58,7 @@ public enum AmbientMetrics {
     /// Width of the bar between a glyph and its value (the volume).
     public static let barWidth: CGFloat = 26
     /// Clear space between the center clock and each side group.
-    public static let centerGap: CGFloat = 8
+    public static let centerGap: CGFloat = 6
     /// The center clock is drawn at the same 12 pt as every other value.
     public static let centerScale: CGFloat = 1
     /// Gap between the time and the date in the center slot.
