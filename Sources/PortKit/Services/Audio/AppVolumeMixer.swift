@@ -995,6 +995,12 @@ final class AppVolumeMixer: ObservableObject {
             clearPermissionIfNoActiveAdjustments()
             return
         }
+        // Mac Island: no tap, and so no system prompt, until a click on "Autoriser" proved System Audio Recording
+        // (Bridge/Mixer.swift). The row plays untouched meanwhile and the hint points at the click.
+        guard MixerAudioCapture.allowsTaps else {
+            if !needsPermission { needsPermission = true }
+            return
+        }
         let configuration = MixerEngineRecovery.Configuration(
             objects: app.audioObjects,
             outputDeviceUID: targetOutputDeviceUID)
@@ -2232,6 +2238,19 @@ final class AppVolumeMixer: ObservableObject {
 
     private static func setDefaultDevice(_ deviceID: AudioObjectID,
                                          selector: AudioObjectPropertySelector) -> OSStatus {
+        // Mac Island: the device list is a snapshot a few hundred milliseconds old. Never point the system at a
+        // device that was unplugged since, is no output, or cannot be the default for this selector.
+        var isAlive: UInt32 = 1
+        let aliveRead = read(deviceID, kAudioDevicePropertyDeviceIsAlive, &isAlive)
+        let flag = selector == kAudioHardwarePropertyDefaultSystemOutputDevice
+            ? kAudioDevicePropertyDeviceCanBeDefaultSystemDevice
+            : kAudioDevicePropertyDeviceCanBeDefaultDevice
+        guard MixerOutputSwitchGuard.allows(MixerOutputSwitchGuard.Reading(
+            isAlive: aliveRead ? isAlive != 0 : nil,
+            hasOutputStreams: hasOutputStreams(deviceID),
+            canBeDefault: canBeDefault(deviceID, selector: flag))) else {
+            return kAudioHardwareBadDeviceError
+        }
         var nextDeviceID = deviceID
         var address = AudioObjectPropertyAddress(mSelector: selector,
                                                  mScope: kAudioObjectPropertyScopeGlobal,

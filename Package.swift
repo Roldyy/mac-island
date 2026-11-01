@@ -39,7 +39,7 @@ let package = Package(
         .target(name: "FinderFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/Finder"),
         .target(name: "DockFeature", dependencies: ["IslandKit"], path: "Sources/Features/Dock"),
         .target(name: "DisplayFeature", dependencies: ["IslandKit"], path: "Sources/Features/Display"),
-        .target(name: "AudioFeature", dependencies: ["IslandKit"], path: "Sources/Features/Audio"),
+        .target(name: "AudioFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Audio"),
 
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
         .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),

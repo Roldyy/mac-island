@@ -20,11 +20,20 @@ public enum UserPermissionRequest {
         open(permission.settingsURL)
     }
 
-    /// For the feature-level permission enum: asks for the three that need an entry in the list, opens the
-    /// pane for every other one.
+    /// System Audio Recording has no read-only probe and no request call: the only way to make macOS list the app
+    /// and ask is to create a process tap, which lives in the mixer (PortKit, `MixerAudioCapture.requestByClick`).
+    /// The app delegate plugs it in here, so ShellKit stays free of PortKit and the tap exists in ONE place. The
+    /// handler runs only from this click path, behind the mixer's own feature switch, and opens the pane itself
+    /// when the system refuses. Unset (tests, a build without the mixer): the pane opens and nothing is asked.
+    @MainActor public static var audioCaptureRequest: (@MainActor () -> Void)?
+
+    /// For the feature-level permission enum: asks for the three that need an entry in the list, asks System Audio
+    /// Recording through `audioCaptureRequest`, opens the pane for every other one.
     public static func request(_ permission: FeaturePermission) {
         if let monitored = MonitoredPermission(permission) {
             request(monitored)
+        } else if permission == .audioCapture, let ask = audioCaptureRequest {
+            ask()
         } else {
             open(permission.settingsURL)
         }

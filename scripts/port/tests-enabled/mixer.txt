@@ -1,0 +1,20 @@
+# Lane W2-B (mixer, output switcher, audio priority): the upstream harness tests this lane turns on (names as in Tests/ of
+# the pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here.
+# They cannot be dropped into Tests/PortKitTests as swift-testing files: each one is a plain-Swift check script that the
+# upstream harness rewrites (generate_sources.py) against stub singletons. 558 checks upstream (port plan section 4, lane 2B).
+# Patches 0450 (tap gate), 0451 (permission hint click) and 0452 (live default device) must keep them green: 0450 adds a
+# guard before the first engine build, so a harness stub of `MixerAudioCapture` that allows taps is needed for the
+# routing tests; none of them asserts the order of the lines it surrounds.
+# The notch volume tests (NotchVolumeKeyTests, NotchVolumeRoutingTests, NotchVolumeFeedbackTests, NotchAudioLevelTests) belong
+# to lane 2D; RecorderSystemAudio* to the recorder lane.
+AirPlayStreamTests
+AudioPriorityTests
+MixerFeatureTests
+MixerHeadphonesDisconnectTests
+MixerInputVolumeTests
+MixerLevelCompensationTests
+MixerNativeDragTests
+MixerOutputAdjustmentTests
+MixerPercentKeyTests
+MixerUniversalRoutingTests
+SoundOutputSwitchTests

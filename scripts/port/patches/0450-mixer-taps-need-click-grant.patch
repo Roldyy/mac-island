@@ -1,0 +1,15 @@
+--- a/Services/Audio/AppVolumeMixer.swift
++++ b/Services/Audio/AppVolumeMixer.swift
+@@ -993,6 +993,12 @@
+         guard rowMayBeTapped(app) else {
+             discardEngine(for: app.id)
+             clearPermissionIfNoActiveAdjustments()
++            return
++        }
++        // Mac Island: no tap, and so no system prompt, until a click on "Autoriser" proved System Audio Recording
++        // (Bridge/Mixer.swift). The row plays untouched meanwhile and the hint points at the click.
++        guard MixerAudioCapture.allowsTaps else {
++            if !needsPermission { needsPermission = true }
+             return
+         }
+         let configuration = MixerEngineRecovery.Configuration(

@@ -528,7 +528,8 @@ struct MixerSection: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(l10n.s.permissionOpenSettings) {
-                Permissions.shared.openAudioCaptureSettings()
+                // Mac Island: the click is the only place that asks (a probe tap), then opens the pane if refused.
+                MixerAudioCapture.requestByClick()
             }
             .controlSize(.small)
         }

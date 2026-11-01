@@ -90,7 +90,8 @@ import Testing
             let binding = PortFeatureBinding(permissions: { PortPermissionState() })
             InputScrollLane.bind(into: binding)
             #expect(binding.descriptors.map(\.id) == Self.ids)
-            #expect(PortLanes.all.count == 5, "PortLanes lists the foundation lane and the four input lanes")
+            // At least the foundation lane and the four input lanes; each later wave adds its own, so no exact count.
+            #expect(PortLanes.all.count >= 5, "PortLanes lists the foundation lane and the four input lanes")
         }
     }
 

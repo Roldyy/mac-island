@@ -46,6 +46,9 @@ public final class PortFeatureBinding {
         let start: @MainActor () -> Void
         let stop: @MainActor () -> Void
         let page: PortFeaturePage?
+        /// False for a feature that REPLACES one of our modules (`bindReplacing`): the registry already holds our
+        /// descriptor for that id, so the binding adds none and gates nothing by it.
+        let ownsDescriptor: Bool
     }
 
     /// The permissions of the system that `PortPermissionState` can answer.
@@ -82,14 +85,38 @@ public final class PortFeatureBinding {
         guard !PortFeatureIDs.isOwnedByExistingModule(feature.rawValue), entries[id] == nil else { return nil }
         let descriptor = Self.descriptor(for: feature)
         entries[id] = Entry(descriptor: descriptor, permissions: Self.gates(of: descriptor),
-                            start: start, stop: stop, page: page)
+                            start: start, stop: stop, page: page, ownsDescriptor: true)
         order.append(id)
         state.bind(id)
         return descriptor
     }
 
+    /// Binds a ported feature that REPLACES one of our own modules (`PortFeatureIDs.existing`: `mixer` replaces
+    /// the `audio` module). The registry keeps OUR descriptor (title, switch, island tab, migrated
+    /// `shell.enabled.<id>`), so no descriptor is added and no permission gate is built from the catalog; the
+    /// ported services re-check what they need themselves. Everything else is `bind`: registry start and stop,
+    /// idempotence, the availability hook and the page. False when the id is not an existing module's, unknown,
+    /// or already bound. The caller removes the old module's starter and stopper in the same change.
+    @discardableResult
+    public func bindReplacing(_ upstreamID: String, page: PortFeaturePage? = nil,
+                              start: @escaping @MainActor () -> Void,
+                              stop: @escaping @MainActor () -> Void) -> Bool {
+        guard let feature = AppFeature(rawValue: upstreamID),
+              PortFeatureIDs.isOwnedByExistingModule(feature.rawValue), entries[feature.registryID] == nil else {
+            return false
+        }
+        let id = feature.registryID
+        entries[id] = Entry(descriptor: Self.descriptor(for: feature), permissions: [], start: start, stop: stop,
+                            page: page, ownsDescriptor: false)
+        order.append(id)
+        state.bind(id)
+        return true
+    }
+
     /// Descriptors to append to the registry's, in binding order.
-    public var descriptors: [FeatureDescriptor] { order.compactMap { entries[$0]?.descriptor } }
+    public var descriptors: [FeatureDescriptor] {
+        order.compactMap { entries[$0].flatMap { $0.ownsDescriptor ? $0.descriptor : nil } }
+    }
 
     /// Registry id -> starter. Pass to `FeatureRegistry.launch`.
     public var starters: [String: @MainActor () -> Void] {

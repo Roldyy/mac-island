@@ -1,19 +1,10 @@
 import IslandKit
-import SwiftUI
+import PortKit
 
+/// The island's "Mixer" tab. The mixer, the output switcher and the device priority are the ported Vorssaint
+/// services now (`PortKit/Bridge/Mixer.swift`): this target only keeps the tab id `audio` (the Home tile, the
+/// command bar and the migrated switch all point at it) and hosts the ported panel in it. The registry starts and
+/// stops the services through `PortFeatureBinding`, not through this type.
 public enum AudioFeature {
-    /// Created on first use only, so building the tab list touches no audio hardware.
-    @MainActor static let shared = AudioFeatureModel.live()
-
-    @MainActor public static func tab() -> IslandTab {
-        IslandTab(id: "audio", title: "Mixer", systemImage: "slider.vertical.3") {
-            AnyView(AudioView(model: shared))
-        }
-    }
-
-    /// Start the device-priority listener. Idempotent. Never prompts for any permission.
-    @MainActor public static func start() { shared.start() }
-
-    /// Release every tap and listener. Idempotent. Also runs on app termination once started.
-    @MainActor public static func stop() { shared.stop() }
+    @MainActor public static func tab() -> IslandTab { PortMixer.tab() }
 }

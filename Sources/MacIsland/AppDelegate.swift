@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             storedSwitch: { id in MainActor.assumeIsolated { registry.storedSwitch(id) } })
         PortBridge.updatePermissions(Self.portPermissions(PermissionProbe.live(defaults: defaults).snapshot()))
         PortBridge.registerDefaults()
+        // The one prompt-capable audio call (a probe tap) runs from the "Autoriser" click only.
+        UserPermissionRequest.audioCaptureRequest = { PortMixer.requestAudioCaptureByClick() }
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
         let live = ClaudeLiveMonitor(
@@ -82,7 +84,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "finder": { FinderFeature.start() },
                 "dock": { DockFeature.start() },
                 "display": { DisplayFeature.start() },
-                "audio": { AudioFeature.start() },
                 "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
                 "monitor": { MonitorFeature.start() },
                 "commandbar": { CommandBarFeature.start() },
@@ -93,7 +94,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "finder": { FinderFeature.stop() },
                 "dock": { DockFeature.stop() },
                 "display": { DisplayFeature.stop() },
-                "audio": { AudioFeature.stop() },
                 "fans": { FansFeature.stop() },
                 "monitor": { MonitorFeature.stop() },
                 "commandbar": { CommandBarFeature.stop() },
