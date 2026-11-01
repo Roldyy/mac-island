@@ -9,13 +9,27 @@ public struct HomeTrack: Equatable, Sendable {
     public var isPlaying: Bool
     /// 0...1, nil when unknown.
     public var progress: Double?
+    public var album: String
+    /// Seconds. Nil when the player does not say (streams, radio).
+    public var position: TimeInterval?
+    public var duration: TimeInterval?
+    /// The player that owns the track (Spotify, Music...), when the feed knows it.
+    public var playerBundleID: String?
+    public var playerName: String?
 
-    public init(title: String, artist: String = "", artworkData: Data? = nil, isPlaying: Bool = true, progress: Double? = nil) {
+    public init(title: String, artist: String = "", artworkData: Data? = nil, isPlaying: Bool = true, progress: Double? = nil,
+                album: String = "", position: TimeInterval? = nil, duration: TimeInterval? = nil,
+                playerBundleID: String? = nil, playerName: String? = nil) {
         self.title = title
         self.artist = artist
         self.artworkData = artworkData
         self.isPlaying = isPlaying
         self.progress = progress
+        self.album = album
+        self.position = position
+        self.duration = duration
+        self.playerBundleID = playerBundleID
+        self.playerName = playerName
     }
 }
 

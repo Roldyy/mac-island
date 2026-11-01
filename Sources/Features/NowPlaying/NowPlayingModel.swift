@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -26,17 +27,32 @@ final class NowPlayingModel {
     private let interval: Duration
     private let transport: NowPlayingTransport?
     private let artworkLoader: (any ArtworkLoading)?
+    private let automation: (any AutomationChecking)?
+    private let running: (any RunningAppChecking)?
+    private let openPane: @MainActor (URL) -> Void
+    private let sleep: @Sendable (Duration) async -> Void
     private var visible = false
     private var background = false
+    /// The island home is open: the same fast polling as the tab, whatever the closed island has to show.
+    private var homeOpen = false
     /// Called after every poll with what is playing (nil when nothing or access missing). The closed island listens.
     var onSnapshot: ((NowPlayingSnapshot?) -> Void)?
+    /// Called after every reading and every change of access. The Home card listens.
+    private var observers: [@MainActor () -> Void] = []
     private var task: Task<Void, Never>?
     private var artworkKey: String?
     private var artworkTask: Task<Void, Never>?
 
     init(providers: [any NowPlayingProvider], defaults: any NowPlayingFlagStore = UserDefaults.standard,
                 interval: Duration = .seconds(1), transport: NowPlayingTransport?, artwork: (any ArtworkLoading)?,
-         artworkTimeout: Duration = .seconds(5)) {
+         artworkTimeout: Duration = .seconds(5),
+         automation: (any AutomationChecking)? = nil, running: (any RunningAppChecking)? = nil,
+         openPane: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) },
+         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+        self.automation = automation
+        self.running = running
+        self.openPane = openPane
+        self.sleep = sleep
         self.artworkTimeout = artworkTimeout
         self.providers = providers
         self.defaults = defaults
@@ -52,7 +68,65 @@ final class NowPlayingModel {
         let runner = AppleScriptRunner()
         return NowPlayingModel(
             providers: [SpotifyProvider(runner: runner), MusicProvider(runner: runner)],
-            transport: NowPlayingTransport(runner: runner), artwork: ArtworkLoader())
+            transport: NowPlayingTransport(runner: runner), artwork: ArtworkLoader(),
+            automation: LiveAutomationChecker(), running: WorkspaceRunningChecker())
+    }
+
+    /// The first known player that is open (Spotify before Music), nil when none or no checker.
+    var runningPlayerBundleID: String? {
+        guard let running else { return nil }
+        return [BundleIDs.spotify, BundleIDs.music].first { running.isRunning(bundleID: $0) }
+    }
+
+    func addObserver(_ observer: @escaping @MainActor () -> Void) { observers.append(observer) }
+
+    private func notify() { for observer in observers { observer() } }
+
+    /// The island home opened (true) or closed (false). Open: read now, poll every `interval`; closed: back to
+    /// the slow background poll (or none).
+    func setHomeOpen(_ open: Bool) {
+        guard open != homeOpen else { return }
+        homeOpen = open
+        updatePolling()
+    }
+
+    /// Reads now. Before the user ever pressed "Autoriser", asks macOS WITHOUT prompting whether the permission
+    /// already stands (a previous build, System Settings): if it does the model starts reading by itself.
+    func refreshNow() async {
+        if access == .needsAuthorization, let automation, let id = runningPlayerBundleID {
+            switch automation.status(bundleID: id, askUser: false) {
+            case .granted:
+                defaults.set(true, forKey: Self.flagKey)
+                access = .ready
+                updatePolling()
+            case .denied:
+                access = .denied
+                updatePolling()
+                notify()
+            case .notAsked, .notRunning, .unknown:
+                break
+            }
+        }
+        guard access != .needsAuthorization else { notify(); return }
+        await poll()
+    }
+
+    /// The "Autoriser le contrôle de ..." click: the ONLY place the Automation prompt is triggered. Already
+    /// refused: opens the Automation pane of System Settings instead (macOS never asks twice).
+    func requestAutomation() async {
+        guard let automation, let id = runningPlayerBundleID else { return }
+        let status = await Task.detached { automation.status(bundleID: id, askUser: true) }.value
+        switch status {
+        case .granted:
+            await authorize()
+        case .denied:
+            access = .denied
+            updatePolling()   // a permission switched on in System Settings is picked up by the next poll
+            notify()
+            openPane(AutomationPane.url)
+        case .notAsked, .notRunning, .unknown:
+            break
+        }
     }
 
     /// The view calls this on appear/disappear. Polling exists only while visible AND the
@@ -71,7 +145,8 @@ final class NowPlayingModel {
     }
 
     func send(_ command: PlayerCommand) {
-        let source = snapshot?.sourceBundleID
+        // An open player with nothing loaded still gets its own play command, not a media key (which could wake Music).
+        let source = snapshot?.sourceBundleID ?? runningPlayerBundleID
         guard let transport else { return }
         Task { [weak self] in
             await transport.send(command, source: source)
@@ -87,12 +162,14 @@ final class NowPlayingModel {
             access = .denied; snapshot = nil; artwork = nil
             cancelArtwork()
             onSnapshot?(nil)
+            notify()
             return
         }
         access = .ready
         snapshot = out.snapshot
         refreshArtwork()
         onSnapshot?(out.snapshot)
+        notify()
     }
 
     /// Never awaited by `poll()`: a slow cover must not stall the transport state. Each track key owns at
@@ -113,6 +190,7 @@ final class NowPlayingModel {
             let data = await Self.fetch(loader, for: s, timeout: timeout)
             guard let self, !Task.isCancelled, self.artworkKey == key else { return }
             self.artwork = data
+            self.notify()   // the cover arrived after the poll that announced the track
         }
     }
 
@@ -147,12 +225,24 @@ final class NowPlayingModel {
     private func updatePolling() {
         task?.cancel()
         task = nil
-        guard visible || background, access != .needsAuthorization else { return }
-        task = Task { [weak self, interval] in
+        guard visible || background || homeOpen else { return }
+        if access == .needsAuthorization {
+            // Nothing is read before the user agrees, but while the home is open a player that was just launched,
+            // or a permission granted elsewhere, must show up: a silent check (no prompt) each `interval`.
+            guard homeOpen else { return }
+            task = Task { [weak self, interval, sleep] in
+                while !Task.isCancelled {
+                    await self?.refreshNow()
+                    await sleep(interval)
+                }
+            }
+            return
+        }
+        task = Task { [weak self, interval, sleep] in
             while !Task.isCancelled {
                 await self?.poll()
-                let wait = (self?.visible ?? false) ? interval : .seconds(3)
-                try? await Task.sleep(for: wait)
+                let fast = self.map { $0.visible || $0.homeOpen } ?? false
+                await sleep(fast ? interval : .seconds(3))
             }
         }
     }

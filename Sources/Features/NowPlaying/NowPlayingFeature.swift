@@ -38,7 +38,55 @@ public enum NowPlayingFeature {
                 leading: CompactItem(symbol: "music.note", progress: snap.progress),
                 trailing: CompactItem(symbol: "waveform", text: title)))
         }
+        started = true
         model.setBackground(true)
+        // Silent (never prompts): a permission that already stands starts the reading without a click.
+        Task { await model.refreshNow() }
+    }
+
+    // MARK: - The island home
+
+    /// True once `start()` ran: a switched-off feature reads nothing for the Home either.
+    @MainActor private static var started = false
+
+    /// The Home card reads this. Nothing (no player, no access) until the feature runs.
+    @MainActor public static func homeReading() -> NowPlayingHomeReading {
+        guard started else { return NowPlayingHomeReading(access: .needsAuthorization, track: nil, runningPlayer: nil) }
+        return model.homeReading()
+    }
+
+    /// Runs after every reading and every change of access.
+    @MainActor public static func observeHome(_ observer: @escaping @MainActor () -> Void) {
+        model.addObserver(observer)
+    }
+
+    /// Reads now (silent permission check first).
+    @MainActor public static func refreshForHome() async {
+        guard started else { return }
+        await model.refreshNow()
+    }
+
+    /// The home is open: poll every second, whatever the closed island shows. Closed: back to the slow poll.
+    @MainActor public static func setHomeOpen(_ open: Bool) {
+        guard started else { return }
+        model.setHomeOpen(open)
+    }
+
+    @MainActor public static func sendFromHome(_ command: NowPlayingHomeCommand) {
+        guard started else { return }
+        let mapped: PlayerCommand = switch command {
+        case .previous: .previous
+        case .playPause: .playPause
+        case .next: .next
+        }
+        model.send(mapped)
+    }
+
+    /// The card's "Autoriser" button: asks macOS for the Automation permission (or opens its pane after a refusal).
+    /// Call it from a user click, never from anywhere else.
+    @MainActor public static func requestAutomationFromHome() {
+        guard started else { return }
+        Task { await model.requestAutomation() }
     }
 }
 

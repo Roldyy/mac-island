@@ -33,7 +33,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarItemController?
     private var claudeLive: ClaudeLiveMonitor?
     private var systemActions: SystemActions?
-    private var layoutSubscription: AnyCancellable?
     /// The closed island's indicators: Claude, limits, music and alerts arrive through the activity engine;
     /// battery and keep awake post here directly.
     private let ambient = AmbientCenter.shared
@@ -148,11 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         islandRef = island
         island.show()
 
-        // The home's now-playing card follows the music wing of the closed island (title and play state only:
-        // artwork and artist need a public accessor on the Now Playing feature, which this lane may not add).
-        layoutSubscription = ActivityCenter.shared.$layout.sink { layout in
-            MainActor.assumeIsolated { home.track = Self.musicTrack(from: layout) }
-        }
+        // The home's now-playing card reads the players themselves (Now Playing feature), not the closed island.
+        home.attachNowPlaying(Self.nowPlayingSource())
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         startAmbientSources(live: live)
         self.island = island
@@ -362,9 +358,39 @@ extension AppDelegate {
 }
 
 extension AppDelegate {
-    /// The playing track as far as the closed island's music wing tells it (title only).
-    static func musicTrack(from layout: ActivityLayout) -> HomeTrack? {
-        guard let item = layout.trailing, item.symbol == "waveform", let title = item.text, !title.isEmpty else { return nil }
-        return HomeTrack(title: title, isPlaying: true, progress: layout.leading?.symbol == "music.note" ? layout.leading?.progress : nil)
+    /// The Home card's source: the Now Playing feature's own reading (Spotify, Music), mapped to ShellKit's plain types.
+    @MainActor
+    static func nowPlayingSource() -> HomeNowPlayingSource {
+        HomeNowPlayingSource(
+            read: { homeReading(from: NowPlayingFeature.homeReading()) },
+            refresh: { await NowPlayingFeature.refreshForHome() },
+            setOpen: { NowPlayingFeature.setHomeOpen($0) },
+            send: { command in
+                let mapped: NowPlayingHomeCommand = switch command {
+                case .previous: .previous
+                case .playPause: .playPause
+                case .next: .next
+                }
+                NowPlayingFeature.sendFromHome(mapped)
+            },
+            authorize: { NowPlayingFeature.requestAutomationFromHome() },
+            observe: { NowPlayingFeature.observeHome($0) })
+    }
+
+    @MainActor
+    static func homeReading(from reading: NowPlayingHomeReading) -> HomeNowPlayingReading {
+        let access: HomeNowPlayingReading.Access = switch reading.access {
+        case .needsAuthorization: .needsAuthorization
+        case .ready: .ready
+        case .denied: .denied
+        }
+        let track = reading.track.map { t in
+            HomeTrack(title: t.title, artist: t.artist, artworkData: t.artworkData, isPlaying: t.isPlaying,
+                      progress: t.duration > 0 ? min(max(t.position / t.duration, 0), 1) : nil, album: t.album,
+                      position: t.position, duration: t.duration > 0 ? t.duration : nil,
+                      playerBundleID: t.playerBundleID, playerName: t.playerName)
+        }
+        let player = reading.runningPlayer.map { HomeNowPlayingReading.Player(bundleID: $0.bundleID, name: $0.name) }
+        return HomeNowPlayingReading(access: access, track: track, runningPlayer: player)
     }
 }

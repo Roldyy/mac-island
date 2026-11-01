@@ -2,20 +2,35 @@ import AppKit
 import IslandUI
 import SwiftUI
 
-/// Artwork, title, artist and the three transport buttons. While nothing plays it is a call to action:
-/// the last track (dimmed) when one is kept, "Ouvrir Spotify" otherwise; a click opens the player.
+/// Artwork, title, artist and the three transport buttons. The live track (playing or paused) comes first.
+/// With no track: a notice when a player is open (permission to give, nothing loaded), otherwise a call to
+/// action: the last track (dimmed) when one is kept, "Ouvrir Spotify" otherwise; a click opens the player.
 struct HomeNowPlayingCard: View {
     let track: HomeTrack?
     /// The kept last track and the player launcher; nil keeps the plain empty state.
     var idle: LastTrackModel?
+    /// Why there is no track although a player is open.
+    var notice: HomeNowPlayingNotice?
+    /// The "Autoriser" button of the permission notice.
+    var authorize: () -> Void = {}
     let send: (HomeTransport) -> Void
 
-    private var isIdle: Bool { track == nil && idle != nil }
-    private var last: LastTrackRecord? { track == nil ? idle?.record : nil }
+    private var isIdle: Bool { track == nil && notice == nil && idle != nil }
+    private var last: LastTrackRecord? { isIdle ? idle?.record : nil }
+    private var permissionNotice: (player: String, denied: Bool)? {
+        if track == nil, case .permission(let player, let denied)? = notice { return (player, denied) }
+        return nil
+    }
 
     var body: some View {
         HStack(spacing: IslandSpacing.m) {
-            if isIdle, let idle {
+            if let permission = permissionNotice {
+                Button { authorize() } label: { info }
+                    .buttonStyle(HomeTapStyle())
+                    .help(permission.denied ? "Ouvrir Réglages Système > Confidentialité > Automatisation"
+                                            : "Autoriser Mac Island à contrôler \(permission.player)")
+                    .accessibilityLabel(permissionAccessibilityLabel(permission))
+            } else if isIdle, let idle {
                 Button { idle.open() } label: { info }
                     .buttonStyle(HomeTapStyle())
                     .help(idle.help)
@@ -44,6 +59,7 @@ struct HomeNowPlayingCard: View {
             artwork
             VStack(alignment: .leading, spacing: IslandSpacing.xxs) { texts }
             Spacer(minLength: IslandSpacing.s)
+            if let permission = permissionNotice { permissionButton(denied: permission.denied) }
         }
         .opacity(last == nil ? 1 : 0.6)
         .contentShape(Rectangle())
@@ -67,12 +83,21 @@ struct HomeNowPlayingCard: View {
                     .foregroundStyle(IslandPalette.textSecondary.color)
                     .lineLimit(1)
             }
-        } else {
-            Text(track?.title ?? "Aucune lecture")
+        } else if let permission = permissionNotice {
+            Text("Autoriser le contrôle de \(permission.player)")
                 .font(.islandBodyEmphasis)
                 .foregroundStyle(IslandPalette.textPrimary.color)
                 .lineLimit(1)
-            if track == nil, let idle {
+            Text(permission.denied ? "Accès refusé : Automatisation." : "Pour afficher la lecture.")
+                .font(.islandFootnote)
+                .foregroundStyle(IslandPalette.textSecondary.color)
+                .lineLimit(1)
+        } else {
+            Text(track?.title ?? (notice == nil ? "Aucune lecture" : "Rien en lecture"))
+                .font(.islandBodyEmphasis)
+                .foregroundStyle(IslandPalette.textPrimary.color)
+                .lineLimit(1)
+            if track == nil, notice == nil, let idle {
                 HStack(spacing: IslandSpacing.xs) {
                     Text(idle.callToAction)
                     Image(systemName: "arrow.up.forward.app")
@@ -90,8 +115,27 @@ struct HomeNowPlayingCard: View {
     }
 
     private var subtitle: String {
-        guard let track else { return "Votre musique et ses commandes apparaîtront ici." }
-        return track.artist.isEmpty ? (track.isPlaying ? "En lecture" : "En pause") : track.artist
+        guard let track else {
+            if case .playerEmpty(let player)? = notice { return "\(player) est ouvert. Lancez un morceau." }
+            return "Votre musique et ses commandes apparaîtront ici."
+        }
+        if track.isPlaying { return track.artist.isEmpty ? "En lecture" : track.artist }
+        return track.artist.isEmpty ? "En pause" : "En pause · \(track.artist)"
+    }
+
+    private func permissionButton(denied: Bool) -> some View {
+        Text(denied ? "Réglages" : "Autoriser")
+            .font(.islandFootnote)
+            .foregroundStyle(IslandPalette.textPrimary.color)
+            .padding(.horizontal, IslandSpacing.m)
+            .padding(.vertical, IslandSpacing.xs)
+            .background(IslandPalette.textPrimary.color.opacity(0.16), in: Capsule())
+    }
+
+    private func permissionAccessibilityLabel(_ permission: (player: String, denied: Bool)) -> String {
+        permission.denied
+            ? "Accès à \(permission.player) refusé. Ouvrir les réglages d’automatisation."
+            : "Autoriser le contrôle de \(permission.player)"
     }
 
     private func idleAccessibilityLabel(_ idle: LastTrackModel) -> String {

@@ -80,8 +80,25 @@ public final class HomeModel {
     public let brightness: HomeLevel
     public let keyboardLight: HomeLevel
 
-    /// What is playing, fed by the app; nil shows "Aucune lecture". Assigning what is already there does not
-    /// notify: the app feeds it from every layout the activity engine publishes, most of them unrelated.
+    /// Live reading of the players (Spotify, Music), mirrored into `track` and `nowPlayingNotice`.
+    public let nowPlaying: HomeNowPlayingFeed
+
+    /// Why the card has no live track although a player is open (permission missing, nothing loaded).
+    public private(set) var nowPlayingNotice: HomeNowPlayingNotice?
+
+    /// Connects the players' reading: the card then follows the player itself, not the closed island.
+    public func attachNowPlaying(_ source: HomeNowPlayingSource) {
+        transport = { [weak nowPlaying] in nowPlaying?.send($0) }
+        nowPlaying.attach(source)
+    }
+
+    private func apply(_ state: HomeNowPlayingState) {
+        track = state.track
+        if state.notice != nowPlayingNotice { nowPlayingNotice = state.notice }
+    }
+
+    /// What is playing, fed by the player reading above; nil shows the stored last track or a notice.
+    /// Assigning what is already there does not notify.
     public var track: HomeTrack? {
         get {
             access(keyPath: \.track)
@@ -143,6 +160,8 @@ public final class HomeModel {
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
         self.keyboardLight = HomeLevel(title: "Rétroéclairage du clavier", systemImage: "light.max", backend: keyboardLight)
         self.transport = transport
+        nowPlaying = HomeNowPlayingFeed()
+        nowPlaying.onChange = { [weak self] in self?.apply($0) }
     }
 
     private static func stored(_ defaults: UserDefaults, _ key: String, _ fallback: Double, _ range: ClosedRange<Double>) -> Double {
