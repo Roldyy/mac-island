@@ -25,12 +25,12 @@ import Testing
     }
 
     @Test func equalPriorityFollowsTheUserOrderThenId() {
-        let low = AmbientIndicator(id: "x1", channel: AmbientChannel.battery, symbol: "c", wing: .leading)
-        let high = AmbientIndicator(id: "x2", channel: AmbientChannel.limits, symbol: "c", wing: .leading)
+        let low = AmbientIndicator(id: "x1", channel: AmbientChannel.network, symbol: "c", text: "1")
+        let high = AmbientIndicator(id: "x2", channel: AmbientChannel.limits, symbol: "c", text: "1")
         let byDefault = ClosedIslandLayout.resolve([low, high], settings: settings())
-        #expect(ids(byDefault.leading) == ["x2", "x1"])  // limits before battery in the default order
+        #expect(ids(byDefault.leading) == ["x2", "x1"])  // limits before network in the default order
         let swapped = ClosedIslandLayout.resolve(
-            [low, high], settings: settings(order: [AmbientChannel.battery, AmbientChannel.limits]))
+            [low, high], settings: settings(order: [AmbientChannel.network, AmbientChannel.limits]))
         #expect(ids(swapped.leading) == ["x1", "x2"])
     }
 
@@ -169,8 +169,8 @@ import Testing
     @Test func disabledChannelsAreSkipped() {
         var s = settings()
         s.enabled.remove(AmbientChannel.battery)
-        let battery = AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b")
-        let limits = AmbientIndicator(id: "limits", channel: AmbientChannel.limits, symbol: "l")
+        let battery = AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b", text: "1")
+        let limits = AmbientIndicator(id: "limits", channel: AmbientChannel.limits, symbol: "l", text: "1")
         let out = ClosedIslandLayout.resolve([battery, limits], settings: s)
         #expect(ids(out.all) == ["limits"])
     }
@@ -179,12 +179,12 @@ import Testing
         var s = settings()
         s.enabled = [AmbientChannel.limits]
         let input = [
-            AmbientIndicator(id: "limits", channel: AmbientChannel.limits, symbol: "l", wing: .trailing),
-            AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b", wing: .trailing),
-            AmbientIndicator(id: "keepawake", channel: AmbientChannel.keepAwake, symbol: "k", wing: .trailing),
+            AmbientIndicator(id: "limits", channel: AmbientChannel.limits, symbol: "l", text: "1", wing: .trailing),
+            AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b", text: "1", wing: .trailing),
+            AmbientIndicator(id: "keepawake", channel: AmbientChannel.keepAwake, symbol: "k", text: "1", wing: .trailing),
         ]
         let out = ClosedIslandLayout.resolve(input, settings: s)
-        #expect(ids(out.trailing) == ["limits"])
+        #expect(ids(out.all) == ["limits"])
         #expect(out.pageCount == 1)
     }
 

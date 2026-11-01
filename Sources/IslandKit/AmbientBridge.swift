@@ -45,12 +45,9 @@ public enum AmbientBridge {
             leading = nil
         }
 
-        if let gauge = leading, gauge.symbol == limitsSymbol {
-            out.append(AmbientIndicator(
-                id: "limits", channel: AmbientChannel.limits, symbol: limitsGlyph, text: gauge.text,
-                status: gauge.status, progress: gauge.progress, wing: .leading, label: "Limite Claude"))
-            leading = nil
-        }
+        // The plan gauge is not bridged: the resting controller feeds `AmbientCenter.setClaudeRest`, which knows the
+        // age of the reading and never turns an old session percentage into a live one.
+        if let gauge = leading, gauge.symbol == limitsSymbol { leading = nil }
 
         // Anything else was posted as an alert (cleaning countdown, quick-access notice).
         for (index, item) in [leading, trailing].enumerated() {

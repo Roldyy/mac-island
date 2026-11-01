@@ -133,11 +133,11 @@ import Testing
         #expect(AmbientReadings.disk(freeBytes: 128_000_000_000).text == "128 Go")
     }
 
-    @Test func networkShowsLinkThenDownThenUp() {
+    @Test func networkShowsDownThenUpAndNoBareConnectionGlyph() {
         let items = AmbientReadings.network(link: .wifi, vpn: false, downBytesPerSecond: 1_234_000, upBytesPerSecond: 80_000)
-        #expect(items.map(\.id) == AmbientReadings.networkIDs)
-        #expect(items.map(\.symbol) == ["wifi", "arrow.down", "arrow.up"])
-        #expect(items.map(\.text) == [nil, "1,23 Mo/s", "80 Ko/s"])
+        #expect(items.map(\.id) == [AmbientReadings.downID, AmbientReadings.upID])
+        #expect(items.map(\.symbol) == ["arrow.down", "arrow.up"])
+        #expect(items.map(\.text) == ["1,23 Mo/s", "80 Ko/s"])
         #expect(items.allSatisfy { $0.channel == AmbientChannel.network })
     }
 

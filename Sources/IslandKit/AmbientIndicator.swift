@@ -102,12 +102,16 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
     public var detail: String?
     /// 0...1 draws a thin bar between the glyph and the text (the volume).
     public var bar: Double?
+    /// Drawn quieter: the value is old (a plan reading of hours ago). Never carries meaning alone.
+    public var isDimmed: Bool
+    /// A small state dot on the glyph (a Claude session is open). Its meaning is also in `label`.
+    public var badge: IslandStatus?
 
     public init(id: String, channel: String? = nil, symbol: String, text: String? = nil,
                 status: IslandStatus = .neutral, progress: Double? = nil,
                 priority: ActivityPriority = .ambient, isUrgent: Bool = false, wing: AmbientWing? = nil,
                 glyph: Glyph = .symbol, isBusy: Bool = false, clockSince: Date? = nil, label: String? = nil,
-                detail: String? = nil, bar: Double? = nil) {
+                detail: String? = nil, bar: Double? = nil, isDimmed: Bool = false, badge: IslandStatus? = nil) {
         self.id = id
         self.channel = channel ?? id
         self.symbol = symbol
@@ -123,6 +127,25 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         self.label = label
         self.detail = detail
         self.bar = bar
+        self.isDimmed = isDimmed
+        self.badge = badge
+    }
+
+    /// Channels whose glyph is itself the information: Claude working or waiting, the keep-awake cup, the mic and
+    /// camera dots, an alert. Their colour is never the only signal (`label` says it).
+    static let stateChannels: Set<String> = [AmbientChannel.claude, AmbientChannel.keepAwake, AmbientChannel.mic,
+                                             AmbientChannel.camera, AmbientChannel.alert]
+
+    /// An indicator is drawn only with something to read: a value, a clock, a bar, a ring, the equalizer of a track
+    /// that is playing, or a state that means something on its own. A bare glyph (an arrow with no rate, a chip with
+    /// no load) is never drawn.
+    public var isReadable: Bool {
+        if let text, !text.isEmpty { return true }
+        if clockSince != nil || bar != nil || progress != nil || badge != nil { return true }
+        if glyph == .equalizer { return true }
+        if Self.stateChannels.contains(channel) { return true }
+        // Offline: the struck-through symbol, in the warning colour, with its words for VoiceOver.
+        return channel == AmbientChannel.network && status == .warning
     }
 
     /// Urgent and live items (an alert, Claude working or waiting) stay put: rotation only moves the rest.

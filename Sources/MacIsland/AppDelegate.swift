@@ -198,9 +198,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeClaude(live)
     }
 
-    /// Same rule as `IslandController`: the notched screen when there is one, otherwise the main screen.
+    /// Same screen as `IslandController` (the notched one when there is one, otherwise the main screen) and the
+    /// same test as its geometry (`NotchGeometry.idle`): the notched variant of the strip is drawn only when the
+    /// island really sits around a hardware notch. The island never moves to an external display while a
+    /// notched built-in screen is connected, so the empty middle there is the real notch.
     private func syncNotch() {
-        ambient.isNotched = NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
+        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { ambient.isNotched = false; return }
+        ambient.isNotched = NotchGeometry.idle(
+            screenFrame: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
+            auxLeft: screen.auxiliaryTopLeftArea, auxRight: screen.auxiliaryTopRightArea).hasNotch
     }
 
     private func observeKeepAwake() {
@@ -208,23 +215,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Fires just before the change lands; the next main-actor turn sees the new value.
             Task { @MainActor in self?.observeKeepAwake() }
         })
-        if active {
-            ambient.post(AmbientIndicator(
-                id: "keepawake", channel: AmbientChannel.keepAwake, symbol: "cup.and.saucer.fill", status: .info,
-                wing: .trailing, label: "Maintien d’éveil actif"))
-        } else {
-            ambient.withdraw(id: "keepawake")
-        }
+        // The center builds the cup (accent while active, dimmed when "Toujours afficher la tasse" is on).
+        ambient.setKeepAwake(active: active)
     }
 
     private func observeClaude(_ live: ClaudeLiveMonitor) {
-        let sample = withObservationTracking({ ClaudeWing.pick(ClosedStrip.samples(live.sessions)) }, onChange: { [weak self, weak live] in
+        let (sample, open) = withObservationTracking({
+            (ClaudeWing.pick(ClosedStrip.samples(live.sessions)), live.sessions.contains { $0.state != .unknown })
+        }, onChange: { [weak self, weak live] in
             Task { @MainActor in
                 guard let self, let live else { return }
                 self.observeClaude(live)
             }
         })
         ambient.setClaude(sample)
+        // Idle sessions count: the glyph at rest carries a state dot while any session is open.
+        ambient.setClaudeSessionOpen(open)
     }
 
     /// Cleaning mode must never outlive the app.

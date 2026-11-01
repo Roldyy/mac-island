@@ -81,7 +81,7 @@ private final class ManualSleep: @unchecked Sendable {
 
     @Test func settingsChangesApplyAtOnce() {
         let r = rig(); defer { r.cleanup() }
-        r.center.post(AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b"))
+        r.center.post(AmbientIndicator(id: "battery", channel: AmbientChannel.battery, symbol: "b", text: "82%"))
         #expect(r.center.content.all.count == 1)
         r.prefs.setEnabled(AmbientChannel.battery, false)
         #expect(r.center.content.isEmpty)
@@ -94,10 +94,10 @@ private final class ManualSleep: @unchecked Sendable {
     @Test func theActivityEnginesWinnersBecomeIndicators() {
         let r = rig(); defer { r.cleanup() }
         r.activity.post(IslandActivity(
-            id: "agents.resting", source: "agents", priority: .ambient,
-            leading: CompactItem(symbol: "gauge", text: "58%", progress: 0.58)))
-        #expect(r.center.content.all.map(\.channel) == [AmbientChannel.limits])
-        r.activity.withdraw(id: "agents.resting")
+            id: "agents.music", source: "now-playing", priority: .music,
+            trailing: CompactItem(symbol: "waveform", text: "Titre")))
+        #expect(r.center.content.all.map(\.channel) == [AmbientChannel.music])
+        r.activity.withdraw(id: "agents.music")
         #expect(r.center.content.isEmpty)
     }
 
@@ -197,13 +197,16 @@ private final class ManualSleep: @unchecked Sendable {
         #expect(r.center.widthProxy.layout != .empty)  // a wing needs room beside the notch
     }
 
-    @Test func aNotchedWingTooNarrowLosesTextInsteadOfOverflowing() {
+    @Test func aNotchedWingTooNarrowDropsWholeElementsInsteadOfOverflowing() {
         let r = rig(notched: true); defer { r.cleanup() }
         for id in ["a", "b"] {
             r.center.post(AmbientIndicator(id: id, symbol: "x", text: "Mmmmmmmmmm", wing: .leading))
         }
         let width = NotchGeometry.baseWing + AmbientMetrics.notchedExtent(r.center.content, now: t0)
-        #expect(AmbientMetrics.groupWidth(r.center.content.leading, now: t0) + 2 * AmbientMetrics.wingPadding <= width)
+        let leading = r.center.content.leading
+        // Never a bare icon: whatever stays has its value, and what stays fits.
+        #expect(leading.allSatisfy { $0.isReadable })
+        #expect(leading.isEmpty || AmbientMetrics.groupWidth(leading, now: t0) + 2 * AmbientMetrics.wingPadding <= width)
     }
 
     // MARK: Clock

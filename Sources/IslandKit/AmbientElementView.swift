@@ -16,6 +16,7 @@ struct AmbientElementView: View {
             value
         }
         .fixedSize()
+        .opacity(item.isDimmed ? 0.55 : 1)
         .modifier(AmbientPulse(color: item.status.color, isUrgent: item.isUrgent, preview: pulsePreview))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)

@@ -137,6 +137,8 @@ public struct ClaudeWorkSample: Equatable, Sendable {
 public enum ClaudeWing {
     static let workingSymbol = "sparkles"
     static let waitingSymbol = "hand.raised.fill"
+    /// The Claude glyph at rest (a solid star reads at 9 pt inside the ring).
+    public static let restGlyph = "sparkle"
 
     /// The Claude mapper's glyph has no text; other `sparkles` users (cleaning countdown) do.
     public static func isClaudeWing(_ item: CompactItem?) -> Bool {

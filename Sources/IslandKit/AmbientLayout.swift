@@ -43,11 +43,23 @@ public struct ClosedIslandContent: Equatable, Sendable {
 /// 4. A wing holds at most `maxPerWing` (1 or 2) indicators.
 public enum ClosedIslandLayout {
     public static func rank(_ a: AmbientIndicator, _ b: AmbientIndicator, settings: ClosedIslandSettings) -> Bool {
-        if a.priority != b.priority { return a.priority > b.priority }
-        let ia = settings.orderIndex(a.channel), ib = settings.orderIndex(b.channel)
-        if ia != ib { return ia < ib }
+        // The default order is the wing table's (Claude, then music, then the network; the battery, then the
+        // system...), whatever the priority: priority pins an item, it does not reorder a wing. An order the user
+        // changed in Settings goes by priority first, then by that order.
+        if settings.order == AmbientChannel.userChoices {
+            let ta = AmbientWingTable.rank(a.channel), tb = AmbientWingTable.rank(b.channel)
+            if ta != tb { return ta < tb }
+            if a.priority != b.priority { return a.priority > b.priority }
+        } else {
+            if a.priority != b.priority { return a.priority > b.priority }
+            let ia = settings.orderIndex(a.channel), ib = settings.orderIndex(b.channel)
+            if ia != ib { return ia < ib }
+        }
         return a.id < b.id
     }
+
+    /// The wing of an indicator: the table's, or the indicator's own preference for an alert.
+    static func side(_ item: AmbientIndicator) -> AmbientWing? { AmbientWingTable.wing(for: item.channel) ?? item.wing }
 
     /// `centered`: a screen without a notch. The clock then takes the fixed center slot and the wings keep their
     /// full room; with a notch the clock is the first item of the leading wing and counts against its room.
@@ -56,34 +68,35 @@ public enum ClosedIslandLayout {
         let perWing = min(max(settings.maxPerWing, ClosedIslandSettings.perWingRange.lowerBound), ClosedIslandSettings.perWingRange.upperBound)
         var seen = Set<String>()
         var ranked = indicators
-            .filter { settings.isEnabled($0.channel) }
+            .filter { settings.isEnabled($0.channel) && $0.isReadable }
             .sorted { rank($0, $1, settings: settings) }
             .filter { seen.insert($0.id).inserted }
         let clock = ranked.first { $0.channel == AmbientChannel.clock }
         ranked.removeAll { $0.channel == AmbientChannel.clock }
 
         var pinned: (leading: [AmbientIndicator], trailing: [AmbientIndicator]) = ([], [])
-        if let clock, !centered {
-            var first = clock
-            first.detail = nil
-            pinned.leading.append(first)
-        }
-        for item in ranked where item.isPinned {
-            switch target(for: item, leading: pinned.leading.count, trailing: pinned.trailing.count, room: perWing) {
+        // With a hardware notch the clock takes the innermost slot of the left wing (after the pinned Claude item).
+        let clockSlot = (clock != nil && !centered) ? 1 : 0
+        // Pinned items of a fixed wing (Claude waiting, a low battery) take their side first; an alert, which has
+        // no side of its own, then takes whichever side still has room.
+        let pinnedItems = ranked.filter { $0.isPinned }
+        for item in pinnedItems.filter({ side($0) != nil && AmbientWingTable.wing(for: $0.channel) != nil })
+            + pinnedItems.filter({ AmbientWingTable.wing(for: $0.channel) == nil }) {
+            switch target(for: item, leading: pinned.leading.count + clockSlot, trailing: pinned.trailing.count, room: perWing) {
             case .leading: pinned.leading.append(item)
             case .trailing: pinned.trailing.append(item)
             case nil: break  // more urgent items than room: the lowest ranked wait
             }
         }
 
-        let leadRoom = perWing - pinned.leading.count, trailRoom = perWing - pinned.trailing.count
+        let leadRoom = perWing - pinned.leading.count - clockSlot, trailRoom = perWing - pinned.trailing.count
         var flowing: (leading: [AmbientIndicator], trailing: [AmbientIndicator]) = ([], [])
         for item in ranked where !item.isPinned {
             // A wing the pinned items filled takes nothing. Otherwise unlimited room: pages decide what is
             // shown. Balance by what each wing already holds.
             let side: AmbientWing
             if leadRoom <= 0 { side = .trailing } else if trailRoom <= 0 { side = .leading } else {
-                side = target(for: item, leading: pinned.leading.count + flowing.leading.count,
+                side = target(for: item, leading: pinned.leading.count + clockSlot + flowing.leading.count,
                               trailing: pinned.trailing.count + flowing.trailing.count, room: .max) ?? .leading
             }
             if side == .leading { flowing.leading.append(item) } else { flowing.trailing.append(item) }
@@ -94,7 +107,12 @@ public enum ClosedIslandLayout {
         let pages = settings.rotates ? max(leadPages, trailPages, 1) : 1
         let current = pages > 1 ? ((step % pages) + pages) % pages : 0
 
-        let leading = pinned.leading + page(flowing.leading, room: leadRoom, pages: leadPages, step: settings.rotates ? current : 0)
+        var leading = pinned.leading + page(flowing.leading, room: leadRoom, pages: leadPages, step: settings.rotates ? current : 0)
+        // With a hardware notch the clock is the innermost item of the left wing, right beside the notch.
+        if var inner = clock, !centered {
+            inner.detail = nil
+            leading.append(inner)
+        }
         let trailing = pinned.trailing + page(flowing.trailing, room: trailRoom, pages: trailPages, step: settings.rotates ? current : 0)
         var center: AmbientIndicator?
         if centered, var shown = clock {
@@ -109,7 +127,7 @@ public enum ClosedIslandLayout {
     /// Without a preference, the emptier wing (leading on a tie).
     private static func target(for item: AmbientIndicator, leading: Int, trailing: Int, room: Int) -> AmbientWing? {
         let order: [AmbientWing]
-        switch item.wing {
+        switch side(item) {
         case .leading?: order = [.leading, .trailing]
         case .trailing?: order = [.trailing, .leading]
         case nil: order = leading <= trailing ? [.leading, .trailing] : [.trailing, .leading]

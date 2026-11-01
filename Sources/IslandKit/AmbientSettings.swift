@@ -10,6 +10,8 @@ public enum ClosedIslandKeys {
     public static let perWing = "notchIdlePerWing"
     /// 0 follows the system, 12 or 24 forces the hour cycle of the clock.
     public static let clockHours = "notchIdleClockHours"
+    /// Shows the keep-awake cup, dimmed, even while keep awake is off (default off).
+    public static let keepAwakeAlways = "notchIdleKeepAwakeAlways"
     /// Set once the older value has been carried over.
     public static let migrated = "notchIdleIndicatorsMigrated"
 
@@ -24,7 +26,7 @@ public enum ClosedIslandKeys {
         }
     }
 
-    public static let all = [legacyContent, order, rotates, perWing, clockHours, migrated] + AmbientChannel.userChoices.map(show)
+    public static let all = [legacyContent, order, rotates, perWing, clockHours, keepAwakeAlways, migrated] + AmbientChannel.userChoices.map(show)
 }
 
 /// Hour cycle of the clock: the system's (from the locale) unless the user forces one.
@@ -46,10 +48,13 @@ public struct ClosedIslandSettings: Equatable, Sendable {
     public var rotates: Bool
     public var maxPerWing: Int
     public var clockHours: ClockHours
+    /// Keep the cup on the right wing, dimmed, while keep awake is off ("Toujours afficher la tasse").
+    public var keepAwakeAlways: Bool
 
     public init(enabled: Set<String> = AmbientChannel.defaultOn, order: [String] = AmbientChannel.userChoices,
                 rotates: Bool = ClosedIslandSettings.defaultRotates, maxPerWing: Int = ClosedIslandSettings.defaultPerWing,
-                clockHours: ClockHours = .system) {
+                clockHours: ClockHours = .system, keepAwakeAlways: Bool = false) {
+        self.keepAwakeAlways = keepAwakeAlways
         self.enabled = enabled
         self.order = order
         self.rotates = rotates
@@ -131,7 +136,9 @@ public struct ClosedIslandSettings: Equatable, Sendable {
         let rotates = defaults.object(forKey: ClosedIslandKeys.rotates) as? Bool ?? defaultRotates
         let perWing = defaults.object(forKey: ClosedIslandKeys.perWing) as? Int ?? defaultPerWing
         let hours = (defaults.object(forKey: ClosedIslandKeys.clockHours) as? Int).flatMap(ClockHours.init(rawValue:)) ?? .system
-        return ClosedIslandSettings(enabled: enabled, order: order, rotates: rotates, maxPerWing: perWing, clockHours: hours)
+        let always = defaults.object(forKey: ClosedIslandKeys.keepAwakeAlways) as? Bool ?? false
+        return ClosedIslandSettings(enabled: enabled, order: order, rotates: rotates, maxPerWing: perWing, clockHours: hours,
+                                    keepAwakeAlways: always)
     }
 
     public func write(to defaults: UserDefaults) {
@@ -142,6 +149,7 @@ public struct ClosedIslandSettings: Equatable, Sendable {
         defaults.set(rotates, forKey: ClosedIslandKeys.rotates)
         defaults.set(maxPerWing, forKey: ClosedIslandKeys.perWing)
         defaults.set(clockHours.rawValue, forKey: ClosedIslandKeys.clockHours)
+        defaults.set(keepAwakeAlways, forKey: ClosedIslandKeys.keepAwakeAlways)
     }
 }
 

@@ -177,26 +177,34 @@ public enum AmbientReadings {
             status: go < 5 ? .danger : go < 15 ? .warning : .neutral, label: "Espace disque libre \(free)")
     }
 
-    /// The connection glyph (with a "VPN" tag while a tunnel is up), then the two rates. Offline: the glyph only.
-    public static func network(link: NetworkLink, vpn: Bool, downBytesPerSecond: Double, upBytesPerSecond: Double) -> [AmbientIndicator] {
-        let symbol: String
-        switch link {
-        case .wifi: symbol = "wifi"
-        // The plain connector is a hairline at 14 pt; the horizontal one reads as an Ethernet plug.
-        case .wired: symbol = "cable.connector.horizontal"
-        case .other: symbol = "network"
-        case .offline: symbol = "wifi.slash"
+    /// What the network shows, only with a readable value: a direction whose rate is at least 1 Ko/s, a "VPN" tag
+    /// while a tunnel is up, the struck-through symbol offline. Idle traffic shows nothing (never a bare arrow or
+    /// a bare connection glyph); `showIdle` keeps both rates, "0 Ko/s" included.
+    public static func network(link: NetworkLink, vpn: Bool, downBytesPerSecond: Double, upBytesPerSecond: Double,
+                               showIdle: Bool = false) -> [AmbientIndicator] {
+        if link == .offline {
+            return [AmbientIndicator(
+                id: linkID, channel: AmbientChannel.network, symbol: "wifi.slash", text: vpn ? "VPN" : nil,
+                status: .warning, label: "Hors ligne" + (vpn ? ", VPN actif" : ""))]
         }
-        var out = [AmbientIndicator(
-            id: linkID, channel: AmbientChannel.network, symbol: symbol, text: vpn ? "VPN" : nil,
-            status: link == .offline ? .warning : vpn ? .info : .neutral,
-            label: (link == .offline ? "Hors ligne" : "Connecté") + (vpn ? ", VPN actif" : ""))]
-        guard link != .offline else { return out }
-        let down = AmbientFormat.rate(downBytesPerSecond), up = AmbientFormat.rate(upBytesPerSecond)
-        out.append(AmbientIndicator(
-            id: downID, channel: AmbientChannel.network, symbol: "arrow.down", text: down, label: "Réception \(down)"))
-        out.append(AmbientIndicator(
-            id: upID, channel: AmbientChannel.network, symbol: "arrow.up", text: up, label: "Envoi \(up)"))
+        var out: [AmbientIndicator] = []
+        if vpn {
+            // The plain connector is a hairline at 14 pt; the horizontal one reads as an Ethernet plug.
+            let symbol = link == .wifi ? "wifi" : link == .wired ? "cable.connector.horizontal" : "network"
+            out.append(AmbientIndicator(
+                id: linkID, channel: AmbientChannel.network, symbol: symbol, text: "VPN", status: .info,
+                label: "Connecté, VPN actif"))
+        }
+        if showIdle || downBytesPerSecond >= 1000 {
+            let down = AmbientFormat.rate(downBytesPerSecond)
+            out.append(AmbientIndicator(
+                id: downID, channel: AmbientChannel.network, symbol: "arrow.down", text: down, label: "Réception \(down)"))
+        }
+        if showIdle || upBytesPerSecond >= 1000 {
+            let up = AmbientFormat.rate(upBytesPerSecond)
+            out.append(AmbientIndicator(
+                id: upID, channel: AmbientChannel.network, symbol: "arrow.up", text: up, label: "Envoi \(up)"))
+        }
         return out
     }
 
@@ -204,6 +212,18 @@ public enum AmbientReadings {
     public static func networkSignature(link: NetworkLink, vpn: Bool, down: Double, up: Double) -> String {
         network(link: link, vpn: vpn, downBytesPerSecond: down, upBytesPerSecond: up)
             .map { "\($0.symbol)|\($0.text ?? "")" }.joined(separator: ";")
+    }
+
+    public static let keepAwakeID = "keepawake"
+
+    /// The cup. A state glyph with a label (never an unlabeled metric): in the accent colour while keep awake runs;
+    /// dimmed while it is off, and then only when the user asked for it ("Toujours afficher la tasse").
+    public static func keepAwake(active: Bool, always: Bool) -> AmbientIndicator? {
+        guard active || always else { return nil }
+        return AmbientIndicator(
+            id: keepAwakeID, channel: AmbientChannel.keepAwake, symbol: "cup.and.saucer.fill",
+            status: active ? .info : .neutral, wing: .trailing,
+            label: active ? "Garder éveillé actif" : "Garder éveillé inactif", isDimmed: !active)
     }
 
     /// Pinned (an `alert` priority) so an app listening is never rotated away, but without the urgent pulse.

@@ -58,13 +58,12 @@ import Testing
         #expect(out.first { $0.id == "music" }?.progress == nil)  // the progress rode on the lost leading item
     }
 
-    @Test func theLimitsGaugeKeepsItsPercentAndRing() {
+    @Test func theLimitsGaugeIsNotBridgedTheRestingReadingOwnsIt() {
+        // `AmbientCenter.setClaudeRest` draws the limits (it knows how old the reading is); a bridged copy would
+        // double it and could show an old session percentage as live.
         let out = AmbientBridge.indicators(
             from: layout(CompactItem(symbol: "gauge", text: "58%", status: .warning, progress: 0.58)), claude: nil)
-        #expect(out.count == 1)
-        #expect(out[0].channel == AmbientChannel.limits)
-        #expect(out[0].text == "58%" && out[0].progress == 0.58 && out[0].status == .warning)
-        #expect(out[0].priority == .ambient && !out[0].isPinned)
+        #expect(out.isEmpty)
     }
 
     @Test func anythingElseIsAnAlertThatPins() {

@@ -357,9 +357,9 @@ private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: (
         let sampler = NetworkSampler(center: rig.center, sleep: { try await sleep.sleep($0) }, watchPath: false, read: { script.next() })
         sampler.start(settings: .standard)
         func item(_ id: String) -> AmbientIndicator? { rig.center.content.all.first { $0.id == id } }
-        #expect(await waitUntil { item("network.0link") != nil })
-        #expect(item("network.1down")?.text == "0 Ko/s")
-        #expect(item("network.0link")?.text == nil)
+        #expect(await waitUntil { sleep.requests == 1 })
+        // The first reading has no delta yet and no tunnel: nothing is drawn, never a bare arrow or "0 Ko/s".
+        #expect(item("network.0link") == nil && item("network.1down") == nil && item("network.2up") == nil)
         try? await Task.sleep(for: .milliseconds(30))
         sleep.fire()
         #expect(await waitUntil { item("network.0link")?.text == "VPN" })

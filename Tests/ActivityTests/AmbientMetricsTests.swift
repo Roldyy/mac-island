@@ -130,19 +130,28 @@ import Testing
         #expect(AmbientMetrics.fitted(items, width: 112, now: now) == items)
     }
 
-    @Test func aTightWingLosesTheTextOfItsLastElementFirst() {
+    @Test func aTightWingDropsTheLastElementWholeInsteadOfLeavingItsBareIcon() {
         let a = item("a", text: "58%"), b = item("b", text: "82%")
         let width = AmbientMetrics.groupWidth([a, b], now: now) + 2 * AmbientMetrics.wingPadding - 1
         let out = AmbientMetrics.fitted([a, b], width: width, now: now)
-        #expect(out.map(\.id) == ["a", "b"])
+        #expect(out.map(\.id) == ["a"])
         #expect(out[0].text == "58%")
-        #expect(out[1].text == nil)
     }
 
-    @Test func aVeryTightWingDropsLaterElementsButKeepsTheFirst() {
+    @Test func aTightWingKeepsTheGlyphOfAnElementWhoseStateStandsAlone() {
+        let a = AmbientIndicator(id: "claude", channel: AmbientChannel.claude, symbol: "sparkles", priority: .claudeWorking,
+                                 isBusy: true, clockSince: now.addingTimeInterval(-60))
+        let b = item("b", text: "82%")
+        let width = AmbientMetrics.groupWidth([a, b], now: now) + 2 * AmbientMetrics.wingPadding - 1
+        let out = AmbientMetrics.fitted([a, b], width: width, now: now)
+        #expect(out.map(\.id) == ["claude"])
+        #expect(out[0].clockSince != nil)
+    }
+
+    @Test func aVeryTightWingShowsNothingRatherThanBareIcons() {
         let items = [item("a", text: "58%"), item("b", text: "82%"), item("c", text: "99%")]
         let out = AmbientMetrics.fitted(items, width: 10, now: now)
-        #expect(out.map(\.id) == ["a"])
+        #expect(out.isEmpty)
     }
 
     @Test func fittingNothingGivesNothing() {

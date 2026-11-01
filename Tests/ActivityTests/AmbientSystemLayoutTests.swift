@@ -235,14 +235,15 @@ import Testing
     }
 
     @Test func theUserOrderDecidesWhichChannelComesFirst() {
-        let input = [item("system.cpu", channel: AmbientChannel.system, wing: .leading),
-                     item("network.0link", channel: AmbientChannel.network, wing: .leading),
-                     item("disk", channel: AmbientChannel.disk, wing: .leading)]
+        // Battery, system and disk all live on the right wing: the user's order ranks them there.
+        let input = [item("system.cpu", channel: AmbientChannel.system),
+                     item("battery", channel: AmbientChannel.battery),
+                     item("disk", channel: AmbientChannel.disk)]
         var settings = everything
-        settings.order = [AmbientChannel.disk, AmbientChannel.network, AmbientChannel.system]
-        #expect(ids(ClosedIslandLayout.resolve(input, settings: settings, step: 0).leading) == ["disk", "network.0link"])
-        settings.order = [AmbientChannel.system, AmbientChannel.disk, AmbientChannel.network]
-        #expect(ids(ClosedIslandLayout.resolve(input, settings: settings, step: 0).leading) == ["system.cpu", "disk"])
+        settings.order = [AmbientChannel.disk, AmbientChannel.battery, AmbientChannel.system]
+        #expect(ids(ClosedIslandLayout.resolve(input, settings: settings, step: 0).trailing) == ["disk", "battery"])
+        settings.order = [AmbientChannel.system, AmbientChannel.disk, AmbientChannel.battery]
+        #expect(ids(ClosedIslandLayout.resolve(input, settings: settings, step: 0).trailing) == ["system.cpu", "disk"])
     }
 
     @Test func oneIndicatorPerWingStillCopes() {
@@ -289,28 +290,29 @@ import Testing
     }
 
     @Test func urgentItemsPinOnTheSideWithRoomNextToTheCenter() {
+        // A low battery pins on its own (right) wing, whatever the old preference said, and heads it.
         var input = [item("alert.low", channel: AmbientChannel.battery, priority: .alert, urgent: true, wing: .leading), clock()]
         input += (0..<4).map { item("a\($0)", wing: .leading) }
         let content = ClosedIslandLayout.resolve(input, settings: .standard, centered: true)
-        #expect(content.leading.first?.id == "alert.low")
+        #expect(content.trailing.first?.id == "alert.low")
         #expect(content.center?.id == "clock")
         #expect(content.leading.count <= 2 && content.trailing.count <= 2)
     }
 
     // MARK: Clock with a hardware notch
 
-    @Test func withANotchTheClockIsTheFirstItemOfTheLeftWing() {
+    @Test func withANotchTheClockIsTheInnermostItemOfTheLeftWing() {
         let content = ClosedIslandLayout.resolve(allIndicators() + [clock()], settings: everything)
         #expect(content.center == nil)
-        #expect(content.leading.first?.id == "clock")
-        #expect(content.leading.first?.detail == nil)  // no room for a date beside a notch
+        #expect(content.leading.last?.id == "clock")  // right beside the notch, Claude and the rest further out
+        #expect(content.leading.last?.detail == nil)  // no room for a date beside a notch
         #expect(content.leading.count <= 2 && content.trailing.count <= 2)
     }
 
     @Test func theNotchedClockCountsAgainstTheLeftWingAndNeverRotates() {
         for step in 0..<5 {
             let content = ClosedIslandLayout.resolve(allIndicators() + [clock()], settings: everything, step: step)
-            #expect(content.leading.first?.id == "clock")
+            #expect(content.leading.last?.id == "clock")
             #expect(content.leading.count == 2)
         }
         var oneEach = everything

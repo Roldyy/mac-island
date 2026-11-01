@@ -88,16 +88,20 @@ public enum AmbientMetrics {
         return items.reduce(0) { $0 + elementWidth($1, now: now) } + CGFloat(items.count - 1) * elementGap
     }
 
-    /// A wing that is too narrow loses the text of its last element, then the element itself. Never empties it.
+    /// A wing that is too narrow loses the text of its last element, then the element itself. An element that
+    /// would be left as a bare glyph (an arrow with no rate, a chip with no load) is dropped whole: it can empty
+    /// the wing.
     public static func fitted(_ items: [AmbientIndicator], width: CGFloat, now: Date) -> [AmbientIndicator] {
         var out = items
         while !out.isEmpty, groupWidth(out, now: now) + 2 * wingPadding > width {
             if let index = out.lastIndex(where: { $0.text != nil || $0.clockSince != nil }) {
-                out[index].text = nil
-                out[index].clockSince = nil
+                var stripped = out[index]
+                stripped.text = nil
+                stripped.clockSince = nil
+                if stripped.isReadable { out[index] = stripped } else { out.remove(at: index) }
                 continue
             }
-            if out.count > 1 { out.removeLast() } else { break }
+            out.removeLast()
         }
         return out
     }

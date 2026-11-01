@@ -43,6 +43,9 @@ public final class AmbientCenter: ObservableObject {
     private var bridged: [AmbientIndicator] = []
     private var layout = ActivityLayout.empty
     private var claude: ClaudeWorkSample?
+    private var claudeRest: ClaudeRestReading?
+    private var claudeSessionOpen = false
+    private var keepAwakeActive = false
     private var step = 0
     private var visible = true
     private var rotation: Task<Void, Never>?
@@ -99,6 +102,27 @@ public final class AmbientCenter: ObservableObject {
         recompute()
     }
 
+    /// The plan reading at rest (nil: none yet). Drawn only while no Claude session is working or waiting.
+    public func setClaudeRest(_ reading: ClaudeRestReading?) {
+        guard reading != claudeRest else { return }
+        claudeRest = reading
+        recompute()
+    }
+
+    /// Some Claude session is open (idle included): the glyph then carries a state dot.
+    public func setClaudeSessionOpen(_ open: Bool) {
+        guard open != claudeSessionOpen else { return }
+        claudeSessionOpen = open
+        recompute()
+    }
+
+    /// Keep awake runs (or not). The cup shows while it runs, and dimmed while it does not when the user asked for it.
+    public func setKeepAwake(active: Bool) {
+        guard active != keepAwakeActive else { return }
+        keepAwakeActive = active
+        recompute()
+    }
+
     /// The closed strip is on screen (island closed). Rotation pauses while it is not.
     public func setVisible(_ on: Bool) {
         guard on != visible else { return }
@@ -137,7 +161,13 @@ public final class AmbientCenter: ObservableObject {
 
     private func recompute() {
         let date = now()
-        var resolved = ClosedIslandLayout.resolve(Array(posted.values) + bridged, settings: settings, step: step, centered: !isNotched)
+        var all = Array(posted.values) + bridged
+        if !all.contains(where: { $0.channel == AmbientChannel.claude }),
+           let rest = ClaudeRest.indicator(reading: claudeRest, sessionOpen: claudeSessionOpen) {
+            all.append(rest)
+        }
+        if let cup = AmbientReadings.keepAwake(active: keepAwakeActive, always: settings.keepAwakeAlways) { all.append(cup) }
+        var resolved = ClosedIslandLayout.resolve(all, settings: settings, step: step, centered: !isNotched)
         step = resolved.step
         if isNotched {
             // Each wing is baseWing + extent wide; what does not fit loses its text, then its last element.

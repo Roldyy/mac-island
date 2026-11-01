@@ -117,6 +117,8 @@ public enum SettingsLive {
                 flag("notchIdleShowMusic", true, title: "Lecture en cours", hint: AmbientChannel.hint("music")),
                 flag("notchIdleShowBattery", true, title: "Batterie", hint: AmbientChannel.hint("battery")),
                 flag("notchIdleShowKeepAwake", true, title: "Maintien d’éveil", hint: AmbientChannel.hint("keepawake")),
+                flag("notchIdleKeepAwakeAlways", false, title: "Toujours afficher la tasse",
+                     hint: "Montre la tasse atténuée même quand Garder éveillé est éteint."),
                 flag("notchIdleShowClock", true, title: AmbientChannel.title("clock"), hint: AmbientChannel.hint("clock")),
                 C("notchIdleClockHours", .choice(options: [.init("Système", 0), .init("24 h", 24), .init("12 h", 12)], defaultValue: 0),
                   title: "Format de l’heure", hint: "Suit le réglage du système, sauf si vous en choisissez un."),

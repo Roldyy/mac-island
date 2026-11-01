@@ -17,6 +17,14 @@ struct AmbientGlyphView: View {
             inner
         }
         .frame(width: AmbientMetrics.glyphSize, height: AmbientMetrics.glyphSize)
+        .overlay(alignment: .bottomTrailing) {
+            if let badge = item.badge {
+                Circle().fill(badge.color)
+                    .frame(width: 6, height: 6)
+                    .overlay(Circle().stroke(Color.black, lineWidth: 1))
+                    .offset(x: 2, y: 2)
+            }
+        }
     }
 
     @ViewBuilder
