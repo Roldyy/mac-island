@@ -112,11 +112,13 @@ public struct VorssaintMigrator {
 
     // MARK: - Backup
 
-    private func backup(supportExists: Bool, links: inout [String]) throws -> URL {
+    func backup(
+        supportExists: Bool, links: inout [String], folderPrefix: String = "vorssaint"
+    ) throws -> URL {
         try makePrivateDirectory(destSupportDir)
         let backups = destSupportDir.appendingPathComponent("Backups")
         try makePrivateDirectory(backups)
-        let dir = backups.appendingPathComponent("vorssaint-\(Self.stamp(now()))")
+        let dir = backups.appendingPathComponent("\(folderPrefix)-\(Self.stamp(now()))")
         try makePrivateDirectory(dir)
 
         let plist = try PropertyListSerialization.data(
@@ -135,7 +137,7 @@ public struct VorssaintMigrator {
 
     // MARK: - File helpers
 
-    private func makePrivateDirectory(_ url: URL) throws {
+    func makePrivateDirectory(_ url: URL) throws {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         if fm.fileExists(atPath: url.path, isDirectory: &isDir) {

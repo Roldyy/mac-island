@@ -251,6 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 for key in report.unknownKeys { Self.log.info("unmapped Vorssaint key: \(key, privacy: .private)") }
                 for link in report.skippedLinks { Self.log.info("skipped symbolic link: \(link, privacy: .private)") }
             }
+            // Pass 2: the rest of the known Vorssaint keys, backed up first, never overwriting ours.
+            let v2 = try migrator.runV2()
+            NSLog("MacIsland: migration v2 carried %d keys, %d switches, %d type mismatches",
+                  v2.carriedKeys.count, v2.mappedSwitches.count, v2.typeMismatchKeys.count)
         } catch {
             // `MigrationError.partial` states what was already written (backup path, key count).
             NSLog("MacIsland: migration did not finish: %@", "\(error)")
