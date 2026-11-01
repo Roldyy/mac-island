@@ -102,7 +102,9 @@ enum SuperKeyMappingGuard {
         )
     }
 
-    private static func clear(source: SuperKeySource) -> Bool {
+    /// Removes this feature's own entry from the keyboard mapping table. Internal so the restore path can be
+    /// run against a fake `hidutil` (`runHIDOverride`).
+    static func clear(source: SuperKeySource) -> Bool {
         let report = runHID(
             ["property", "--matching", "keyboard",
              "--get", SuperKeySupport.userMappingProperty]
@@ -127,7 +129,12 @@ enum SuperKeyMappingGuard {
             && SuperKeySupport.mappingReportConfirms(readback.output, expected: remaining)
     }
 
-    private static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
+    /// Replaces `hidutil` in tests, so the restore path runs without touching the real keyboard mapping.
+    nonisolated(unsafe) static var runHIDOverride: (([String]) -> (status: Int32, output: String))?
+
+    /// The one door to `hidutil`: the guard's cleanup and the service's apply, clear and readback all use it.
+    static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
+        if let runHIDOverride { return runHIDOverride(arguments) }
         let result = BoundedProcessRunner.run(
             "/usr/bin/hidutil",
             arguments,

@@ -278,6 +278,11 @@ final class TextSnippetService {
             }
             return Unmanaged.passUnretained(event)
         }
+        // A stopped or withdrawn feature (kill switch, safe mode, permission lost) lets every event through.
+        guard AppFeature.textSnippets.isAvailable else {
+            resetBuffer()
+            return Unmanaged.passUnretained(event)
+        }
         // Clicks move the caret somewhere unknown; the half-typed trigger is
         // no longer where the deletes would land. A click on the Accessibility
         // Keyboard is the exception: there the mouse is how a key is pressed,

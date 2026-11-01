@@ -1,0 +1,49 @@
+--- a/Services/KeyboardDebounce/KeyboardDebounceService.swift
++++ b/Services/KeyboardDebounce/KeyboardDebounceService.swift
+@@ -251,6 +251,13 @@
+             return Unmanaged.passUnretained(event)
+         }
+ 
++        // A stopped or withdrawn feature (kill switch, safe mode, permission lost) and a password field
++        // (Secure Event Input) both mean every key goes through untouched.
++        if KeyboardTapSafety.shouldPassThrough(.keyboardDebounce) {
++            eventLock.withLock { state.reset() }
++            return Unmanaged.passUnretained(event)
++        }
++
+         // Keys this app posts (a Quit Protection confirmation, text a snippet
+         // retypes) follow a real press on purpose and are not chatter.
+         guard type == .keyDown || type == .keyUp, !OwnKeyEvent.isPosted(event) else {
+--- a/Services/QuitProtection/QuitProtectionService.swift
++++ b/Services/QuitProtection/QuitProtectionService.swift
+@@ -192,6 +192,16 @@
+             return Unmanaged.passUnretained(event)
+         }
+         guard isRunning, !isSynthetic(event) else {
++            return Unmanaged.passUnretained(event)
++        }
++        // A stopped or withdrawn feature and a password field (Secure Event Input) both mean every key goes
++        // through untouched, and a press this tap was holding is dropped, never left half-swallowed.
++        if KeyboardTapSafety.shouldPassThrough(.quitWindowProtection) {
++            if hasPressInFlight {
++                swallowShortcut = nil
++                nativeSwitcherSessionActive = false
++                cancelPending()
++            }
+             return Unmanaged.passUnretained(event)
+         }
+ 
+--- a/Services/Snippets/TextSnippetService.swift
++++ b/Services/Snippets/TextSnippetService.swift
+@@ -278,6 +278,11 @@
+             }
+             return Unmanaged.passUnretained(event)
+         }
++        // A stopped or withdrawn feature (kill switch, safe mode, permission lost) lets every event through.
++        guard AppFeature.textSnippets.isAvailable else {
++            resetBuffer()
++            return Unmanaged.passUnretained(event)
++        }
+         // Clicks move the caret somewhere unknown; the half-typed trigger is
+         // no longer where the deletes would land. A click on the Accessibility
+         // Keyboard is the exception: there the mouse is how a key is pressed,

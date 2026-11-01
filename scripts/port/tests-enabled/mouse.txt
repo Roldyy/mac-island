@@ -1,0 +1,3 @@
+# Upstream test files lane W1-B (mouse) turns on in the port harness (scripts/port/test.sh, one name per line).
+# PointerInputFeatureTests is the source contract over every input service: all W1 lanes keep it green.
+PointerInputFeatureTests.swift

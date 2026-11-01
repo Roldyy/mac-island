@@ -1,0 +1,64 @@
+--- a/Services/SuperKey/SuperKeyMappingGuard.swift
++++ b/Services/SuperKey/SuperKeyMappingGuard.swift
+@@ -102,7 +102,9 @@
+         )
+     }
+ 
+-    private static func clear(source: SuperKeySource) -> Bool {
++    /// Removes this feature's own entry from the keyboard mapping table. Internal so the restore path can be
++    /// run against a fake `hidutil` (`runHIDOverride`).
++    static func clear(source: SuperKeySource) -> Bool {
+         let report = runHID(
+             ["property", "--matching", "keyboard",
+              "--get", SuperKeySupport.userMappingProperty]
+@@ -127,7 +129,12 @@
+             && SuperKeySupport.mappingReportConfirms(readback.output, expected: remaining)
+     }
+ 
+-    private static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
++    /// Replaces `hidutil` in tests, so the restore path runs without touching the real keyboard mapping.
++    nonisolated(unsafe) static var runHIDOverride: (([String]) -> (status: Int32, output: String))?
++
++    /// The one door to `hidutil`: the guard's cleanup and the service's apply, clear and readback all use it.
++    static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
++        if let runHIDOverride { return runHIDOverride(arguments) }
+         let result = BoundedProcessRunner.run(
+             "/usr/bin/hidutil",
+             arguments,
+--- a/Services/SuperKey/SuperKeyService.swift
++++ b/Services/SuperKey/SuperKeyService.swift
+@@ -41,7 +41,6 @@
+     var onHoldEnded: ((_ released: Bool) -> Void)?
+     var isHeld: Bool { stateLock.withLock { state.isHeld } }
+ 
+-    private let hidutilPath = "/usr/bin/hidutil"
+     /// Matches every keyboard, including one plugged in later.
+     private let keyboardMatch = "keyboard"
+ 
+@@ -482,8 +481,7 @@
+     private func performMapping(_ enabled: Bool,
+                                 source: SuperKeySource,
+                                 ownedSource: SuperKeySource?) -> SuperKeyMappingFailure? {
+-        let report = Shell.run(
+-            hidutilPath,
++        let report = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+              "--get", SuperKeySupport.userMappingProperty]
+         )
+@@ -537,14 +535,12 @@
+                 }
+             }
+         }
+-        let write = Shell.run(
+-            hidutilPath,
++        let write = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+              "--set", SuperKeySupport.mappingArgument(wanted)]
+         )
+         guard write.status == 0 else { return .systemRefused }
+-        let readback = Shell.run(
+-            hidutilPath,
++        let readback = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+              "--get", SuperKeySupport.userMappingProperty]
+         )

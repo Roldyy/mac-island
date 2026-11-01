@@ -251,6 +251,13 @@ final class KeyboardDebounceService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // A stopped or withdrawn feature (kill switch, safe mode, permission lost) and a password field
+        // (Secure Event Input) both mean every key goes through untouched.
+        if KeyboardTapSafety.shouldPassThrough(.keyboardDebounce) {
+            eventLock.withLock { state.reset() }
+            return Unmanaged.passUnretained(event)
+        }
+
         // Keys this app posts (a Quit Protection confirmation, text a snippet
         // retypes) follow a real press on purpose and are not chatter.
         guard type == .keyDown || type == .keyUp, !OwnKeyEvent.isPosted(event) else {

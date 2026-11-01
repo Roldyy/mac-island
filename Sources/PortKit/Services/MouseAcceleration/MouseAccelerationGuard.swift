@@ -12,12 +12,16 @@ enum MouseAccelerationGuard {
     static let cleanupArgument = "--mouse-acceleration-cleanup"
     private static let cleanupTimeout: TimeInterval = 5
 
+    /// The running guard child, or a stand-in: `stop()` hands the restore over and reports whether it succeeded.
     final class Handle {
-        private let process: Process
-        private let input: FileHandle
-        private let finished: DispatchSemaphore
+        private let onStop: () -> Bool
 
-        fileprivate init?() {
+        /// A handle with its own stop. Tests use it so no process is spawned.
+        init(onStop: @escaping () -> Bool) {
+            self.onStop = onStop
+        }
+
+        fileprivate static func launch() -> Handle? {
             guard let executable = Bundle.main.executableURL?.path else { return nil }
 
             let process = Process()
@@ -41,30 +45,34 @@ enum MouseAccelerationGuard {
                 return nil
             }
 
-            self.process = process
-            self.input = inputPipe.fileHandleForWriting
-            self.finished = finished
+            let input = inputPipe.fileHandleForWriting
+            return Handle {
+                try? input.close()
+                var didFinish = finished.wait(
+                    timeout: .now() + MouseAccelerationGuard.cleanupTimeout + 1
+                ) == .success
+                if !didFinish {
+                    process.terminate()
+                    didFinish = finished.wait(timeout: .now() + 0.5) == .success
+                }
+                if !didFinish {
+                    kill(process.processIdentifier, SIGKILL)
+                    _ = finished.wait(timeout: .now() + 0.5)
+                }
+                return didFinish && process.terminationStatus == EXIT_SUCCESS
+            }
         }
 
         func stop() -> Bool {
-            try? input.close()
-            var didFinish = finished.wait(
-                timeout: .now() + MouseAccelerationGuard.cleanupTimeout + 1
-            ) == .success
-            if !didFinish {
-                process.terminate()
-                didFinish = finished.wait(timeout: .now() + 0.5) == .success
-            }
-            if !didFinish {
-                kill(process.processIdentifier, SIGKILL)
-                _ = finished.wait(timeout: .now() + 0.5)
-            }
-            return didFinish && process.terminationStatus == EXIT_SUCCESS
+            onStop()
         }
     }
 
+    /// How the guard child is launched. Swapped by tests only.
+    nonisolated(unsafe) static var launcher: () -> Handle? = { Handle.launch() }
+
     static func start() -> Handle? {
-        Handle()
+        launcher()
     }
 
     static func runIfRequestedAndExit() {

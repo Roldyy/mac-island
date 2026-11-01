@@ -194,6 +194,16 @@ final class QuitProtectionService: ObservableObject {
         guard isRunning, !isSynthetic(event) else {
             return Unmanaged.passUnretained(event)
         }
+        // A stopped or withdrawn feature and a password field (Secure Event Input) both mean every key goes
+        // through untouched, and a press this tap was holding is dropped, never left half-swallowed.
+        if KeyboardTapSafety.shouldPassThrough(.quitWindowProtection) {
+            if hasPressInFlight {
+                swallowShortcut = nil
+                nativeSwitcherSessionActive = false
+                cancelPending()
+            }
+            return Unmanaged.passUnretained(event)
+        }
 
         // The native switcher keeps the original app frontmost while another
         // app is selected. Its Q must reach the Dock, never a confirmation

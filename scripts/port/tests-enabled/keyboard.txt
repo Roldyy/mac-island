@@ -1,0 +1,8 @@
+# Upstream harness files (Tests/PortHarness) that lane W1-C turns on. One file name per line, no extension.
+# The runner (scripts/port/test.sh, P0-D) reads this list; names are the upstream Tests/*.swift files.
+KeyboardDebounceTapTests
+KeyboardFeatureTests
+SuperKeyTapContract
+TextSnippetExpansionTests
+AssistiveKeyboardTests
+QuitProtectionRoutingContract

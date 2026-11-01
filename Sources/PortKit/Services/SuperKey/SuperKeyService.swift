@@ -41,7 +41,6 @@ final class SuperKeyService: ObservableObject {
     var onHoldEnded: ((_ released: Bool) -> Void)?
     var isHeld: Bool { stateLock.withLock { state.isHeld } }
 
-    private let hidutilPath = "/usr/bin/hidutil"
     /// Matches every keyboard, including one plugged in later.
     private let keyboardMatch = "keyboard"
 
@@ -482,8 +481,7 @@ final class SuperKeyService: ObservableObject {
     private func performMapping(_ enabled: Bool,
                                 source: SuperKeySource,
                                 ownedSource: SuperKeySource?) -> SuperKeyMappingFailure? {
-        let report = Shell.run(
-            hidutilPath,
+        let report = SuperKeyMappingGuard.runHID(
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
@@ -537,14 +535,12 @@ final class SuperKeyService: ObservableObject {
                 }
             }
         }
-        let write = Shell.run(
-            hidutilPath,
+        let write = SuperKeyMappingGuard.runHID(
             ["property", "--matching", keyboardMatch,
              "--set", SuperKeySupport.mappingArgument(wanted)]
         )
         guard write.status == 0 else { return .systemRefused }
-        let readback = Shell.run(
-            hidutilPath,
+        let readback = SuperKeyMappingGuard.runHID(
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )

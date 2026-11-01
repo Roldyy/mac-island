@@ -125,7 +125,10 @@ final class MouseButtonShortcutService: ObservableObject {
         // Capture holds the tap up by itself: the press being asked for may
         // be the drag's, and the drag's switch is not the shortcut switch.
         // Either capture row only exists while its own switch is on.
-        let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil
+        // Capture holds the tap up only while the feature is available: the registry's stop (kill switch, safe
+        // mode, switch off) must not be undone by a Settings row still on screen.
+        let wanted = (enabled && !mappings.isEmpty) || (isCapturing && AppFeature.mouseButtonShortcuts.isAvailable)
+            || spacesButton != nil
         guard wanted else {
             stop()
             return
@@ -287,7 +290,10 @@ final class MouseButtonShortcutService: ObservableObject {
 
             let enabled = AppFeature.mouseButtonShortcuts.isAvailable
                 && PortHost.defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
-            let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil
+            // Capture holds the tap up only while the feature is available: the registry's stop (kill switch, safe
+        // mode, switch off) must not be undone by a Settings row still on screen.
+        let wanted = (enabled && !mappings.isEmpty) || (isCapturing && AppFeature.mouseButtonShortcuts.isAvailable)
+            || spacesButton != nil
             let shouldRun = SessionActivitySupport.tapShouldRun(
                 featureWanted: wanted || !consumedButtons.isEmpty,
                 accessibilityGranted: AXIsProcessTrusted(),

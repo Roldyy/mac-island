@@ -668,7 +668,7 @@ private func middleClickContactCallback(_ device: UnsafeMutableRawPointer?,
 /// dlopen/dlsym bridge to MultitouchSupport. Everything is optional: a macOS
 /// build without the framework or its symbols makes `available` false and the
 /// feature stays off instead of crashing.
-private enum Multitouch {
+enum Multitouch {
     typealias ContactCallback = @convention(c) (
         UnsafeMutableRawPointer?, UnsafeMutableRawPointer?, Int32, Double, Int32
     ) -> Int32
@@ -688,7 +688,29 @@ private enum Multitouch {
     private static let stopFn: StopFn? = symbol("MTDeviceStop")
 
     static var available: Bool {
-        createListFn != nil && registerFn != nil && startFn != nil && stopFn != nil
+        unavailableReason == nil
+    }
+
+    /// Why the private framework cannot be used on this Mac, nil when it can. Fails closed: a missing framework
+    /// or a missing symbol is a reason, never a crash.
+    static var unavailableReason: String? {
+        evaluate(frameworkLoaded: handle != nil,
+                 resolved: [
+                     "MTDeviceCreateList": createListFn != nil,
+                     "MTRegisterContactFrameCallback": registerFn != nil,
+                     "MTDeviceStart": startFn != nil,
+                     "MTDeviceStop": stopFn != nil,
+                 ])
+    }
+
+    /// The decision of the probe, apart from the loading: the framework must be there and every symbol resolved.
+    static func evaluate(frameworkLoaded: Bool, resolved: [String: Bool]) -> String? {
+        guard frameworkLoaded else { return "Le cadre MultitouchSupport ne se charge pas sur ce Mac." }
+        let missing = resolved.filter { !$0.value }.map(\.key).sorted()
+        guard missing.isEmpty else {
+            return "Ce macOS ne fournit plus « \(missing.joined(separator: ", ")) » (MultitouchSupport)."
+        }
+        return nil
     }
 
     static func deviceList() -> CFArray? {

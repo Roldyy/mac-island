@@ -6,8 +6,45 @@ import Darwin
 import Foundation
 import HIDEventSystem
 
+/// One pointing device as the recovery sees it: its registry id and two property accessors. The live value wraps an
+/// `IOHIDServiceClient`; tests build their own, so the journal and the restore path run without a real HID device.
+struct MouseAccelerationDevice {
+    let rawRegistryID: UInt64?
+    let conformsToMouse: Bool
+    let copyProperty: (String) -> CFTypeRef?
+    let setProperty: (String, CFTypeRef) -> Bool
+
+    init(rawRegistryID: UInt64?, conformsToMouse: Bool,
+         copyProperty: @escaping (String) -> CFTypeRef?,
+         setProperty: @escaping (String, CFTypeRef) -> Bool) {
+        self.rawRegistryID = rawRegistryID
+        self.conformsToMouse = conformsToMouse
+        self.copyProperty = copyProperty
+        self.setProperty = setProperty
+    }
+
+    init(service: IOHIDServiceClient) {
+        self.init(
+            rawRegistryID: (IOHIDServiceClientGetRegistryID(service) as? NSNumber)?.uint64Value,
+            conformsToMouse: IOHIDServiceClientConformsTo(service,
+                                                          UInt32(kHIDPage_GenericDesktop),
+                                                          UInt32(kHIDUsage_GD_Mouse)) != 0,
+            copyProperty: { IOHIDServiceClientCopyProperty(service, $0 as CFString) },
+            setProperty: { IOHIDServiceClientSetProperty(service, $0 as CFString, $1) == true })
+    }
+}
+
 enum MouseAccelerationRecovery {
     private static let journalName = "MouseAccelerationRecovery.json"
+
+    /// The devices the event system lists. Swapped by tests only.
+    nonisolated(unsafe) static var deviceLister: (IOHIDEventSystemClient) -> [MouseAccelerationDevice]? = { client in
+        (IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient])?
+            .map(MouseAccelerationDevice.init(service:))
+    }
+
+    /// Where the journal lives. Nil means the app's own container; tests name a temporary file.
+    nonisolated(unsafe) static var journalURLOverride: URL?
 
     static func restorePending() -> Bool {
         guard let journal = loadJournal() else { return false }
@@ -21,7 +58,7 @@ enum MouseAccelerationRecovery {
         guard var journal = loadJournal(),
               let services = services(using: client) else { return false }
 
-        var servicesByID: [UInt64: IOHIDServiceClient] = [:]
+        var servicesByID: [UInt64: MouseAccelerationDevice] = [:]
         for service in services {
             guard let id = registryID(of: service) else { continue }
             servicesByID[id] = service
@@ -70,16 +107,15 @@ enum MouseAccelerationRecovery {
         return !journal.entries.isEmpty
     }
 
-    static func services(using client: IOHIDEventSystemClient) -> [IOHIDServiceClient]? {
-        IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient]
+    static func services(using client: IOHIDEventSystemClient) -> [MouseAccelerationDevice]? {
+        deviceLister(client)
     }
 
-    static func registryID(of service: IOHIDServiceClient) -> UInt64? {
-        let value = (IOHIDServiceClientGetRegistryID(service) as? NSNumber)?.uint64Value
-        return MouseAccelerationSupport.validatedRegistryID(value)
+    static func registryID(of service: MouseAccelerationDevice) -> UInt64? {
+        MouseAccelerationSupport.validatedRegistryID(service.rawRegistryID)
     }
 
-    static func identity(of service: IOHIDServiceClient) -> MouseAccelerationDeviceIdentity? {
+    static func identity(of service: MouseAccelerationDevice) -> MouseAccelerationDeviceIdentity? {
         guard registryID(of: service) != nil else { return nil }
         return MouseAccelerationDeviceIdentity(
             vendorID: numberProperty("VendorID", of: service),
@@ -91,10 +127,8 @@ enum MouseAccelerationRecovery {
         )
     }
 
-    static func isMouse(_ service: IOHIDServiceClient) -> Bool {
-        guard IOHIDServiceClientConformsTo(service,
-                                           UInt32(kHIDPage_GenericDesktop),
-                                           UInt32(kHIDUsage_GD_Mouse)) != 0 else {
+    static func isMouse(_ service: MouseAccelerationDevice) -> Bool {
+        guard service.conformsToMouse else {
             return false
         }
         let accelerationType = stringProperty(MouseAccelerationSupport.pointerAccelerationTypeKey,
@@ -102,7 +136,7 @@ enum MouseAccelerationRecovery {
         return accelerationType != MouseAccelerationSupport.trackpadAccelerationType
     }
 
-    static func captureEntry(for service: IOHIDServiceClient,
+    static func captureEntry(for service: MouseAccelerationDevice,
                              registryID: UInt64,
                              identity: MouseAccelerationDeviceIdentity) -> MouseAccelerationRecoveryEntry? {
         if let value = storedValue(for: MouseAccelerationSupport.linearScalingKey, on: service) {
@@ -120,7 +154,7 @@ enum MouseAccelerationRecovery {
     }
 
     static func applyTarget(for entry: MouseAccelerationRecoveryEntry,
-                            to service: IOHIDServiceClient) -> Bool {
+                            to service: MouseAccelerationDevice) -> Bool {
         setAndVerify(MouseAccelerationSupport.targetValue(
                          for: entry.key,
                          originalIsBoolean: entry.original.isBoolean
@@ -130,12 +164,13 @@ enum MouseAccelerationRecovery {
     }
 
     static func restore(_ entry: MouseAccelerationRecoveryEntry,
-                        on service: IOHIDServiceClient) -> Bool {
+                        on service: MouseAccelerationDevice) -> Bool {
         setAndVerify(entry.original, key: entry.key, on: service)
     }
 
     private static var journalURL: URL? {
-        PrivateFileStore.containerURL?.appendingPathComponent(journalName, isDirectory: false)
+        journalURLOverride
+            ?? PrivateFileStore.containerURL?.appendingPathComponent(journalName, isDirectory: false)
     }
 
     private static func loadJournal() -> MouseAccelerationRecoveryJournal? {
@@ -172,8 +207,8 @@ enum MouseAccelerationRecovery {
             }
             return true
         }
-        guard let container = PrivateFileStore.containerURL,
-              PrivateFileStore.createDirectory(at: container),
+        let container = url.deletingLastPathComponent()
+        guard PrivateFileStore.createDirectory(at: container, container: container),
               let data = try? JSONEncoder().encode(journal) else { return false }
         return PrivateFileStore.write(data, to: url)
     }
@@ -186,7 +221,7 @@ enum MouseAccelerationRecovery {
         return Int64(bootTime.tv_sec)
     }
 
-    private static func accelerationKey(for service: IOHIDServiceClient) -> String {
+    private static func accelerationKey(for service: MouseAccelerationDevice) -> String {
         if let key = stringProperty(MouseAccelerationSupport.pointerAccelerationTypeKey,
                                     of: service),
            key == MouseAccelerationSupport.pointerAccelerationKey
@@ -200,9 +235,9 @@ enum MouseAccelerationRecovery {
     }
 
     private static func service(for entry: MouseAccelerationRecoveryEntry,
-                                in services: [IOHIDServiceClient],
-                                servicesByID: [UInt64: IOHIDServiceClient],
-                                reservedRegistryIDs: Set<UInt64>) -> IOHIDServiceClient? {
+                                in services: [MouseAccelerationDevice],
+                                servicesByID: [UInt64: MouseAccelerationDevice],
+                                reservedRegistryIDs: Set<UInt64>) -> MouseAccelerationDevice? {
         if let exact = servicesByID[entry.registryID],
            let liveIdentity = identity(of: exact),
            entry.identity.matches(liveIdentity) {
@@ -220,8 +255,8 @@ enum MouseAccelerationRecovery {
     }
 
     private static func storedValue(for key: String,
-                                    on service: IOHIDServiceClient) -> MouseAccelerationStoredValue? {
-        guard let value = IOHIDServiceClientCopyProperty(service, key as CFString),
+                                    on service: MouseAccelerationDevice) -> MouseAccelerationStoredValue? {
+        guard let value = service.copyProperty(key),
               let number = value as? NSNumber else { return nil }
         return MouseAccelerationStoredValue(
             rawValue: number.int64Value,
@@ -231,9 +266,9 @@ enum MouseAccelerationRecovery {
 
     private static func setAndVerify(_ value: MouseAccelerationStoredValue,
                                      key: String,
-                                     on service: IOHIDServiceClient) -> Bool {
+                                     on service: MouseAccelerationDevice) -> Bool {
         if storedValue(for: key, on: service) == value { return true }
-        guard IOHIDServiceClientSetProperty(service, key as CFString, cfValue(value)) == true else {
+        guard service.setProperty(key, cfValue(value)) else {
             return false
         }
         return storedValue(for: key, on: service) == value
@@ -247,13 +282,13 @@ enum MouseAccelerationRecovery {
     }
 
     private static func numberProperty(_ key: String,
-                                       of service: IOHIDServiceClient) -> Int64? {
-        (IOHIDServiceClientCopyProperty(service, key as CFString) as? NSNumber)?.int64Value
+                                       of service: MouseAccelerationDevice) -> Int64? {
+        (service.copyProperty(key) as? NSNumber)?.int64Value
     }
 
     private static func stringProperty(_ key: String,
-                                       of service: IOHIDServiceClient) -> String? {
-        guard let value = IOHIDServiceClientCopyProperty(service, key as CFString) else {
+                                       of service: MouseAccelerationDevice) -> String? {
+        guard let value = service.copyProperty(key) else {
             return nil
         }
         if let string = value as? String, !string.isEmpty { return string }
