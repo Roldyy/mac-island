@@ -36,6 +36,10 @@ struct HomeIslandContent: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Roldy Management mark, bottom left, in the free corner of the round-button row.
+        .overlay(alignment: .bottomLeading) {
+            RoldyMark().padding(.leading, 26).padding(.bottom, 24)
+        }
         .islandAnimation(.easeOut(duration: 0.16), value: context.navigation.route)
         .contextMenu { islandMenu }
         .onExitCommand { _ = context.navigation.back() }
