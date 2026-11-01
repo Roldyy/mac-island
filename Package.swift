@@ -37,7 +37,7 @@ let package = Package(
         .target(name: "KeepAwakeFeature", dependencies: ["IslandKit", "IslandUI", "PortKit"], path: "Sources/Features/KeepAwake"),
         .target(name: "NowPlayingFeature", dependencies: ["IslandKit"], path: "Sources/Features/NowPlaying"),
         .target(name: "FinderFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/Finder"),
-        .target(name: "DockFeature", dependencies: ["IslandKit"], path: "Sources/Features/Dock"),
+        .target(name: "DockFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Dock"),
         .target(name: "DisplayFeature", dependencies: ["IslandKit"], path: "Sources/Features/Display"),
         .target(name: "AudioFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Audio"),
 

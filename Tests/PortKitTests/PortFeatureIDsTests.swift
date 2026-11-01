@@ -32,6 +32,20 @@ import Testing
         }
     }
 
+    @Test func aFoldedFeatureSharesTheRegistryIdOfExactlyOneOwner() {
+        // The one place two upstream features share a switch: the Dock (dockPreview owns `dock`, dockClick folds in).
+        #expect(PortFeatureIDs.folded == ["dockClick": "dock"])
+        for (upstream, target) in PortFeatureIDs.folded {
+            #expect(AppFeature(rawValue: upstream) != nil, "\(upstream) is not an upstream feature")
+            #expect(PortFeatureIDs.existing[upstream] == nil, "\(upstream) is both owner and folded")
+            #expect(PortFeatureIDs.existing.values.contains(target), "\(target) has no owner to bind it")
+            #expect(PortFeatureIDs.isOwnedByExistingModule(upstream))
+            #expect(PortFeatureIDs.registryID(forUpstream: upstream) == target)
+        }
+        #expect(AppFeature.dockPreview.registryID == "dock" && AppFeature.dockClick.registryID == "dock")
+        #expect(AppFeature.dockClick.availabilityKey == "shell.enabled.dock")
+    }
+
     @Test func theAvailabilityKeyIsTheRegistrysKey() {
         #expect(AppFeature.keepAwake.availabilityKey == "shell.enabled.keepawake")
         #expect(AppFeature.shelf.availabilityKey == "shell.enabled.shelf")

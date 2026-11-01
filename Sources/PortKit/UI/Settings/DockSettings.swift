@@ -4,9 +4,28 @@
 
 import SwiftUI
 
+/// One card group of the Dock page. Mac Island shows each on its own Settings page (29 and 30).
+enum DockSettingsPart: Hashable {
+    /// The Dock Preview card.
+    case preview
+    /// The window previews Dock Preview shares with the switcher (sizes, minimal previews, paused apps).
+    case previewWindows
+    /// What a click on a Dock icon does.
+    case clicks
+}
+
 /// The Dock page: Dock Preview, Dock clicks and the window previews Dock
 /// Preview shares with the switcher.
+///
+/// Mac Island: `DockSettings(parts:)` shows only the named card groups, with no title, scroll view or permission
+/// rows (the host page has its own status card), and shows them even while the registry holds the feature off, so
+/// its switch and settings stay reachable. The Spaces card is not part of it (its own page, Spaces order).
 struct DockSettings: View {
+    /// nil: the whole upstream page. A set: only those parts, for a page of its own.
+    let parts: Set<DockSettingsPart>?
+
+    init(parts: Set<DockSettingsPart>? = nil) { self.parts = parts }
+
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -30,6 +49,34 @@ struct DockSettings: View {
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
 
     var body: some View {
+        if let parts {
+            VStack(alignment: .leading, spacing: 20) {
+                if parts.contains(.preview) {
+                    dockPreviewCard
+                        .settingsSectionAnchor(.dock, cornerRadius: 16)
+                    if !permissions.screenRecording {
+                        Text("Sans l’enregistrement de l’écran, les aperçus montrent l’icône de l’app au lieu de la vignette de la fenêtre.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if parts.contains(.previewWindows) {
+                    WindowPreviewsCard(sizeKey: DefaultsKey.previewSize,
+                                       excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
+                }
+                if parts.contains(.clicks) {
+                    dockClickCard
+                        .settingsSectionAnchor(.dockClick, cornerRadius: 16)
+                }
+            }
+            .toggleStyle(.switch)
+        } else {
+            fullPage
+        }
+    }
+
+    private var fullPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -206,7 +253,7 @@ struct DockSettings: View {
     private var dockPreviewCaption: String {
         guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }
         if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
-        if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
+        // Mac Island: Screen Recording only adds thumbnails (the note under the card says so), it blocks nothing.
         switch dockPreview.blockedReason {
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:

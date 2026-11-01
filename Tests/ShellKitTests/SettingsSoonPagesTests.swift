@@ -28,7 +28,7 @@ import Testing
     }
 
     @Test func realFeaturePagesHaveLiveControls() {
-        for id in ["dockclicks", "clipboard", "commandbar", "monitor", "shelf", "cutpaste"] {
+        for id in ["clipboard", "commandbar", "monitor", "shelf", "cutpaste"] {
             let page = SettingsPageCatalog.page(id)!
             #expect(SettingsPageModel.blocks(for: page).flatMap(\.rows).contains { $0.isLive }, "\(id)")
         }
@@ -36,7 +36,7 @@ import Testing
 
     @Test func liveKeysAreTheMigratedNames() {
         let keys = SettingsLive.table.values.flatMap { $0.bound.values.map(\.key) + $0.extras.map(\.key) }
-        for key in ["notchIdleShowKeepAwake", "dockClickMinimize", "clipboardHistoryEnabled", "pastePlainShortcut", "finderCutPasteEnabled"] {
+        for key in ["notchIdleShowKeepAwake", "clipboardHistoryEnabled", "pastePlainShortcut", "finderCutPasteEnabled"] {
             #expect(keys.contains(key), "\(key)")
         }
     }

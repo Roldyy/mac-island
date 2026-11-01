@@ -71,6 +71,8 @@ extension VorssaintMigrator {
     static let upstreamToRegistryID: [String: String] = [
         "keepAwake": "keepawake", "clipboardHistory": "clipboard", "commandBar": "commandbar",
         "mixer": "audio", "fanControl": "fans",
+        // The two Dock switches of upstream are one registry feature (`PortFeatureIDs.folded`): on when either was.
+        "dockPreview": "dock", "dockClick": "dock",
     ]
     static let switchPrefix = "featureAvailable."
     static let switchTargetPrefix = "shell.enabled."
@@ -128,6 +130,10 @@ extension VorssaintMigrator {
                 }
                 if destDefaults.object(forKey: target) != nil {
                     plan.report.alreadyPresentKeys.append(target)
+                } else if let pending = plan.writes.firstIndex(where: { $0.key == target }) {
+                    // Two upstream switches fold into one registry switch (dockPreview + dockClick -> dock):
+                    // it is on when either was on.
+                    if (value as? NSNumber)?.boolValue == true { plan.writes[pending].value = value }
                 } else {
                     plan.writes.append((target, value))
                     plan.report.mappedSwitches.append(target)
@@ -210,13 +216,17 @@ extension VorssaintMigrator {
     public static func repairSwitchIDsV2(in defaults: UserDefaults) -> Int {
         guard !defaults.bool(forKey: switchIDRepairDoneKey) else { return 0 }
         var moved = 0
+        var movedTargets: Set<String> = []
         for (upstream, registry) in upstreamToRegistryID.sorted(by: { $0.key < $1.key }) {
             let stray = switchTargetPrefix + upstream
             let right = switchTargetPrefix + registry
             guard let value = defaults.object(forKey: stray) else { continue }
             if defaults.object(forKey: right) == nil, isBoolean(value) {
                 defaults.set(value, forKey: right)
+                movedTargets.insert(right)
                 moved += 1
+            } else if movedTargets.contains(right), isBoolean(value), (value as? NSNumber)?.boolValue == true {
+                defaults.set(true, forKey: right)  // two strays fold into one switch (the Dock's): on when either was
             }
             defaults.removeObject(forKey: stray)
         }

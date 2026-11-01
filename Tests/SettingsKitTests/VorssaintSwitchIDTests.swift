@@ -26,6 +26,24 @@ import Testing
         #expect(VorssaintMigrator.upstreamToRegistryID["fanControl"] == "fans")
     }
 
+    @Test func theTwoDockSwitchesShareTheDockSwitch() {
+        #expect(VorssaintMigrator.upstreamToRegistryID["dockPreview"] == "dock")
+        #expect(VorssaintMigrator.upstreamToRegistryID["dockClick"] == "dock")
+    }
+
+    @Test func twoStrayDockSwitchesRepairIntoOneSwitchOnWhenEitherWasOn() {
+        for (preview, click, expected) in [(true, false, true), (false, true, true), (false, false, false)] {
+            let (defaults, cleanup) = makeSuite()
+            defer { cleanup() }
+            defaults.set(preview, forKey: "shell.enabled.dockPreview")
+            defaults.set(click, forKey: "shell.enabled.dockClick")
+            #expect(VorssaintMigrator.repairSwitchIDsV2(in: defaults) == 1)
+            #expect(defaults.object(forKey: "shell.enabled.dock") as? Bool == expected, "preview \(preview), click \(click)")
+            #expect(defaults.object(forKey: "shell.enabled.dockPreview") == nil)
+            #expect(defaults.object(forKey: "shell.enabled.dockClick") == nil)
+        }
+    }
+
     @Test func aStraySwitchMovesToTheRegistryKeyOnce() {
         let (defaults, cleanup) = makeSuite()
         defer { cleanup() }

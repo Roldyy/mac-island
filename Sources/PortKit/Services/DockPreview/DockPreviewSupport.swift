@@ -357,9 +357,10 @@ enum DockPreviewSupport {
         guard hasAccessibility else {
             return DockPreviewAvailability(canRun: false, blockedReason: .missingAccessibility)
         }
-        guard hasScreenRecording else {
-            return DockPreviewAvailability(canRun: false, blockedReason: .missingScreenRecording)
-        }
+        // Mac Island: Screen Recording only gives the cards their thumbnails (`WindowPreviewProvider` checks it before
+        // any capture, so nothing is captured and nothing asks without it). Without it the cards show the app icon
+        // and the panel still opens, so it never blocks the preview.
+        _ = hasScreenRecording
         guard preferences != nil else {
             return DockPreviewAvailability(canRun: false, blockedReason: .dockUnavailable)
         }

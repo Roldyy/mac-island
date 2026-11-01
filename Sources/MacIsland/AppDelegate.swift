@@ -65,6 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PortBridge.registerDefaults()
         // The one prompt-capable audio call (a probe tap) runs from the "Autoriser" click only.
         UserPermissionRequest.audioCaptureRequest = { PortMixer.requestAudioCaptureByClick() }
+        // The Dock tab's "Autoriser" buttons ask like the Settings cards do: once, so macOS lists the app, then the pane.
+        PortDock.requestPermission = { permission in
+            switch permission {
+            case .accessibility: UserPermissionRequest.request(MonitoredPermission.accessibility)
+            case .screenRecording: UserPermissionRequest.request(MonitoredPermission.screenRecording)
+            }
+        }
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
         let live = ClaudeLiveMonitor(
@@ -82,7 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "clipboard": { ClipboardFeature.start() },
                 "shelf": { ShelfFeature.start() },
                 "finder": { FinderFeature.start() },
-                "dock": { DockFeature.start() },
                 "display": { DisplayFeature.start() },
                 "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
                 "monitor": { MonitorFeature.start() },
@@ -92,7 +98,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ]) { _, ours in ours },
             stoppers: ported.stoppers.merging([
                 "finder": { FinderFeature.stop() },
-                "dock": { DockFeature.stop() },
                 "display": { DisplayFeature.stop() },
                 "fans": { FansFeature.stop() },
                 "monitor": { MonitorFeature.stop() },

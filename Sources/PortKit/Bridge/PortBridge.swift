@@ -128,6 +128,8 @@ public enum PortBridge {
         SpacesOrderHold.recoverIfNeeded()
         // A gamma dim or a switched-off display left by a run that died: each step tests its own marker.
         DisplayBrightnessLane.recoverAtLaunch(defaults: defaults)
+        // The Dock auto-hide a "keep the Dock visible" hover left held: entered only when its journal is set.
+        DockLane.recoverAtLaunch(defaults: defaults)
     }
 
     // MARK: Settings page bodies

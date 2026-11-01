@@ -96,6 +96,21 @@ private struct BenchV2 {
         #expect(report.typeMismatchKeys == ["featureAvailable.", "featureAvailable.bad"])
     }
 
+    @Test func theTwoDockSwitchesFoldIntoTheOneDockSwitchOnWhenEitherWasOn() throws {
+        for (preview, click, expected) in [(true, false, true), (false, true, true), (false, false, false), (true, true, true)] {
+            let b = try BenchV2(); defer { b.cleanup() }
+            let report = try b.migrator(["featureAvailable.dockPreview": preview, "featureAvailable.dockClick": click]).runV2()
+            #expect(b.defaults.object(forKey: "shell.enabled.dock") as? Bool == expected, "preview \(preview), click \(click)")
+            #expect(b.defaults.object(forKey: "shell.enabled.dockPreview") == nil)
+            #expect(b.defaults.object(forKey: "shell.enabled.dockClick") == nil)
+            #expect(report.mappedSwitches == ["shell.enabled.dock"], "one switch, written once")
+        }
+        let b = try BenchV2(); defer { b.cleanup() }
+        b.defaults.set(false, forKey: "shell.enabled.dock")
+        _ = try b.migrator(["featureAvailable.dockPreview": true, "featureAvailable.dockClick": true]).runV2()
+        #expect(b.defaults.bool(forKey: "shell.enabled.dock") == false, "the user's own choice wins")
+    }
+
     @Test func skipListAndUnknownKeysAreNeverWritten() throws {
         let b = try BenchV2(); defer { b.cleanup() }
         let report = try b.migrator([

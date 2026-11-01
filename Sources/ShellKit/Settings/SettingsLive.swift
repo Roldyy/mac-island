@@ -68,15 +68,8 @@ public enum SettingsLive {
             ]),
         // "keepawake" has no live entry any more: the ported Keep Awake page (PortKit, Energy lane) draws the whole
         // page, its default duration, automation, jiggle, display sleep, battery limit, island hold and closed lid.
-        "dockpreview": Page(bound: [
-            "Prévisualiser les fenêtres dans le Dock": flag("dockPreviewEnabled", false),
-            "Délai d’ouverture": C("dockPreviewDelayMilliseconds", .stepper(range: 100...2000, defaultValue: 400, unit: "ms")),
-        ]),
-        "dockclicks": Page(bound: [
-            "Réduire d’un clic sur le Dock": flag("dockClickMinimize", false),
-            "Masquer l’app d’un clic sur le Dock": flag("dockClickHide", false),
-            "Clic sur le Dock pour alterner les fenêtres": flag("dockClickCycleWindows", false),
-        ]),
+        // "dockpreview" and "dockclicks" have no live entry any more: the ported Dock pages (PortKit, Dock lane) draw
+        // both pages whole, under the `dock` feature card their catalog rows carry.
         "quitonclose": Page(
             bound: ["Quitter les apps à la fermeture de leur dernière fenêtre": flag("autoQuitEnabled", false)],
             extras: [

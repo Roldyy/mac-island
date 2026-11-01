@@ -1,0 +1,12 @@
+# Lane W3-C (Dock Preview, Dock clicks): the upstream harness tests this lane turns on (names as in Tests/ of the pinned
+# Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here. They are
+# plain-Swift check scripts the upstream harness rewrites (generate_sources.py) against stub singletons: they extract
+# the session methods of DockPreviewService from the production text, so patches 0800-0849 must not touch
+# beginDockAutohideHold / releaseDockAutohideHold / handleDockHoldInput. 71 checks upstream (port plan section 4, lane 3C).
+# Patch 0800 (Screen Recording no longer blocks the preview) only edits DockPreviewSupport.availability, which none of
+# these calls; 0801 only adds the page parts to DockSettings.
+DockAutohideHoldTests.swift
+DockPreviewFrameRestorationTests.swift
+DockPreviewPositionTests.swift
+DockPreviewScopeTests.swift
+DockPreviewScrollTests.swift
