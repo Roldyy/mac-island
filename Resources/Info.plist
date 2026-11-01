@@ -45,14 +45,19 @@
     <string>Mac Island parcourt votre réseau local pour lister les appareils, uniquement quand vous lancez un scan vous-même. Rien ne quitte votre réseau.</string>
     <key>NSBonjourServices</key>
     <array>
+        <string>_workstation._tcp</string>
+        <string>_device-info._tcp</string>
+        <string>_airplay._tcp</string>
+        <string>_raop._tcp</string>
+        <string>_companion-link._tcp</string>
+        <string>_googlecast._tcp</string>
+        <string>_hap._tcp</string>
         <string>_http._tcp</string>
-        <string>_https._tcp</string>
-        <string>_ssh._tcp</string>
+        <string>_ipp._tcp</string>
+        <string>_printer._tcp</string>
         <string>_smb._tcp</string>
         <string>_afpovertcp._tcp</string>
-        <string>_ipp._tcp</string>
-        <string>_airplay._tcp</string>
-        <string>_device-info._tcp</string>
+        <string>_ssh._tcp</string>
     </array>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Mac Island lists your latest finished downloads so you can drag them out of the island.</string>
