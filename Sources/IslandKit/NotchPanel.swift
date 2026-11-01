@@ -214,9 +214,17 @@ public final class IslandController {
               panel.isVisible ? 1 : 0, panel.level.rawValue)
     }
 
+    /// "Activer Dynamic Island" off: the panel leaves the screen and the hover cannot open it. `show()` brings it back.
+    public func hide() {
+        closeWork?.cancel()
+        close()
+        isShown = false
+        panel.orderOut(nil)
+    }
+
     public func open() {
         closeWork?.cancel()
-        guard !isOpen else { return }
+        guard isShown, !isOpen else { return }
         isOpen = true
         // Panel first (at its final size, at once), then the one animation that reveals the content inside it.
         move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame))

@@ -61,6 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setEnabled: { id, enabled in MainActor.assumeIsolated { _ = registry.setSwitch(id, to: enabled) } },
             storedSwitch: { id in MainActor.assumeIsolated { registry.storedSwitch(id) } })
         PortBridge.updatePermissions(Self.portPermissions(PermissionProbe.live(defaults: defaults).snapshot()))
+        // Upstream registers `notchEnabled` off; here the island is the app. A first launch stores on, BEFORE upstream's
+        // defaults are registered (a registered value would hide that the key is absent), so the island, its page and
+        // the ported permission gates read one value. A migrated choice is a stored value and stays.
+        if defaults.object(forKey: "notchEnabled") == nil { defaults.set(true, forKey: "notchEnabled") }
         PortBridge.registerDefaults()
         // The one prompt-capable audio call (a probe tap) runs from the "Autoriser" click only.
         // Both cards (the mixer's and the equalizer's) read the probe tap's stored outcome: re-read it after the click.
@@ -176,6 +180,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         island.openSize = context.panelSize
         islandRef = island
         island.show()
+        // "Activer Dynamic Island" (`notchEnabled`): off keeps the panel off screen; the switch shows or hides it at once.
+        if !home.islandEnabled { island.hide() }
+        home.onIslandEnabledChange = { [weak island] on in if on { island?.show() } else { island?.hide() } }
 
         // The home's now-playing card reads the players themselves (Now Playing feature), not the closed island.
         home.attachNowPlaying(Self.nowPlayingSource())

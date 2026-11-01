@@ -27,9 +27,16 @@ public struct IslandLayoutSettings: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.l) {
+            SettingsCard {
+                VStack(alignment: .leading, spacing: IslandSpacing.xs) {
+                    Toggle("Activer Dynamic Island", isOn: $home.islandEnabled).toggleStyle(IslandToggleStyle())
+                    caption("Facultatif. Désactivé, l’île disparaît de l’écran ; l’icône de la barre des menus et le panneau rapide restent.")
+                }
+            }
             if let openIsland {
                 Button("Ouvrir Dynamic Island", systemImage: "rectangle.topthird.inset.filled", action: openIsland)
                     .buttonStyle(IslandButtonStyle())
+                    .disabled(!home.islandEnabled)
             }
             sizeCard
             lookCard

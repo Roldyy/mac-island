@@ -22,12 +22,24 @@ public final class HomeModel {
         static let explorerReplaced = "notchExplorerButtonReplaced"
         /// JSON array of the tile ids the user hid from the home grid.
         static let hiddenTiles = "notchHomeHiddenTiles"
+        /// "Activer Dynamic Island" (the migrated key); absent means on, the island is the app.
+        static let enabled = "notchEnabled"
     }
 
     public static let fitWidthRange: ClosedRange<Double> = -10...10
     public static let fitHeightRange: ClosedRange<Double> = -6...6
     /// Extra height when "Masquer l'espace sous l'encoche" is on: the strip under the notch disappears.
     public static let hiddenGapExtra: CGFloat = 4
+
+    /// "Activer Dynamic Island": off hides the panel (`onIslandEnabledChange`), the menu bar icon stays.
+    public var islandEnabled: Bool {
+        didSet {
+            guard islandEnabled != oldValue else { return }
+            defaults.set(islandEnabled, forKey: Keys.enabled)
+            onIslandEnabledChange?(islandEnabled)
+        }
+    }
+    @ObservationIgnored public var onIslandEnabledChange: (@MainActor (Bool) -> Void)?
 
     public var sizeMode: IslandSizeMode { didSet { defaults.set(sizeMode.rawValue, forKey: Keys.size) } }
     public var customWidth: Double {
@@ -128,6 +140,7 @@ public final class HomeModel {
                 lastTrack: LastTrackModel? = nil) {
         self.defaults = defaults
         self.lastTrack = lastTrack ?? LastTrackModel(defaults: defaults)
+        islandEnabled = (defaults.object(forKey: Keys.enabled) as? Bool) ?? true
         sizeMode = defaults.string(forKey: Keys.size).flatMap(IslandSizeMode.init(rawValue:)) ?? .spacious
         customWidth = Self.stored(defaults, Keys.customWidth, HomeGeometry.defaultCustomWidth, HomeGeometry.customWidthRange)
         customHeight = Self.stored(defaults, Keys.customHeight, HomeGeometry.defaultCustomHeight, HomeGeometry.customHeightRange)

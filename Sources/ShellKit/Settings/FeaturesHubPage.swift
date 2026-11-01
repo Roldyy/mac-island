@@ -15,6 +15,7 @@ struct FeaturesHubPage: View {
     @State private var query = ""
     @State private var sheetTab: IslandTab?
     @State private var hooksCopied = false
+    @State private var confirmUninstallAll = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,6 +57,21 @@ struct FeaturesHubPage: View {
                     Button(bundle.title) { registry.apply(bundle) }.buttonStyle(IslandButtonStyle())
                 }
                 Spacer()
+            }
+            let installed = registry.descriptors.filter { registry.isEnabled($0.id) }.count
+            HStack(spacing: 8) {
+                Text("\(installed) fonctions sur \(registry.descriptors.count) installées")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Tout installer") { registry.apply(.tout) }.buttonStyle(IslandButtonStyle())
+                Button("Tout désinstaller") { confirmUninstallAll = true }.buttonStyle(IslandButtonStyle(.destructive))
+            }
+            .confirmationDialog("Désinstaller toutes les fonctions ?", isPresented: $confirmUninstallAll) {
+                Button("Tout désinstaller", role: .destructive) {
+                    for d in registry.descriptors { _ = registry.setSwitch(d.id, to: false) }
+                }
+            } message: {
+                Text("Chaque interrupteur passe sur arrêt. Vous pouvez les rallumer un par un, ou avec « Tout installer ».")
             }
             Toggle("Mode sans échec (garde seulement les fonctions du quotidien)", isOn: $registry.safeMode)
                 .toggleStyle(IslandToggleStyle())
@@ -121,9 +137,11 @@ struct FeaturesHubPage: View {
             if let tabID = d.tabID, let tab = sheetTabs[tabID] {
                 Button("Réglages") { sheetTab = tab }.buttonStyle(IslandButtonStyle())
             }
-            Toggle(d.title, isOn: $registry[feature: d.id])
-                .labelsHidden()
+            // IslandToggleStyle draws its label itself (`labelsHidden` does not reach it): an empty label, named for VoiceOver.
+            Toggle(isOn: $registry[feature: d.id]) { EmptyView() }
                 .toggleStyle(IslandToggleStyle())
+                .fixedSize()
+                .accessibilityLabel(d.title)
         }
         .padding(.vertical, 3)
     }
