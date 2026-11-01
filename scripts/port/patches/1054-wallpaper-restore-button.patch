@@ -1,0 +1,16 @@
+--- a/UI/MenuPanel/WallpaperSection.swift
++++ b/UI/MenuPanel/WallpaperSection.swift
+@@ -126,6 +126,13 @@
+                     .buttonStyle(.bordered)
+                     .controlSize(.small)
+                 }
++                if service.canRestorePrevious {
++                    Button(MediaToolsText.restoreWallpaper) { service.restorePrevious() }
++                        .buttonStyle(.bordered)
++                        .controlSize(.small)
++                        .disabled(isRemovingSources || service.isApplying)
++                        .help(MediaToolsText.restoreWallpaperHelp)
++                }
+                 Spacer(minLength: 0)
+             }
+         }

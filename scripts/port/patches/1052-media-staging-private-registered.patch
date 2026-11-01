@@ -1,0 +1,21 @@
+--- a/Services/Media/MediaSupport.swift
++++ b/Services/Media/MediaSupport.swift
+@@ -830,6 +830,8 @@
+                                             in: .userDomainMask,
+                                             appropriateFor: outputURL,
+                                             create: true)
++        // Owner-only (0700), tracked, and removed again at the end of the job, on a stop and at the quit.
++        MediaStaging.register(directory, fileSystem: LiveMediaFileSystem(fileManager: fileManager))
+         let ext = outputURL.pathExtension
+         var temporary = directory.appendingPathComponent("Output")
+         if !ext.isEmpty { temporary.appendPathExtension(ext) }
+@@ -838,7 +840,8 @@
+ 
+     static func discardStagedOutput(_ stagedURL: URL,
+                                     fileManager: FileManager = .default) {
+-        try? fileManager.removeItem(at: stagedURL.deletingLastPathComponent())
++        // Only the staging folder this process made goes whole; any other folder loses at most the staged file.
++        MediaStaging.discard(stagedURL, fileSystem: LiveMediaFileSystem(fileManager: fileManager))
+     }
+ 
+     static func installStagedOutput(_ stagedURL: URL, at outputURL: URL,

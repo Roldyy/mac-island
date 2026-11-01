@@ -1,0 +1,53 @@
+--- a/Services/Media/MediaService.swift
++++ b/Services/Media/MediaService.swift
+@@ -156,7 +156,8 @@
+ }
+ 
+ final class MediaService: ObservableObject {
+-    static let shared = MediaService()
++    // Mac Island never overwrites a file: a name that is taken gets " 2", " 3"... (MediaOutputNaming).
++    static let shared = MediaService(replacesExistingOutputs: false)
+ 
+     @Published private(set) var state: MediaServiceState = .idle
+ 
+@@ -194,6 +195,7 @@
+     }
+ 
+     func compressVideo(inputURL: URL, outputURL: URL, options: MediaVideoOptions) {
++        let outputURL = availableOutput(outputURL)
+         run(.videoCompressor) { [weak self] id, token in
+             try self?.compressVideoWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                         operationID: id, token: token)
+@@ -201,6 +203,7 @@
+     }
+ 
+     func makeGIF(inputURL: URL, outputURL: URL, options: MediaGIFOptions) {
++        let outputURL = availableOutput(outputURL)
+         run(.gifMaker) { [weak self] id, token in
+             try self?.makeGIFWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                   operationID: id, token: token)
+@@ -208,6 +211,7 @@
+     }
+ 
+     func compressImage(inputURL: URL, outputURL: URL, options: MediaImageOptions) {
++        let outputURL = availableOutput(outputURL)
+         run(.imageCompressor) { [weak self] id, token in
+             try self?.processImagesWork(inputURLs: [inputURL],
+                                         outputDirectory: outputURL.deletingLastPathComponent(),
+@@ -230,10 +234,16 @@
+     }
+ 
+     func extractText(inputURL: URL, outputURL: URL?, options: MediaTextOptions) {
++        let outputURL = outputURL.map(availableOutput)
+         run(.textExtractor) { [weak self] id, token in
+             try self?.extractTextWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                       operationID: id, token: token)
+         }
++    }
++
++    /// The chosen output, or the first free name beside it when the service never replaces a file.
++    private func availableOutput(_ url: URL) -> URL {
++        replacesExistingOutputs ? url : MediaOutputNaming.availableURL(url)
+     }
+ 
+     private func run(_ tool: MediaTool,

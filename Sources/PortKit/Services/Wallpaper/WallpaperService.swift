@@ -28,6 +28,8 @@ final class WallpaperService: ObservableObject {
     // true while materializing an iCloud still or finishing apply
     @Published private(set) var isApplying = false
     @Published private(set) var isDownloading = false
+    // true while a restore point (per-screen images) or the Index.plist copy exists: "Rétablir" is offered
+    @Published private(set) var canRestorePrevious = false
     // bumps when thumb generation changes so cell .task restarts
     @Published private(set) var thumbEpoch = 0
 
@@ -51,6 +53,7 @@ final class WallpaperService: ObservableObject {
         loadBookmarks()
         loadExclusions()
         loadFilter()
+        canRestorePrevious = WallpaperRestore.live.canRestore
     }
 
     var isAvailable: Bool { AppFeature.wallpaper.isAvailable }
@@ -108,7 +111,8 @@ final class WallpaperService: ObservableObject {
             isLoading = false
             isApplying = false
             isDownloading = false
-            WallpaperStore.removeBackup()
+            // The Index.plist copy and the restore point stay: switching the feature off (or the kill switch) must not
+            // destroy the way back; "Rétablir" works again as soon as the feature is on.
             return
         }
         WallpaperStore.migrateLegacyBackupIfNeeded()
@@ -227,6 +231,11 @@ final class WallpaperService: ObservableObject {
             return
         }
 
+        // Remember what the desktop shows now (first change only), before anything is written.
+        let restorer = WallpaperRestore.live
+        restorer.captureIfNeeded()
+        canRestorePrevious = restorer.canRestore
+
         let token = UUID()
         applyToken = token
         setApplyGeneration(token)
@@ -275,6 +284,39 @@ final class WallpaperService: ObservableObject {
                 self.appliedPath = url.path
             } else {
                 self.lastError = FeatureStrings.wallpaper(L10n.shared.language).applyFailed
+            }
+        }
+    }
+
+    // "Rétablir": only from a click. Screens first (NSWorkspace, main actor), then the wallpaper store copy and the
+    // agent restart off main. A newer apply or a restore supersedes a pending one through the same token.
+    func restorePrevious() {
+        guard isAvailable, !isApplying else { return }
+        lastError = nil
+        let token = UUID()
+        applyToken = token
+        setApplyGeneration(token)
+        isApplying = true
+        let restorer = WallpaperRestore.live
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.applyToken == token { self.isApplying = false }
+            }
+            var outcome = WallpaperRestoreOutcome()
+            let screens = restorer.restoreScreens()
+            outcome.screensRestored = screens.restored
+            outcome.screensFailed = screens.failed
+            let index = await Task.detached(priority: .userInitiated) { restorer.restoreIndex() }.value
+            outcome.index = index.result
+            outcome.agentRestarted = index.agentRestarted
+            restorer.finish(outcome)
+            self.canRestorePrevious = restorer.canRestore
+            guard self.applyToken == token else { return }
+            if outcome.succeeded {
+                self.appliedPath = nil
+            } else {
+                self.lastError = MediaToolsText.restoreWallpaperFailed
             }
         }
     }

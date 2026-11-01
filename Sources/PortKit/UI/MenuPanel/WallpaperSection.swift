@@ -126,6 +126,13 @@ struct WallpaperSection: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
+                if service.canRestorePrevious {
+                    Button(MediaToolsText.restoreWallpaper) { service.restorePrevious() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isRemovingSources || service.isApplying)
+                        .help(MediaToolsText.restoreWallpaperHelp)
+                }
                 Spacer(minLength: 0)
             }
         }

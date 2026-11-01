@@ -1,0 +1,12 @@
+# Lane W4-D (media tools, wallpaper): the upstream harness tests this lane turns on (names as in Tests/ of the pinned
+# Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here. 152 checks
+# upstream (port plan section 4, lane 4D).
+# Harness note: patches 1052 and 1051 make MediaSupport.temporaryOutputURL / discardStagedOutput call MediaStaging and
+# LiveMediaFileSystem, and MediaService call MediaOutputNaming, MediaToolsRuntime and MediaAvconvertCommand, all of which
+# live in Bridge/MediaTools.swift (hand-written, so outside the import). A harness that compiles MediaSupport alone
+# (MediaFeatureTests lines 337-346 call both functions) must compile that file too or stub those types. The lane's own
+# checks are Tests/PortKitTests/MediaTools*Tests.swift and they do run under `swift test --filter MediaTools`.
+MediaDialogHostTests.swift
+MediaFeatureTests.swift
+MediaWorkspaceLayoutTests.swift
+WallpaperTests.swift

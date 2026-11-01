@@ -156,7 +156,8 @@ final class MediaWorkspaceSelection: ObservableObject {
 }
 
 final class MediaService: ObservableObject {
-    static let shared = MediaService()
+    // Mac Island never overwrites a file: a name that is taken gets " 2", " 3"... (MediaOutputNaming).
+    static let shared = MediaService(replacesExistingOutputs: false)
 
     @Published private(set) var state: MediaServiceState = .idle
 
@@ -194,6 +195,7 @@ final class MediaService: ObservableObject {
     }
 
     func compressVideo(inputURL: URL, outputURL: URL, options: MediaVideoOptions) {
+        let outputURL = availableOutput(outputURL)
         run(.videoCompressor) { [weak self] id, token in
             try self?.compressVideoWork(inputURL: inputURL, outputURL: outputURL, options: options,
                                         operationID: id, token: token)
@@ -201,6 +203,7 @@ final class MediaService: ObservableObject {
     }
 
     func makeGIF(inputURL: URL, outputURL: URL, options: MediaGIFOptions) {
+        let outputURL = availableOutput(outputURL)
         run(.gifMaker) { [weak self] id, token in
             try self?.makeGIFWork(inputURL: inputURL, outputURL: outputURL, options: options,
                                   operationID: id, token: token)
@@ -208,6 +211,7 @@ final class MediaService: ObservableObject {
     }
 
     func compressImage(inputURL: URL, outputURL: URL, options: MediaImageOptions) {
+        let outputURL = availableOutput(outputURL)
         run(.imageCompressor) { [weak self] id, token in
             try self?.processImagesWork(inputURLs: [inputURL],
                                         outputDirectory: outputURL.deletingLastPathComponent(),
@@ -230,10 +234,16 @@ final class MediaService: ObservableObject {
     }
 
     func extractText(inputURL: URL, outputURL: URL?, options: MediaTextOptions) {
+        let outputURL = outputURL.map(availableOutput)
         run(.textExtractor) { [weak self] id, token in
             try self?.extractTextWork(inputURL: inputURL, outputURL: outputURL, options: options,
                                       operationID: id, token: token)
         }
+    }
+
+    /// The chosen output, or the first free name beside it when the service never replaces a file.
+    private func availableOutput(_ url: URL) -> URL {
+        replacesExistingOutputs ? url : MediaOutputNaming.availableURL(url)
     }
 
     private func run(_ tool: MediaTool,
@@ -324,56 +334,41 @@ final class MediaService: ObservableObject {
         let preset = avconvertPreset(codec: options.codec,
                                      maxDimension: max(Int(outSize.width), Int(outSize.height)),
                                      quality: options.quality)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/avconvert")
-        process.arguments = [
-            "--source", inputURL.path,
-            "--preset", preset,
-            "--output", stagedOutputURL.path,
-            "--replace",
-            "--progress",
-            // Deliberately not the reader's region: these are arguments for
-            // a tool that reads a decimal point, and a comma would break the
-            // trim in every country that writes numbers that way.
-            "--start", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.start),
-            "--duration", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.duration),
-        ]
-        if options.quality >= 0.82 {
-            process.arguments?.append("--multiPass")
+        // One fixed argument array through the lane's runner (Bridge/MediaTools.swift): absolute paths only, a time
+        // budget, a cancel, a lowered CPU priority, and an "indisponible" answer when avconvert is not on this Mac.
+        let command: MediaToolCommand
+        do {
+            command = try MediaAvconvertCommand.make(source: inputURL,
+                                                     output: stagedOutputURL,
+                                                     preset: preset,
+                                                     start: trim.start,
+                                                     duration: trim.duration,
+                                                     multiPass: options.quality >= 0.82)
+        } catch let error as MediaToolsError {
+            throw MediaFailureBox(.failed(error.message))
         }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        var log = ""
-        let logLock = NSLock()
-        pipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
-            logLock.lock()
-            log.append(chunk)
-            if log.count > 8_000 { log.removeFirst(log.count - 8_000) }
-            logLock.unlock()
-        }
-        defer {
-            pipe.fileHandleForReading.readabilityHandler = nil
-            if process.isRunning { process.terminate() }
-        }
-        try launch(process: process, operationID: operationID, token: token)
-        while process.isRunning {
-            try checkCancellation(token)
-            let elapsed = Date().timeIntervalSince(started)
-            let estimate = max(1, trim.duration * 0.75)
-            publish(.running(progress: min(0.95, elapsed / estimate), message: "video"), operationID: operationID)
-            Thread.sleep(forTimeInterval: 0.08)
-        }
-        if token.isCancelled {
+        let limits = MediaToolsRuntime.limits(forVideoSeconds: trim.duration)
+        let outcome = try MediaToolsRuntime.runner.run(
+            command,
+            limits: limits,
+            isCancelled: { token.isCancelled },
+            launch: { process in
+                try self.launch(process: process, operationID: operationID, token: token)
+            },
+            onTick: { elapsed in
+                let estimate = max(1, trim.duration * 0.75)
+                self.publish(.running(progress: min(0.95, elapsed / estimate), message: "video"),
+                             operationID: operationID)
+            })
+        switch outcome {
+        case let .finished(status, log):
+            guard status == 0 else { throw MediaFailureBox(.failed(MediaToolsText.avconvertFailed(log))) }
+        case .cancelled:
             throw MediaFailureBox(.cancelled)
-        }
-        guard process.terminationStatus == 0 else {
-            logLock.lock()
-            let message = log.trimmingCharacters(in: .whitespacesAndNewlines)
-            logLock.unlock()
-            throw MediaFailureBox(.failed(message.isEmpty ? "avconvert failed." : message))
+        case .timedOut:
+            throw MediaFailureBox(.failed(MediaToolsText.timedOut(minutes: Int(limits.timeout / 60))))
+        case let .toolUnavailable(reason):
+            throw MediaFailureBox(.failed(reason))
         }
     }
 
