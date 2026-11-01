@@ -20,8 +20,11 @@ struct ShortcutsSettings: View {
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
+    /// Mac Island: only the shortcuts of features a lane bound and the registry lets run. The shortcuts of our own
+    /// modules (Keep Awake, Clipboard, Shelf, Command bar) are set on their own pages, in their own format, and
+    /// a feature nobody bound has nothing registered: listing it here would edit a key nothing reads.
     private var availableRoles: [GlobalShortcutRole] {
-        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable }).filter {
+        GlobalShortcutRole.availableRoles(isAvailable: { PortShortcutOwnership.isRunning($0) }).filter {
             !$0.isKeyboardBrightness || BrightnessService.keyboardLightIsSupported
         }
     }
@@ -33,7 +36,7 @@ struct ShortcutsSettings: View {
     private var visibleGroups: [FeatureGroup] {
         FeatureGroup.allCases.filter { group in
             availableRoles.contains { $0.group == group }
-                || (group == .windowsDock && AppFeature.windowLayout.isAvailable)
+                || (group == .windowsDock && PortShortcutOwnership.isRunning(.windowLayout))
         }
     }
 
@@ -57,7 +60,7 @@ struct ShortcutsSettings: View {
                 }
             }
 
-            if AppFeature.commandBar.isAvailable {
+            if PortShortcutOwnership.isRunning(.commandBar) {
                 Section {
                     Button {
                         showsAppShortcuts = true
@@ -86,7 +89,7 @@ struct ShortcutsSettings: View {
             if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
             if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
             if feature == .windowLayout {
-                return group == .windowsDock && feature.isAvailable
+                return group == .windowsDock && PortShortcutOwnership.isRunning(feature)
             }
             return availableRoles.contains { $0.feature == feature && $0.group == group }
         }
@@ -236,7 +239,7 @@ struct ShortcutsSettings: View {
             includeInactiveConflicts: true,
             reservesClearButtonSpace: reservesClearButtonSpace,
             additionalConflict: { shortcut in
-                guard AppFeature.windowLayout.isAvailable else { return nil }
+                guard PortShortcutOwnership.isRunning(.windowLayout) else { return nil }
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
             },
             onChange: {

@@ -27,7 +27,7 @@ struct PermissionStatusCard: View {
                         if !snapshot[permission] {
                             Button("Autoriser") {
                                 monitor.noteOpened(permission)
-                                if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
+                                UserPermissionRequest.request(permission)
                             }
                             .buttonStyle(IslandButtonStyle())
                         }

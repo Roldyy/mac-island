@@ -18,7 +18,10 @@ struct DeclarativePage: View {
         self.registry = registry
         self.store = store
         self.openPermission = openPermission
-        blocks = SettingsPageModel.blocks(for: page)
+        // A page the ported code now draws completely (a body is registered and no row here is live) shows that
+        // body alone: the greyed "Bientôt" copy of its rows would only repeat it, inert.
+        let portedAlone = SettingsPageBodies.hasBody(for: page.id) && SettingsLive.isEmpty(pageID: page.id)
+        blocks = portedAlone ? [] : SettingsPageModel.blocks(for: page)
         var ids: [String] = []
         if let own = page.featureID { ids.append(own) }
         ids += SettingsLive.controls(for: page.id)?.featureIDs ?? []

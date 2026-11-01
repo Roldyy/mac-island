@@ -43,6 +43,11 @@ struct CleaningOverlayView: View {
             fullProgressDots
                 .padding(.top, 2)
 
+            Text(String(format: l10n.s.cleaningOverlayAutoEndFormat, manager.remainingSeconds))
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+
             Button(action: { manager.deactivate() }) {
                 Text(l10n.s.cleaningOverlayUnlock)
                     .font(.system(size: 14, weight: .semibold))
@@ -90,6 +95,10 @@ struct CleaningOverlayView: View {
 
                         compactProgressDots
                     }
+
+                    Text(String(format: l10n.s.cleaningOverlayAutoEndFormat, manager.remainingSeconds))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.secondary)
                 }
 
                 Button(action: { manager.deactivate() }) {

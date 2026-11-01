@@ -1,0 +1,14 @@
+# Upstream test files (Tests/ of the pinned tree) lane W1-1D turns on in the harness, one per line.
+# The harness itself (scripts/port/test.sh) is lane P0-D; nothing here runs without it.
+FeatureCatalogTests.swift
+PointerInputFeatureTests.swift
+#
+# KNOWN, DELIBERATE DIVERGENCE (patch 0254 rewrites CleaningModeManager.swift): both files above pin the TEXT of the
+# upstream manager. These source-contract checks will fail on the patched tree and must be re-pointed (not skipped)
+# by whoever wires the harness; the behaviour they protect is covered by Tests/PortKitTests/InputShortcutsCleaningTests:
+#   FeatureCatalogTests: "private func handle(type:" slice with exactly 2 passUnretained returns and
+#     "if handleMouseButton(type: type, event: event)"; the disabled-tap re-arm text ("shouldFinishUserDeactivation").
+#     The patched manager fails OPEN on a disabled tap (ends cleaning) instead of re-arming it.
+#   PointerInputFeatureTests: "deactivate(restoreSuspendedFeatures: false)", "AXIsProcessTrusted()", "CFMachPortInvalidate"
+#     in CleaningModeManager.swift (now split between CleaningModeManager.swift and CleaningEventTapping.swift).
+# The 'pressWindow: 6.0' pin and the CleaningUnlockCounter / mouse-release-gate checks are unchanged and stay green.

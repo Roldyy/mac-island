@@ -112,9 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quickAccess = QuickAccessModel(defaults: defaults)
         let settings = SettingsWindowController(
             registry: registry, tabs: tabs,
-            openPermission: { permission in
-                if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
-            },
+            openPermission: { permission in UserPermissionRequest.request(permission) },
             relaunch: Self.relaunchAction)
         self.settings = settings
         installPortBridge(settings: settings)
@@ -228,7 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Cleaning mode must never outlive the app.
-    func applicationWillTerminate(_ notification: Notification) { FinderFeature.endCleaning() }
+    func applicationWillTerminate(_ notification: Notification) { PortCleaningMode.stop() }
 
     /// Clicking the app again (Finder, Dock, `open`) opens Settings: the app has no other window to show.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -344,9 +342,7 @@ extension AppDelegate {
             for page in PortFeatureBinding.shared.pages {
                 SettingsPageBodies.register(
                     pageID: page.pageID, featureID: page.featureID, registry: registry,
-                    openPermission: { permission in
-                        if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
-                    },
+                    openPermission: { permission in UserPermissionRequest.request(permission) },
                     page.body)
             }
         }

@@ -1,0 +1,53 @@
+--- a/UI/CleaningMode/CleaningOverlayView.swift
++++ b/UI/CleaningMode/CleaningOverlayView.swift
+@@ -43,6 +43,11 @@
+             fullProgressDots
+                 .padding(.top, 2)
+ 
++            Text(String(format: l10n.s.cleaningOverlayAutoEndFormat, manager.remainingSeconds))
++                .font(.system(size: 12))
++                .foregroundStyle(.white.opacity(0.6))
++                .multilineTextAlignment(.center)
++
+             Button(action: { manager.deactivate() }) {
+                 Text(l10n.s.cleaningOverlayUnlock)
+                     .font(.system(size: 14, weight: .semibold))
+@@ -90,6 +95,10 @@
+ 
+                         compactProgressDots
+                     }
++
++                    Text(String(format: l10n.s.cleaningOverlayAutoEndFormat, manager.remainingSeconds))
++                        .font(.system(size: 10))
++                        .foregroundStyle(Color.secondary)
+                 }
+ 
+                 Button(action: { manager.deactivate() }) {
+--- a/Core/Localization.swift
++++ b/Core/Localization.swift
+@@ -1076,6 +1076,7 @@
+     let cleaningOverlaySubtitle: String
+     let cleaningOverlayUnlock: String
+     let cleaningOverlayMouseHint: String
++    let cleaningOverlayAutoEndFormat: String
+     let cleaningKeepScreenVisibleToggle: String
+     let cleaningKeepScreenVisibleCaption: String
+     let cleaningStartNow: String
+@@ -2194,6 +2195,7 @@
+         cleaningOverlaySubtitle: "Press Escape 5 times to unlock",
+         cleaningOverlayUnlock: "Unlock",
+         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
++        cleaningOverlayAutoEndFormat: "Unlocks by itself in %d s. Holding Escape for 3 s also unlocks.",
+         cleaningKeepScreenVisibleToggle: "Keep screen visible",
+         cleaningKeepScreenVisibleCaption: "Shows a discreet indicator in the corner of the screen instead of blacking out content.",
+         cleaningStartNow: "Lock keyboard now",
+--- a/Core/Localizations/Strings+French.swift
++++ b/Core/Localizations/Strings+French.swift
+@@ -895,6 +895,7 @@
+         cleaningOverlaySubtitle: "Appuyez 5 fois sur Échap pour déverrouiller",
+         cleaningOverlayUnlock: "Déverrouiller",
+         cleaningOverlayMouseHint: "Votre souris et votre trackpad fonctionnent toujours",
++        cleaningOverlayAutoEndFormat: "Se déverrouille tout seul dans %d s. Maintenir Échap 3 s déverrouille aussi.",
+         cleaningKeepScreenVisibleToggle: "Garder l’écran visible",
+         cleaningKeepScreenVisibleCaption: "Affiche un indicateur discret dans un coin de l’écran sans masquer le contenu.",
+         cleaningStartNow: "Verrouiller le clavier maintenant",

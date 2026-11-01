@@ -1,0 +1,105 @@
+--- a/Services/ShortcutCapture.swift
++++ b/Services/ShortcutCapture.swift
+@@ -20,17 +20,21 @@
+ 
+     /// Releases every global key the app holds. Main thread only, like the
+     /// services it drives.
++    /// Mac Island: only a feature a lane BOUND (the registry's verdict decides whether it runs) is touched, here
++    /// and in `end()`. A feature nobody bound has no running service and must not get one from a recording:
++    /// `FeatureRuntime.sync` starts whatever its stored switch says, and our own modules (keep awake, clipboard,
++    /// shelf, command bar) hold their own hotkeys, which the recording tap already shields from the keys typed.
+     static func begin() {
+         guard !isCapturing else { return }
+         isCapturing = true
+         // A flag inside the routing, not a teardown: rebuilding the tap per
+         // recording would churn the system keyboard path (issue #275).
+-        AppSwitcher.shared.setCapturingShortcut(true)
+-        HotkeyManager.shared.setEnabled(false)
+-        ShelfService.shared.suspendShortcut()
+-        ClipboardHistoryService.shared.suspendShortcut()
+-        SoundOutputSwitcher.shared.suspendShortcut()
+-        WindowLayoutService.shared.suspendShortcuts()
++        if PortShortcutOwnership.isBound(.switcher) { AppSwitcher.shared.setCapturingShortcut(true) }
++        if PortShortcutOwnership.upstreamKeepAwakeHotkeyAllowed { HotkeyManager.shared.setEnabled(false) }
++        if PortShortcutOwnership.isBound(.shelf) { ShelfService.shared.suspendShortcut() }
++        if PortShortcutOwnership.isBound(.clipboardHistory) { ClipboardHistoryService.shared.suspendShortcut() }
++        if PortShortcutOwnership.isBound(.soundOutputSwitcher) { SoundOutputSwitcher.shared.suspendShortcut() }
++        if PortShortcutOwnership.isBound(.windowLayout) { WindowLayoutService.shared.suspendShortcuts() }
+         QuickToolHotkey.unregisterAll()
+     }
+ 
+@@ -40,7 +44,7 @@
+     static func end() {
+         guard isCapturing else { return }
+         isCapturing = false
+-        AppSwitcher.shared.setCapturingShortcut(false)
+-        FeatureRuntime.shared.sync(GlobalShortcutRole.featuresToSilenceWhileRecording)
++        if PortShortcutOwnership.isBound(.switcher) { AppSwitcher.shared.setCapturingShortcut(false) }
++        FeatureRuntime.shared.sync(GlobalShortcutRole.featuresToSilenceWhileRecording.filter(PortShortcutOwnership.isBound))
+     }
+ }
+--- a/Services/HotkeyManager.swift
++++ b/Services/HotkeyManager.swift
+@@ -24,7 +24,11 @@
+             && PortHost.defaults.bool(forKey: DefaultsKey.hotkeyEnabled))
+     }
+ 
++    /// Mac Island: the Keep Awake global shortcut has ONE owner, Mac Island's own `KeepAwakeShortcutService`
++    /// (Carbon, ⌃⌥⌘K by default, `keepAwakeShortcutEnabled` / `keepAwakeShortcut`). This upstream registrar stays
++    /// idle until the Energy lane retires one of the two, so the same combination is never registered twice.
+     func setEnabled(_ enabled: Bool) {
++        guard PortShortcutOwnership.upstreamKeepAwakeHotkeyAllowed else { unregister(); return }
+         enabled ? register() : unregister()
+     }
+ 
+--- a/UI/Settings/ShortcutsSettings.swift
++++ b/UI/Settings/ShortcutsSettings.swift
+@@ -20,8 +20,11 @@
+     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
+     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+ 
++    /// Mac Island: only the shortcuts of features a lane bound and the registry lets run. The shortcuts of our own
++    /// modules (Keep Awake, Clipboard, Shelf, Command bar) are set on their own pages, in their own format, and
++    /// a feature nobody bound has nothing registered: listing it here would edit a key nothing reads.
+     private var availableRoles: [GlobalShortcutRole] {
+-        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable }).filter {
++        GlobalShortcutRole.availableRoles(isAvailable: { PortShortcutOwnership.isRunning($0) }).filter {
+             !$0.isKeyboardBrightness || BrightnessService.keyboardLightIsSupported
+         }
+     }
+@@ -33,7 +36,7 @@
+     private var visibleGroups: [FeatureGroup] {
+         FeatureGroup.allCases.filter { group in
+             availableRoles.contains { $0.group == group }
+-                || (group == .windowsDock && AppFeature.windowLayout.isAvailable)
++                || (group == .windowsDock && PortShortcutOwnership.isRunning(.windowLayout))
+         }
+     }
+ 
+@@ -57,7 +60,7 @@
+                 }
+             }
+ 
+-            if AppFeature.commandBar.isAvailable {
++            if PortShortcutOwnership.isRunning(.commandBar) {
+                 Section {
+                     Button {
+                         showsAppShortcuts = true
+@@ -86,7 +89,7 @@
+             if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
+             if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
+             if feature == .windowLayout {
+-                return group == .windowsDock && feature.isAvailable
++                return group == .windowsDock && PortShortcutOwnership.isRunning(feature)
+             }
+             return availableRoles.contains { $0.feature == feature && $0.group == group }
+         }
+@@ -236,7 +239,7 @@
+             includeInactiveConflicts: true,
+             reservesClearButtonSpace: reservesClearButtonSpace,
+             additionalConflict: { shortcut in
+-                guard AppFeature.windowLayout.isAvailable else { return nil }
++                guard PortShortcutOwnership.isRunning(.windowLayout) else { return nil }
+                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
+             },
+             onChange: {

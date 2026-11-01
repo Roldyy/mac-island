@@ -1076,6 +1076,7 @@ struct Strings {
     let cleaningOverlaySubtitle: String
     let cleaningOverlayUnlock: String
     let cleaningOverlayMouseHint: String
+    let cleaningOverlayAutoEndFormat: String
     let cleaningKeepScreenVisibleToggle: String
     let cleaningKeepScreenVisibleCaption: String
     let cleaningStartNow: String
@@ -2194,6 +2195,7 @@ extension Strings {
         cleaningOverlaySubtitle: "Press Escape 5 times to unlock",
         cleaningOverlayUnlock: "Unlock",
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
+        cleaningOverlayAutoEndFormat: "Unlocks by itself in %d s. Holding Escape for 3 s also unlocks.",
         cleaningKeepScreenVisibleToggle: "Keep screen visible",
         cleaningKeepScreenVisibleCaption: "Shows a discreet indicator in the corner of the screen instead of blacking out content.",
         cleaningStartNow: "Lock keyboard now",

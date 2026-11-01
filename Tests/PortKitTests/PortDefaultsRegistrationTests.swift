@@ -5,7 +5,13 @@ import Testing
 /// `Defaults.register` after the split (patch 0012): registered values only after the migration and the registry
 /// seed, no availability switch registered or written by the ported code, the four upstream seeds through the host.
 /// Temporary suites only; every hook is faked.
-@Suite struct PortDefaultsRegistrationTests {
+@Suite(.serialized) struct PortDefaultsRegistrationTests {
+    /// `register(defaults:)` fills the process-wide registration domain, which every `UserDefaults` of the test
+    /// process shares: left in place it makes later migrator tests read a registered value as a stored one.
+    private static func dropRegistration() {
+        UserDefaults.standard.removeVolatileDomain(forName: UserDefaults.registrationDomain)
+    }
+
     private final class Recorder: @unchecked Sendable {
         private let lock = NSLock()
         private var items: [String] = []
@@ -20,6 +26,7 @@ import Testing
     @Test func registeringValuesNeverRegistersOrWritesAnAvailabilitySwitch() {
         PortHostFixture.isolated { defaults in
             Defaults.register(in: defaults)
+            defer { Self.dropRegistration() }
             #expect(shellEnabledKeys(defaults).isEmpty,
                     "registered availability would read as a chosen value: \(shellEnabledKeys(defaults))")
             #expect(defaults.object(forKey: DefaultsKey.clipboardHistoryEnabled) != nil, "the upstream values are registered")
@@ -70,6 +77,7 @@ import Testing
             Defaults.installCompanionForBetaCommandBar(in: defaults, isBeta: true)
             // Register runs the other three seeds.
             Defaults.register(in: defaults)
+            defer { Self.dropRegistration() }
 
             let list = calls.list
             #expect(list.contains("fans=true"), "fanControl is the registry's `fans`: \(list)")
@@ -102,6 +110,7 @@ import Testing
             defaults.set(true, forKey: DefaultsKey.linearScrollEnabled)
             defaults.set(true, forKey: DefaultsKey.monitorShowFanControlBeta)
             Defaults.register(in: defaults)
+            defer { Self.dropRegistration() }
             #expect(shellEnabledKeys(defaults).isEmpty)
         }
     }

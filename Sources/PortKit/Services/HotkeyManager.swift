@@ -24,7 +24,11 @@ final class HotkeyManager: ObservableObject {
             && PortHost.defaults.bool(forKey: DefaultsKey.hotkeyEnabled))
     }
 
+    /// Mac Island: the Keep Awake global shortcut has ONE owner, Mac Island's own `KeepAwakeShortcutService`
+    /// (Carbon, ⌃⌥⌘K by default, `keepAwakeShortcutEnabled` / `keepAwakeShortcut`). This upstream registrar stays
+    /// idle until the Energy lane retires one of the two, so the same combination is never registered twice.
     func setEnabled(_ enabled: Bool) {
+        guard PortShortcutOwnership.upstreamKeepAwakeHotkeyAllowed else { unregister(); return }
         enabled ? register() : unregister()
     }
 

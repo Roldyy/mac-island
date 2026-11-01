@@ -57,4 +57,5 @@ public enum QuickActionNotice {
     public static let captureFailed = "Capture impossible"
     public static let lockFailed = "Verrouillage impossible"
     public static let cleaningRefused = "Nettoyage refusé par macOS"
+    public static let cleaningOff = "Mode nettoyage désactivé : activez-le dans Fonctions"
 }

@@ -57,7 +57,7 @@ public enum SettingsPageCatalog {
           keywords: ["notes", "bloc-notes"]),
         P(id: "cleaning", title: "Mode nettoyage", symbol: "sparkles", section: .utilities,
           summary: "Verrouille le clavier le temps d’essuyer le Mac.",
-          keywords: ["clavier", "verrouiller", "essuyer"], featureID: "finder"),
+          keywords: ["clavier", "verrouiller", "essuyer"]),
         P(id: "screenshot", title: "Capture d’écran", symbol: "camera.viewfinder", section: .utilities,
           summary: "Capturer une zone, une fenêtre ou tout l’écran, puis l’annoter.",
           keywords: ["capture", "annoter", "lien temporaire"]),

@@ -895,6 +895,7 @@ extension Strings {
         cleaningOverlaySubtitle: "Appuyez 5 fois sur Échap pour déverrouiller",
         cleaningOverlayUnlock: "Déverrouiller",
         cleaningOverlayMouseHint: "Votre souris et votre trackpad fonctionnent toujours",
+        cleaningOverlayAutoEndFormat: "Se déverrouille tout seul dans %d s. Maintenir Échap 3 s déverrouille aussi.",
         cleaningKeepScreenVisibleToggle: "Garder l’écran visible",
         cleaningKeepScreenVisibleCaption: "Affiche un indicateur discret dans un coin de l’écran sans masquer le contenu.",
         cleaningStartNow: "Verrouiller le clavier maintenant",

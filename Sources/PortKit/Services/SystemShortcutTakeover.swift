@@ -11,7 +11,25 @@ import Foundation
 /// the marker is written before each change so a crash can be repaired at the
 /// next launch. Callers decide which ids; this decides how.
 enum SystemShortcutTakeover {
+    /// The three things this service asks of the WindowServer, so a test can stand a fake table in their place.
+    /// `live` is the private SkyLight calls; each is nil on a macOS that dropped them (nothing is then touched).
+    struct Store {
+        var setEnabled: ((Int32, Bool) -> CGError)?
+        var isEnabled: ((Int32) -> Bool)?
+        var liveEntries: () -> [LiveSystemShortcut]?
+
+        static let live = Store(setEnabled: SymbolicHotKeys.setEnabled,
+                                isEnabled: SymbolicHotKeys.isEnabled,
+                                liveEntries: { SymbolicHotKeys.liveEntries() })
+    }
+
+    /// Mac Island's own consent list. The Vorssaint key of the same purpose (`systemShortcutTakeOverKeys`) is
+    /// migrated like any other preference, but a consent given in another app is not consent here: nothing is
+    /// taken over from macOS until the person accepts the offer in THIS app, which writes this key.
+    static let consentKey = "systemShortcutTakeOverKeys.macisland"
+
     private static let lock = NSLock()
+    private static var store = Store.live
     private static var suppressed: Set<Int32> = SystemShortcutTakeoverSupport.migratedMarker(
         old: PortHost.defaults.array(forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int],
         new: PortHost.defaults.array(forKey: DefaultsKey.systemShortcutsSuppressed) as? [Int])
@@ -19,8 +37,28 @@ enum SystemShortcutTakeover {
     private static var wanted: [String: Set<Int32>] = [:]
     private static var claims: [String: GlobalShortcut] = [:]
     private static var takeOverKeys: Set<String> = Set(
-        PortHost.defaults.stringArray(forKey: DefaultsKey.systemShortcutTakeOverKeys) ?? [])
+        PortHost.defaults.stringArray(forKey: consentKey) ?? [])
     private static var wakeObserver: NSObjectProtocol?
+
+    /// Tests only: a fake table and a clean slate, state read afresh from `PortHost.defaults`.
+    static func resetForTests(store newStore: Store) {
+        lock.lock()
+        defer { lock.unlock() }
+        store = newStore
+        suppressed = SystemShortcutTakeoverSupport.migratedMarker(
+            old: PortHost.defaults.array(forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int],
+            new: PortHost.defaults.array(forKey: DefaultsKey.systemShortcutsSuppressed) as? [Int])
+        wanted = [:]
+        claims = [:]
+        takeOverKeys = Set(PortHost.defaults.stringArray(forKey: consentKey) ?? [])
+    }
+
+    /// Tests only: the ids this service holds off right now.
+    static var heldIDs: Set<Int32> {
+        lock.lock()
+        defer { lock.unlock() }
+        return suppressed
+    }
 
     /// Raw-id callers (the switcher) say what they want under their own name.
     static func setWanted(_ ids: Set<Int32>, for source: String) {
@@ -51,7 +89,7 @@ enum SystemShortcutTakeover {
     static func setTakeOver(_ storageKey: String, _ on: Bool) {
         lock.lock()
         if on { takeOverKeys.insert(storageKey) } else { takeOverKeys.remove(storageKey) }
-        PortHost.defaults.set(takeOverKeys.sorted(), forKey: DefaultsKey.systemShortcutTakeOverKeys)
+        PortHost.defaults.set(takeOverKeys.sorted(), forKey: consentKey)
         lock.unlock()
         refresh(storageKey)
     }
@@ -69,10 +107,11 @@ enum SystemShortcutTakeover {
     static func conflictsWithMacOS(_ shortcut: GlobalShortcut, for role: GlobalShortcutRole? = nil) -> Bool {
         lock.lock()
         let held = suppressed
+        let live = store.liveEntries
         lock.unlock()
         return SystemShortcutTakeoverSupport.conflictsWithMacOS(
             shortcut,
-            liveEntries: SymbolicHotKeys.liveEntries(),
+            liveEntries: live(),
             symbolicHotKeys: GlobalShortcut.systemSymbolicHotKeys,
             held: held,
             role: role)
@@ -91,6 +130,7 @@ enum SystemShortcutTakeover {
     private static func refresh(_ storageKey: String) {
         lock.lock()
         let shortcut = takeOverKeys.contains(storageKey) ? claims[storageKey] : nil
+        let live = store.liveEntries
         lock.unlock()
         guard let shortcut else {
             setWanted([], for: storageKey)
@@ -98,7 +138,7 @@ enum SystemShortcutTakeover {
         }
         // A nil table means the private calls are missing on this macOS, so
         // nothing could have been taken over and nothing needs handing back.
-        guard let entries = SymbolicHotKeys.liveEntries() else { return }
+        guard let entries = live() else { return }
         setWanted(SystemShortcutTakeoverSupport.ids(matching: shortcut, in: entries), for: storageKey)
     }
 
@@ -116,8 +156,8 @@ enum SystemShortcutTakeover {
     /// The transition itself. Callers hold `lock`, so the decision about what
     /// every source wants and the writes that follow are one critical section.
     private static func applyLocked(desired: Set<Int32>) {
-        guard let setEnabled = SymbolicHotKeys.setEnabled,
-              let isEnabled = SymbolicHotKeys.isEnabled else { return }
+        guard let setEnabled = store.setEnabled,
+              let isEnabled = store.isEnabled else { return }
         let candidates = desired.union(suppressed)
         let currentlyEnabled = candidates.filter { isEnabled($0) }
         let transition = SystemShortcutTakeoverSupport.transition(
@@ -139,7 +179,7 @@ enum SystemShortcutTakeover {
         defer { lock.unlock() }
         persist(suppressed)
         PortHost.defaults.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
-        guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
+        guard let setEnabled = store.setEnabled else { return }
         // A feature that claimed before recovery ran (keep-awake registers
         // first) is a source too; keeping only the switcher's ids would give
         // its key back and leave it off.
@@ -158,7 +198,7 @@ enum SystemShortcutTakeover {
         // recorded, so this still takes nothing new — an owned id macOS has
         // since re-enabled is left to the tap; if the tap never starts,
         // `syncWithPreferences` clears the entry and the keys go back as before.
-        let isEnabled = SymbolicHotKeys.isEnabled
+        let isEnabled = store.isEnabled
         let held = desired.intersection(suppressed).filter { isEnabled?($0) != true }
         if !held.isEmpty { wanted[switcherSource] = held }
     }

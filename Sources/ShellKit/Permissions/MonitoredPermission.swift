@@ -34,7 +34,8 @@ public enum MonitoredPermission: String, CaseIterable, Sendable, Hashable {
     }
 
     /// Features whose key tap needs Input Monitoring on top of what their descriptor lists
-    /// (`KeyEventTap` and `CleaningEventTap` both check `CGPreflightListenEventAccess`).
+    /// (`KeyEventTap` checks `CGPreflightListenEventAccess`). Cleaning mode is the ported `cleaningMode` feature now
+    /// and needs Accessibility only, like the other ported taps (below).
     static let inputMonitoringFeatureIDs: Set<String> = ["finder"]
 
     /// The ported (Vorssaint) tap features: the permissions a grant must restart them for. Derived from the

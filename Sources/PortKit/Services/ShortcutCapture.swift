@@ -20,17 +20,21 @@ enum ShortcutCapture {
 
     /// Releases every global key the app holds. Main thread only, like the
     /// services it drives.
+    /// Mac Island: only a feature a lane BOUND (the registry's verdict decides whether it runs) is touched, here
+    /// and in `end()`. A feature nobody bound has no running service and must not get one from a recording:
+    /// `FeatureRuntime.sync` starts whatever its stored switch says, and our own modules (keep awake, clipboard,
+    /// shelf, command bar) hold their own hotkeys, which the recording tap already shields from the keys typed.
     static func begin() {
         guard !isCapturing else { return }
         isCapturing = true
         // A flag inside the routing, not a teardown: rebuilding the tap per
         // recording would churn the system keyboard path (issue #275).
-        AppSwitcher.shared.setCapturingShortcut(true)
-        HotkeyManager.shared.setEnabled(false)
-        ShelfService.shared.suspendShortcut()
-        ClipboardHistoryService.shared.suspendShortcut()
-        SoundOutputSwitcher.shared.suspendShortcut()
-        WindowLayoutService.shared.suspendShortcuts()
+        if PortShortcutOwnership.isBound(.switcher) { AppSwitcher.shared.setCapturingShortcut(true) }
+        if PortShortcutOwnership.upstreamKeepAwakeHotkeyAllowed { HotkeyManager.shared.setEnabled(false) }
+        if PortShortcutOwnership.isBound(.shelf) { ShelfService.shared.suspendShortcut() }
+        if PortShortcutOwnership.isBound(.clipboardHistory) { ClipboardHistoryService.shared.suspendShortcut() }
+        if PortShortcutOwnership.isBound(.soundOutputSwitcher) { SoundOutputSwitcher.shared.suspendShortcut() }
+        if PortShortcutOwnership.isBound(.windowLayout) { WindowLayoutService.shared.suspendShortcuts() }
         QuickToolHotkey.unregisterAll()
     }
 
@@ -40,7 +44,7 @@ enum ShortcutCapture {
     static func end() {
         guard isCapturing else { return }
         isCapturing = false
-        AppSwitcher.shared.setCapturingShortcut(false)
-        FeatureRuntime.shared.sync(GlobalShortcutRole.featuresToSilenceWhileRecording)
+        if PortShortcutOwnership.isBound(.switcher) { AppSwitcher.shared.setCapturingShortcut(false) }
+        FeatureRuntime.shared.sync(GlobalShortcutRole.featuresToSilenceWhileRecording.filter(PortShortcutOwnership.isBound))
     }
 }

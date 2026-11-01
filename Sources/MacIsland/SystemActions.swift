@@ -1,10 +1,10 @@
 import AppKit
 import CommandBarFeature
 import CoreGraphics
-import FinderFeature
 import IslandKit
 import IslandUI
 import KeepAwakeFeature
+import PortKit
 import ShellKit
 
 /// What the quick-access buttons do. A button is never dead: a missing permission opens the matching
@@ -36,17 +36,17 @@ final class SystemActions {
         if outcome == .failed { notice(QuickActionNotice.lockFailed, symbol: "lock.slash", status: .danger) }
     }
 
+    /// The one cleaning mode: the ported feature (`PortCleaningMode`), which the registry switches on and off.
     func cleaning() {
-        if FinderFeature.isCleaning { FinderFeature.endCleaning(); return }
+        if PortCleaningMode.isRunning { PortCleaningMode.stop(); return }
         closeIsland()
-        switch FinderFeature.startCleaning() {
+        switch PortCleaningMode.start() {
         case .started, .alreadyRunning: break  // the countdown is its own activity
+        case .featureOff:
+            notice(QuickActionNotice.cleaningOff, symbol: "sparkles", status: .info)
         case .needsAccessibility: missing(.accessibility)
-        case .needsInputMonitoring:
-            open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"))
-            notice(QuickActionNotice.inputMonitoring, symbol: "exclamationmark.triangle.fill", status: .warning)
         case .refused:
-            open(FeaturePermission.accessibility.settingsURL)
+            UserPermissionRequest.request(FeaturePermission.accessibility)
             notice(QuickActionNotice.cleaningRefused, symbol: "exclamationmark.triangle.fill", status: .warning)
         }
     }
@@ -82,7 +82,7 @@ final class SystemActions {
     /// Opens the pane and tells the user why, in the closed island.
     private func missing(_ permission: FeaturePermission) {
         closeIsland()
-        open(permission.settingsURL)
+        UserPermissionRequest.request(permission)
         notice(QuickActionNotice.permission(permission), symbol: "exclamationmark.triangle.fill", status: .warning)
     }
 

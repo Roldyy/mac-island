@@ -1,0 +1,29 @@
+--- a/Core/GlobalShortcut.swift
++++ b/Core/GlobalShortcut.swift
+@@ -93,9 +93,24 @@
+         self.init(storageValue: storageValue, requiringModifier: true)
+     }
+ 
++    /// The key names Mac Island's own modules write in a shortcut value ("control+option+command:k"), by virtual
++    /// key code. Upstream stores the number ("...:40"); both spellings of the same combination are read, so a
++    /// shortcut a Mac Island page saved is not mistaken for "no shortcut" and replaced by the default.
++    private static let hostKeyNames: [String: Int64] = [
++        "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9, "b": 11,
++        "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21,
++        "6": 22, "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29, "]": 30, "o": 31,
++        "u": 32, "[": 33, "i": 34, "p": 35, "l": 37, "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42,
++        ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, "`": 50,
++        "return": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53,
++    ]
++
+     init?(storageValue: String, requiringModifier: Bool) {
+-        guard let separator = storageValue.firstIndex(of: ":"),
+-              let keyCode = Int64(storageValue[storageValue.index(after: separator)...])
++        guard let separator = storageValue.firstIndex(of: ":") else { return nil }
++        let keyText = storageValue[storageValue.index(after: separator)...]
++        // A single digit is a key name ("5") as often as a code (5 = "g"): the number wins, as it always did,
++        // and only text that is not a number is looked up by name.
++        guard let keyCode = Int64(keyText) ?? Self.hostKeyNames[keyText.lowercased()]
+         else { return nil }
+         var modifiers: GlobalShortcutModifiers = []
+         for token in storageValue[..<separator].split(separator: "+") {
