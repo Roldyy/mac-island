@@ -179,7 +179,7 @@ import Testing
         r.model.sustainedSeconds = 2
         r.model.systemNotificationsEnabled = true
         r.model.start()
-        for _ in 0..<200 where r.model.notificationStatus != .authorized { try? await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<6000 where r.model.notificationStatus != .authorized { try? await Task.sleep(for: .milliseconds(10)) }
         #expect(r.model.notificationStatus == .authorized)
         #expect(r.notifier.requests == 0)
         r.model.tick()
@@ -299,14 +299,19 @@ import Testing
         let sampler = MachProcessSampler()
         let me = ProcessInfo.processInfo.processIdentifier
         let before = try #require(sampler.snapshot().first { $0.pid == me })
-        let end = DispatchTime.now().uptimeNanoseconds + 300_000_000
+        let began = DispatchTime.now().uptimeNanoseconds
+        let end = began + 300_000_000
         var x = 0.0
         while DispatchTime.now().uptimeNanoseconds < end { x += 1.0.squareRoot() }
         #expect(x > 0)
         let after = try #require(sampler.snapshot().first { $0.pid == me })
+        let wall = DispatchTime.now().uptimeNanoseconds - began
         let delta = after.cpuTimeNs - before.cpuTimeNs
         #expect(delta >= 200_000_000)
-        #expect(delta <= 3_000_000_000)
+        // The delta is the whole process, and other tests run on every other core meanwhile: the ceiling is every
+        // core busy for the measured wall time (plus slack), not a fixed 3 s that a loaded machine exceeds.
+        let ceiling = UInt64(ProcessInfo.processInfo.activeProcessorCount) * wall * 3 / 2 + 500_000_000
+        #expect(UInt64(delta) <= ceiling)
     }
 
     @Test func thermalLevelMapsEveryState() {

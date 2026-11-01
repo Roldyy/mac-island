@@ -3,6 +3,7 @@ import Testing
 @testable import PortKit
 
 /// Mac Island has one island: Vorssaint's own stays asleep until a bridge turns the gate on.
+@MainActor
 @Suite(.serialized) struct IslandGateTests {
     @Test func gateIsOffByDefault() {
         #expect(PortHost.vorssaintIslandEnabled == false)

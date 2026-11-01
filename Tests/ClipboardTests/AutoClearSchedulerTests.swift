@@ -10,9 +10,8 @@ import Testing
         var cleared = 0
         scheduler.didClear = { cleared += 1 }
         scheduler.schedule(delaySeconds: 0.15, expectedChangeCount: pb.changeCount)
-        try await Task.sleep(nanoseconds: 500_000_000)
+        #expect(await eventually { cleared == 1 })
         #expect(pb.string(forType: .string) == nil)
-        #expect(cleared == 1)
     }
 
     @Test func laterCopyIsNotCleared() async throws {

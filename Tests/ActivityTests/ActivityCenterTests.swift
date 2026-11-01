@@ -97,7 +97,8 @@ private final class ManualClock: @unchecked Sendable {
     @Test func realClockExpiryWorks() async {
         let center = ActivityCenter()
         center.post(activity("a"), expiresAfter: .milliseconds(30))
-        for _ in 0..<100 where center.layout != .empty { try? await Task.sleep(for: .milliseconds(20)) }
+        // Up to 60 s: only a real failure waits that long.
+        for _ in 0..<3000 where center.layout != .empty { try? await Task.sleep(for: .milliseconds(20)) }
         #expect(center.layout == .empty)
     }
 

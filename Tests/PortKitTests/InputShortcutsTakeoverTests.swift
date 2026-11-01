@@ -40,6 +40,7 @@ private final class FakeHotKeyTable: @unchecked Sendable {
     }
 }
 
+@MainActor
 @Suite(.serialized) struct InputShortcutsTakeoverTests {
     private static let shortcut = GlobalShortcut(keyCode: 20, modifiers: [.control, .command])  // ⌃⌘3
     private static let roleKey = "someFeatureShortcut"

@@ -202,20 +202,28 @@ import Testing
         #expect(cold.hasLoaded && cold.coverage.isComplete && cold.status == .ready)
         let expected = cold.snapshot
 
-        let warm = Self.model(ClaudeUsageSource(directory: dir, store: store))   // a relaunch: empty memory, cache on disk
-        let started = Date()
-        let task = Task { await warm.refresh() }
-        while !warm.hasLoaded { try await Task.sleep(for: .milliseconds(1)) }
-        let firstPaint = Date().timeIntervalSince(started)
-        await task.value
-        print("MIS_CACHE firstPaint=\(Int(firstPaint * 1000)) ms records=\(150 * 120)")
+        // Counted work, not milliseconds: the FIRST progress report of a relaunch (empty memory, cache on disk) must
+        // already carry every record while no log file has been parsed. A wall-clock bar failed on a busy machine.
+        let source = ClaudeUsageSource(directory: dir, store: store)
+        var parsedAtFirstReport: Int?
+        var recordsAtFirstReport = 0
+        var reports = 0
+        _ = source.load(modifiedSince: nil, shouldContinue: { true }, progress: { progress in
+            reports += 1
+            if parsedAtFirstReport == nil {
+                parsedAtFirstReport = source.cache.parseCount
+                recordsAtFirstReport = progress.result.records.count
+            }
+        })
+        #expect(reports >= 1)
+        #expect(parsedAtFirstReport == 0, "no file may be read before the cached numbers go out")
+        #expect(recordsAtFirstReport == 150 * 120)
+        #expect(source.cache.parseCount == 0, "nothing changed on disk, so nothing is ever parsed")
+
+        let warm = Self.model(ClaudeUsageSource(directory: dir, store: store))   // the same relaunch through the model
+        await warm.refresh()
+        #expect(warm.hasLoaded)
         #expect(warm.snapshot == expected)
-        // Debug builds are several times slower than release (the shipped one); the bar is 50 ms there.
-        #if DEBUG
-        #expect(firstPaint < 0.5)
-        #else
-        #expect(firstPaint < 0.05)
-        #endif
     }
 
     @MainActor @Test func closingThePageStopsAReadItStartedButNotTheWarmUps() async throws {

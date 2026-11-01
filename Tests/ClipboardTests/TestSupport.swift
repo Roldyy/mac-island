@@ -37,6 +37,21 @@ func posix(_ url: URL) -> Int? {
     (try? FileManager.default.attributesOfItem(atPath: url.path))?[.posixPermissions] as? Int
 }
 
+/// Waits for something a timer or task is going to do. Load tolerant: giving up needs BOTH `timeout` of wall clock
+/// AND `minimumPolls` turns of the main actor, so a busy machine (other main-actor tests hold the thread for
+/// seconds) cannot fail a test that only slept for a fixed time.
+@MainActor
+func eventually(timeout: TimeInterval = 10, minimumPolls: Int = 300, _ condition: () -> Bool) async -> Bool {
+    let end = Date().addingTimeInterval(timeout)
+    var polls = 0
+    while polls < minimumPolls || Date() < end {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+        polls += 1
+    }
+    return condition()
+}
+
 /// A private, uniquely named pasteboard. Never the general one.
 func makePasteboard() -> NSPasteboard { NSPasteboard(name: .init(UUID().uuidString)) }
 

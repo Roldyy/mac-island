@@ -3,19 +3,25 @@ import IslandTestSupport
 @testable import PortKit
 
 /// `PortHost`'s hooks are process-wide, and swift-testing runs suites in parallel. Every test that sets one
-/// goes through `isolated`, which holds one lock, hands the test a temporary defaults suite (never the real
-/// preferences) and puts every hook back, so no test sees another's host.
+/// goes through `isolated`, which hands the test a temporary defaults suite (never the real preferences) and puts
+/// every hook back, so no test sees another's host.
+///
+/// Main-actor isolation is the mutual exclusion: a synchronous body cannot interleave with another main-actor test,
+/// and there is NO lock. A lock here deadlocked the suite: a background test posting
+/// `UserDefaults.didChangeNotification` blocks inside `NotificationCenter.post` until the observers registered with
+/// `queue: .main` have run on the main thread (`NSOperation.waitUntilFinished`), while the main thread sat in
+/// `lock.lock()` held by that very poster. Tests that use this fixture must therefore be `@MainActor`.
+@MainActor
 enum PortHostFixture {
-    private static let lock = NSRecursiveLock()
-
     static func isolated<T>(_ body: (UserDefaults) throws -> T) rethrows -> T {
-        lock.lock()
         let savedDefaults = PortHost.defaults
         let savedSetEnabled = PortHost.setEnabled
         let savedStored = PortHost.storedSwitch
         let savedAvailability = PortHost.availability
         let savedPermissions = PortHost.permissionState.value
-        let bench = TestDefaults.make()
+        // Fenced: a body that runs `Defaults.register` fills the fence, never the process-wide registration domain
+        // (which cannot be emptied again and made every other suite read upstream's registered values as stored).
+        let bench = TestDefaults.make(fenced: true)
         PortHost.defaults = bench.defaults
         PortHost.setEnabled = nil
         PortHost.storedSwitch = nil
@@ -28,17 +34,12 @@ enum PortHostFixture {
             PortHost.availability = savedAvailability
             PortHost.permissionState.send(savedPermissions)
             bench.cleanup()
-            lock.unlock()
         }
         return try body(bench.defaults)
     }
 
     /// Reads a hook while no test is changing it.
-    static func read<T>(_ body: () -> T) -> T {
-        lock.lock()
-        defer { lock.unlock() }
-        return body()
-    }
+    static func read<T>(_ body: () -> T) -> T { body() }
 }
 
 /// A `@Sendable` box for fake hooks.

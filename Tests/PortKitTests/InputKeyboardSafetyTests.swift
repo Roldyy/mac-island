@@ -5,6 +5,7 @@ import Testing
 /// Lane W1-C safety: a keyboard feature that misbehaves can lock the user out, so the ways back are pinned here.
 /// The real `hidutil` and the real event taps are never touched: `hidutil` is a fake table, the taps are checked
 /// as source contracts (a tap callback cannot be driven without Accessibility and a real keyboard).
+@MainActor
 @Suite(.serialized) struct InputKeyboardSafetyTests {
     // MARK: A fake hidutil
 

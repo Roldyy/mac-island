@@ -48,11 +48,15 @@ final class MemoryFlags: NowPlayingFlagStore {
 }
 
 @MainActor
-func eventually(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+/// Load tolerant: a failing wait needs BOTH `timeout` of wall clock AND `minimumPolls` turns, so other main-actor
+/// tests holding the main thread cannot expire the deadline before the code under test got a turn.
+func eventually(timeout: TimeInterval = 10, minimumPolls: Int = 300, _ condition: () -> Bool) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
-    while Date() < end {
+    var polls = 0
+    while polls < minimumPolls || Date() < end {
         if condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
+        polls += 1
     }
     return condition()
 }

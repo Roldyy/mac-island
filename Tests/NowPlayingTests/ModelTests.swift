@@ -50,8 +50,7 @@ import Testing
         let m2 = model([p], defaults: d)
         #expect(m2.access == .ready)
         m2.setVisible(true)
-        try await Task.sleep(for: .milliseconds(80))
-        #expect(p.calls.get() > 0)
+        #expect(await eventually { p.calls.get() > 0 })
         m2.setVisible(false)
     }
 
@@ -89,7 +88,9 @@ import Testing
         let m = model([p], defaults: defaults(), artwork: loader, artworkTimeout: .milliseconds(100))
         let start = ContinuousClock.now
         await m.poll()
-        #expect(ContinuousClock.now - start < .seconds(1))
+        // The cover hangs for 30 s: a poll that waited for it would take that long. 15 s is half of it, so a busy
+        // machine cannot trip this while a poll that waits for the download still does.
+        #expect(ContinuousClock.now - start < .seconds(15))
         #expect(m.snapshot?.title == "hang")
         #expect(m.artwork == nil)
     }

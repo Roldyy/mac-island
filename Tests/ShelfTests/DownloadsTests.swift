@@ -172,7 +172,10 @@ private final class FakeAccess: @unchecked Sendable {
     }
 }
 
-private func waitUntil(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+/// The monitor publishes with `DispatchQueue.main.async`, and a full run queues about a thousand main-actor tests
+/// ahead of that block (measured: it can wait over a minute behind them). A short deadline therefore tests the
+/// machine, not the monitor. The deadline only costs time when the behaviour really is wrong.
+private func waitUntil(timeout: TimeInterval = 240, _ condition: () -> Bool) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end {
         if condition() { return true }
@@ -206,7 +209,7 @@ private func waitUntil(timeout: TimeInterval = 3, _ condition: () -> Bool) async
         #expect(await waitUntil { access.lists > before })
 
         monitor.refresh()
-        _ = await waitUntil(timeout: 0.3) { false }
+        try? await Task.sleep(for: .milliseconds(300))   // a negative check: nothing to wait for, only to give it a chance
         #expect(access.opens == 1) // idempotent: never a second source
         monitor.stop()
     }

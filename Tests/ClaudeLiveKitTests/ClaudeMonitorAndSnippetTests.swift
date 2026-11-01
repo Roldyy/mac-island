@@ -96,7 +96,8 @@ final class Box: @unchecked Sendable {
         let monitor = ClaudeLiveMonitor(snapshot: { box.get() }, sink: sink, interval: .milliseconds(20))
         monitor.start()
         box.set([session("a", .working)])
-        for _ in 0..<100 where sink.live.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        // Up to 60 s: only a real failure waits that long.
+        for _ in 0..<3000 where sink.live.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         #expect(sink.live.keys.contains("claude.a"))
         monitor.stop()
     }

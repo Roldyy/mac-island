@@ -49,8 +49,7 @@ import Testing
         let r = PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { true },
                                                           sendPaste: { sent += 1 })
         #expect(r == .pasted)
-        try await Task.sleep(nanoseconds: 400_000_000)
-        #expect(sent == 1)
+        #expect(await eventually { sent == 1 })
     }
 
     @Test func modelPlainPasteRearmsAutoClearWithTheNewCount() async throws {
@@ -63,8 +62,7 @@ import Testing
         #expect(model.plainPasteTriggered() == .copiedOnly)
         #expect(pb.changeCount != before)
         #expect(pb.types?.contains(.init(Self.concealed)) == true)
-        try await Task.sleep(nanoseconds: 700_000_000)
-        #expect(pb.string(forType: .string) == nil)   // re-armed with the new count: wiped
+        #expect(await eventually { pb.string(forType: .string) == nil })   // re-armed with the new count: wiped
     }
 
     @Test func copyAfterPlainPasteSurvivesTheOldTimer() async throws {

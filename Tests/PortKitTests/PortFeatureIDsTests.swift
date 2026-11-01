@@ -5,6 +5,7 @@ import Testing
 @testable import PortKit
 
 /// The one table between upstream feature ids and registry ids, and the availability key built from it.
+@MainActor
 @Suite struct PortFeatureIDsTests {
     @Test func theTableMapsUpstreamIdsToTheRegistryIdsOfOurModules() {
         #expect(PortFeatureIDs.registryID(forUpstream: "shelf") == "shelf")
