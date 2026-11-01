@@ -8,28 +8,20 @@ public enum IslandRoute: Equatable, Sendable {
     case page(String)
 }
 
-/// Which page, group and sub-section the open island shows. Shared so the command bar can jump to a tab.
+/// Which page the open island shows. Shared so the command bar can jump to a tab.
 @MainActor @Observable
 public final class ShellNavigation {
     public var route: IslandRoute = .home
-    public var selectedGroup: String
-    public var sections: [String: String] = [:]
 
-    public init(selectedGroup: String = ShellLayout.groups[0].id) { self.selectedGroup = selectedGroup }
+    public init() {}
 
-    /// Opens a feature's panel, keeping its group and sub-section in step. Works for any tab id.
-    public func open(tabID: String) {
-        if let group = ShellLayout.group(containing: tabID) {
-            selectedGroup = group.id
-            sections[group.id] = tabID
-        }
-        route = .page(tabID)
-    }
+    /// Opens a feature's panel. Works for any tab id.
+    public func open(tabID: String) { route = .page(tabID) }
 
-    /// Jumps to the group and section holding `tabID`. Returns false for a tab outside the four groups.
+    /// Opens a daily page. Returns false for a tab outside the daily pages.
     @discardableResult
     public func select(tabID: String) -> Bool {
-        guard ShellLayout.group(containing: tabID) != nil else { return false }
+        guard ShellLayout.isDailyPage(tabID) else { return false }
         open(tabID: tabID)
         return true
     }

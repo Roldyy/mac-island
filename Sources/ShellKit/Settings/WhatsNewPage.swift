@@ -30,6 +30,7 @@ struct WhatsNewPage: View {
                     }
                 }
             }
+            RoldyCreditCard(markWidth: 80)
             SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.xs) {
                     Label("Contributeurs", systemImage: "person.2").font(.islandBodyEmphasis)

@@ -26,15 +26,17 @@ import Testing
     @Test func everyFeatureAndEveryActionAppearsOnceAllEnabled() {
         let tiles = merged()
         #expect(Set(tiles.map(\.id)).count == tiles.count)
-        // 13 shortcuts of the user + the 3 features no action covers.
+        // 14 shortcuts of the user (with the Éveil page tile) + the 3 features no action covers.
         #expect(tiles.map(\.id) == [
             "mixer", "keepawake", "agents", "commands", "capture", "lockScreen", "cleaning", "monitor",
-            "shelf", "clipboard", "terminal", "nowplaying", "settings",
+            "shelf", "clipboard", "terminal", "nowplaying", "awake", "settings",
             "fans", "finder", "dock", "ipscanner",
         ])
         #expect(tiles.allSatisfy { $0.isEnabled })
-        // Every Explorer feature is reachable from exactly one tile.
-        for feature in features { #expect(tiles.filter { $0.featureID == feature.id }.count == 1, "\(feature.id)") }
+        // Every Explorer feature is reachable from exactly one tile, except Éveil: the one-tap toggle and its page.
+        for feature in features {
+            #expect(tiles.filter { $0.featureID == feature.id }.count == (feature.id == "keepawake" ? 2 : 1), "\(feature.id)")
+        }
     }
 
     @Test func anActionAndItsFeatureAreOneTileUnderTheActionsName() {
@@ -74,9 +76,9 @@ import Testing
         let on = tiles.filter(\.isEnabled).map(\.id)
         let off = tiles.filter { !$0.isEnabled }.map(\.id)
         #expect(on == ["agents", "capture", "lockScreen", "cleaning", "clipboard", "terminal", "settings"])
-        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "monitor", "fans", "commands", "finder", "dock", "ipscanner"])
+        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "awake", "monitor", "fans", "commands", "finder", "dock", "ipscanner"])
         #expect(tiles.map(\.id) == on + off)
-        #expect(tiles.count == 17)
+        #expect(tiles.count == 19)
     }
 
     @Test func aFeatureWithNoTabCountsAsOff() {

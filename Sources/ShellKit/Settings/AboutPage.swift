@@ -15,6 +15,7 @@ struct AboutPage: View {
     var body: some View {
         SettingsPageScaffold(page: page) {
             identityCard
+            RoldyCreditCard()
             linksCard
             UpdatesBlock(defaults: defaults, checker: checker)
         }

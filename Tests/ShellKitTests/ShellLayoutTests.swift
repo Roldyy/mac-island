@@ -5,22 +5,33 @@ import Testing
 
 @MainActor
 @Suite struct ShellLayoutTests {
-    @Test func fourFixedGroupsWithTheExpectedSections() {
-        #expect(ShellLayout.groups.map(\.title) == ["Terminal", "Presse-papiers", "Lecture", "Moniteur"])
-        #expect(ShellLayout.groups.map { $0.sections.map(\.id) } == [
-            ["terminal", "agents"], ["clipboard", "shelf"], ["nowplaying", "audio", "keepawake"], ["monitor", "fans"],
+    @Test func nineStandalonePagesOnePerNeed() {
+        #expect(ShellLayout.pages.map(\.title) == [
+            "Terminal", "Claude", "Presse-papiers", "Étagère", "Lecture", "Mixer", "Éveil", "Moniteur", "Ventilos",
+        ])
+        #expect(ShellLayout.pages.map(\.id) == [
+            "terminal", "agents", "clipboard", "shelf", "nowplaying", "audio", "keepawake", "monitor", "fans",
         ])
     }
 
+    @Test func everyPageHasItsOwnHomeTileAndRoute() {
+        // Ventilos has no default tile of its own: the catalog lists it as a feature tile right after the defaults.
+        let tiled = Set(HomeActionCatalog.all.compactMap { action -> String? in
+            if case .page(let tab) = action.kind { tab } else { nil }
+        })
+        for page in ShellLayout.pages { #expect(tiled.contains(page.id), Comment(rawValue: page.id)) }
+        for page in ShellLayout.pages { #expect(ShellLayout.openHeights[page.id] != nil, Comment(rawValue: page.id)) }
+    }
+
     @Test func everySectionIsARegisteredFeatureAndNoneIsListedTwice() {
-        let ids = ShellLayout.groups.flatMap { $0.sections.map(\.id) }
+        let ids = ShellLayout.pages.map(\.id)
         #expect(Set(ids).count == ids.count)
         let known = Set(ShellDescriptors.all.map(\.id))
         #expect(ids.allSatisfy(known.contains))
     }
 
-    @Test func tabsOutsideGroupsAreTheFourSettingsOnlyOnes() {
-        let outside = ShellLayout.tabsOutsideGroups(ShellDescriptors.all.compactMap(\.tabID))
+    @Test func tabsOutsidePagesAreTheFourSettingsOnlyOnes() {
+        let outside = ShellLayout.tabsOutsidePages(ShellDescriptors.all.compactMap(\.tabID))
         #expect(Set(outside) == ["commandbar", "finder", "dock", "ipscanner"])
     }
 
@@ -30,21 +41,15 @@ import Testing
         #expect(ShellDescriptors.all.allSatisfy { $0.tabID == $0.id })
     }
 
-    @Test func resolvedSectionFallsBackToFirstVisible() {
-        let g = ShellLayout.groups[2]
-        let visible = ShellLayout.visibleSections(of: g) { $0 != "nowplaying" }
-        #expect(ShellLayout.resolvedSection(remembered: "audio", visible: visible) == "audio")
-        #expect(ShellLayout.resolvedSection(remembered: "nowplaying", visible: visible) == "audio")
-        #expect(ShellLayout.resolvedSection(remembered: nil, visible: visible) == "audio")
-        #expect(ShellLayout.resolvedSection(remembered: "audio", visible: []) == nil)
-    }
-
-    @Test func navigationJumpsToAnySectionOfAGroup() {
+    @Test func navigationOpensEachPageDirectlyWithoutASibling() {
         let nav = ShellNavigation()
-        #expect(nav.select(tabID: "fans"))
-        #expect(nav.selectedGroup == "monitor" && nav.sections["monitor"] == "fans")
+        for page in ShellLayout.pages {
+            #expect(nav.select(tabID: page.id))
+            #expect(nav.route == .page(page.id), Comment(rawValue: page.id))
+        }
+        nav.goHome()
         #expect(!nav.select(tabID: "dock"))
-        #expect(nav.selectedGroup == "monitor")
+        #expect(nav.route == .home)
     }
 }
 

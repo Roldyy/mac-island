@@ -175,14 +175,18 @@ struct RoldyMark: View {
 
     static let image: NSImage? = Data(base64Encoded: base64).flatMap(NSImage.init(data:))
 
+    /// Width in points; the home corner uses the default, the credit cards a larger one.
+    var width: CGFloat = 58
+    var opacity: Double = 0.85
+
     var body: some View {
         if let image = Self.image {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 58)
-                .opacity(0.85)
+                .frame(width: width)
+                .opacity(opacity)
                 .accessibilityLabel("Roldy Management")
                 .allowsHitTesting(false)
         }

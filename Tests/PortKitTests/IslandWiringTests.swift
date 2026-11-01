@@ -38,7 +38,7 @@ import UserNotifications
     @Test func noPanelClashesWithTheTwelveFirstOnes() {
         let first = Set(ShellDescriptors.all.compactMap(\.tabID))
         #expect(first.isDisjoint(with: ShellTabGate.ported.features.keys))
-        #expect(ShellLayout.group(containing: "music") == nil, "the four daily groups stay as they are")
+        #expect(!ShellLayout.isDailyPage("music"), "the nine daily pages stay as they are")
     }
 
     @Test func theAppDelegateAppendsThePanelsAndPassesTheGate() throws {

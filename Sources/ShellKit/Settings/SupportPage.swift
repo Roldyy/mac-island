@@ -2,14 +2,11 @@ import AppKit
 import IslandUI
 import SwiftUI
 
-/// "Soutenir": the two ways to say thank you, each one a real link.
-///
-/// Mac Island is a GPL port of Vorssaint. It has no donation page of its own: the only place money can go is the
-/// original author's Buy Me a Coffee, and the page says so rather than hide it.
+/// "Soutenir": a Roldy Management contact card (website link) and the GitHub star, each one a real link.
+/// The GPL credit to Vorssaint lives in About and Nouveautés as attribution text only.
 struct SupportPage: View {
     let page: SettingsPage
 
-    static let coffeeURL = "https://buymeacoffee.com/vorssaint"
     static let starURL = "https://github.com/Roldyy/mac-island"
 
     var body: some View {
@@ -17,13 +14,13 @@ struct SupportPage: View {
             SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.m) {
                     HStack(spacing: IslandSpacing.s) {
-                        Image(systemName: "heart.fill").foregroundStyle(.pink).accessibilityHidden(true)
-                        Text("Aidez Mac Island à continuer de grandir").font(.islandBodyEmphasis)
+                        Image(systemName: "envelope.fill").foregroundStyle(Color.accentColor).accessibilityHidden(true)
+                        Text("Contacter Roldy Management").font(.islandBodyEmphasis)
                     }
-                    Text("Mac Island reste gratuit et local, sans publicité ni suivi d’utilisation. Il dérive de Vorssaint, et son seul canal de soutien financier est celui de son auteur d’origine : Buy Me a Coffee.")
+                    Text("Mac Island reste gratuit et local, sans publicité ni suivi d’utilisation. Une question, une idée ou un besoin sur mesure : écrivez-nous depuis le site de Roldy Management.")
                         .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
                         .fixedSize(horizontal: false, vertical: true)
-                    open("Soutenir Vorssaint sur Buy Me a Coffee", "cup.and.saucer", Self.coffeeURL, prominent: true)
+                    RoldyCreditCard()
                 }
             }
             SettingsCard {

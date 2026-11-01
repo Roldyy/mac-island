@@ -239,7 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandBarFeature.register(commands: tabs.map { tab in
             BarCommand(id: "island.tab.\(tab.id)", title: "Ouvrir \(tab.title)",
                        keywords: ["île", "island", tab.id, tab.title]) { [weak island] in
-                navigation.open(tabID: tab.id)  // any panel opens in the island, grouped or not
+                navigation.open(tabID: tab.id)  // any panel opens in the island, one page per need
                 island?.open()
             }
         })

@@ -30,7 +30,7 @@ public final class SettingsWindowController {
     /// Opens the window, on `page` when given (an unknown id keeps the page that was open).
     public func show(page: String? = nil) {
         if window == nil {
-            let outside = Set(ShellLayout.tabsOutsideGroups(tabs.map(\.id)))
+            let outside = Set(ShellLayout.tabsOutsidePages(tabs.map(\.id)))
             let sheetTabs = Dictionary(uniqueKeysWithValues: tabs.filter { outside.contains($0.id) }.map { ($0.id, $0) })
             let router = SettingsRouter(defaults: defaults)
             self.router = router

@@ -38,6 +38,8 @@ public enum HomeActionCatalog {
         HomeAction(id: "commands", title: "Commandes", systemImage: "command", kind: .quick("commands")),
         HomeAction(id: "keepawake", title: "Garder éveillé", systemImage: "cup.and.saucer",
                    activeSystemImage: "cup.and.saucer.fill", kind: .quick("keepawake")),
+        // The Éveil page itself (timers, options); "keepawake" above is the one-tap toggle.
+        HomeAction(id: "awake", title: "Éveil", systemImage: "moon.zzz", kind: .page("keepawake")),
         HomeAction(id: "capture", title: "Capture", systemImage: "camera.viewfinder", kind: .quick("capture")),
         HomeAction(id: "lockScreen", title: "Verrouiller", systemImage: "lock", kind: .quick("lockScreen")),
         HomeAction(id: "cleaning", title: "Nettoyage", systemImage: "sparkles.rectangle.stack", kind: .quick("cleaning")),
@@ -70,6 +72,6 @@ public enum HomeActionCatalog {
         "mixer", "keepawake", "agents", "commands",
         "capture", "lockScreen", "cleaning", "monitor",
         "shelf", "clipboard", "terminal", "nowplaying",
-        "settings",
+        "awake", "settings",
     ]
 }
