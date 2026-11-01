@@ -1,0 +1,51 @@
+--- a/Core/Localization.swift
++++ b/Core/Localization.swift
+@@ -109,20 +109,15 @@
+ final class L10n: ObservableObject {
+     static let shared = L10n()
+ 
+-    @Published var language: AppLanguage {
+-        didSet { UserDefaults.standard.set(language.rawValue, forKey: DefaultsKey.language) }
++    /// Mac Island: the interface is French, whatever was saved or set. The setter keeps the type's shape (the
++    /// ported Settings pickers bind to it) but never leaves French and never writes the preference.
++    @Published var language: AppLanguage = .fr {
++        didSet { if language != .fr { language = .fr } }
+     }
+ 
+     var s: Strings { Strings.localized(language) }
+ 
+-    private init() {
+-        if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
+-           let saved = AppLanguage(rawValue: raw) {
+-            language = saved
+-        } else {
+-            language = .systemDefault
+-        }
+-    }
++    private init() {}
+ }
+ 
+ extension Strings {
+@@ -131,20 +126,8 @@
+     static func localized(_ language: AppLanguage) -> Strings {
+         switch language {
+         case .enUS: return .enUS
+-        case .ptBR: return .ptBR
+-        case .tr: return .tr
+-        case .ru: return .ru
+-        case .es: return .es
+-        case .sk: return .sk
+-        case .de: return .de
+-        case .fr: return .fr
+-        case .it: return .it
+-        case .ja: return .ja
+-        case .ko: return .ko
+-        case .zhHans: return .zhHans
+-        case .zhHK: return .zhHK
+-        case .zhTW: return .zhTW
+-        case .uk: return .uk
++        // Mac Island ships French and English only; the other tables were cut at import.
++        case .ptBR, .tr, .ru, .es, .sk, .de, .fr, .it, .ja, .ko, .zhHans, .zhHK, .zhTW, .uk: return .fr
+         }
+     }
+ }

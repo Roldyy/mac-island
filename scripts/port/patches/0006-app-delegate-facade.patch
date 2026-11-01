@@ -1,0 +1,11 @@
+--- a/UI/Theme.swift
++++ b/UI/Theme.swift
+@@ -234,7 +234,7 @@
+ }
+ 
+ func appDelegate() -> AppDelegate? {
+-    NSApp.delegate as? AppDelegate
++    AppDelegate.current
+ }
+ 
+ /// The official mark (Resources/Brand/logo.png, trimmed at build time),

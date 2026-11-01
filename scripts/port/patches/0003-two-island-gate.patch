@@ -1,0 +1,23 @@
+--- a/Services/Notch/NotchService.swift
++++ b/Services/Notch/NotchService.swift
+@@ -1104,6 +1104,8 @@
+ 
+     func syncWithPreferences() {
+         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
++        // Mac Island has its own island: this one stays asleep until a bridge turns the gate on.
++        guard PortHost.vorssaintIslandEnabled else { if running { stop() }; return }
+         guard NotchSupport.isEnabled() else { stop(); return }
+         if !running {
+             running = true
+--- a/Services/Notch/NotchSupport.swift
++++ b/Services/Notch/NotchSupport.swift
+@@ -1825,7 +1825,8 @@
+     }
+ 
+     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+-        AppFeature.notch.isAvailable(in: defaults)
++        PortHost.vorssaintIslandEnabled
++            && AppFeature.notch.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchEnabled)
+     }
+ 

@@ -41,7 +41,13 @@ let package = Package(
         .target(name: "DisplayFeature", dependencies: ["IslandKit"], path: "Sources/Features/Display"),
         .target(name: "AudioFeature", dependencies: ["IslandKit"], path: "Sources/Features/Audio"),
 
+        // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
+        .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),
+        .systemLibrary(name: "VMStatisticsCompat", path: "Sources/VMStatisticsCompat"),
+        .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
+
         .executableTarget(name: "MacIsland", dependencies: [
+            "PortKit",
             "IslandKit", "IslandUI", "ShellKit", "ClaudeLiveKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
             "FansFeature", "MonitorFeature", "CommandBarFeature",
@@ -49,6 +55,7 @@ let package = Package(
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
+        .testTarget(name: "PortKitTests", dependencies: ["PortKit"]),
         .testTarget(name: "SettingsKitTests", dependencies: ["SettingsKit"]),
         .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),
         .testTarget(name: "IslandUITests", dependencies: ["IslandUI", "IslandTestSupport"]),

@@ -1,0 +1,47 @@
+--- a/Services/FanControl/FanControlXPC.swift
++++ b/Services/FanControl/FanControlXPC.swift
+@@ -5,15 +5,13 @@
+ import Foundation
+ 
+ enum FanControlIdentifiers {
+-    static let teamID = "3D485NHW29"
++    /// Mac Island's own signing identity and root helper (see `FanHelperContract`). The ported fan code never
++    /// registers a daemon: the bridge talks to Mac Island's helper.
++    static let teamID = "U3TUL63HHK"
+ 
+-    #if VORSSAINT_DEVELOPMENT
+-    static let appBundleID = "be.roldy.macisland.dev"
+-    #else
+-    static let appBundleID = "com.vorssaint.utils"
+-    #endif
++    static let appBundleID = "be.roldy.macisland"
+ 
+-    static let helperID = "\(appBundleID).fan-control"
++    static let helperID = "\(appBundleID).fanhelper"
+     static let plistName = "\(helperID).plist"
+ 
+     static let appCodeRequirement =
+--- a/Services/QuickTools/ScreenshotSharingSupport.swift
++++ b/Services/QuickTools/ScreenshotSharingSupport.swift
+@@ -82,7 +82,8 @@
+         return true
+     }
+ 
+-    static let productionEndpoint = URL(string: "https://screenshots.vorssaint.com")!
++    /// Mac Island has no sharing server: this host never resolves and `ScreenshotShareService` never calls it.
++    static let productionEndpoint = URL(string: "https://sharing.unavailable.invalid")!
+     static let developerBundleIdentifier = "be.roldy.macisland.dev"
+     static let maximumUploadBytes = 25 * 1_024 * 1_024
+ 
+--- a/Services/Recorder/RecordingSharingSupport.swift
++++ b/Services/Recorder/RecordingSharingSupport.swift
+@@ -46,7 +46,8 @@
+         let audioBitRate: Int
+     }
+ 
+-    static let productionEndpoint = URL(string: "https://screenshots.vorssaint.com")!
++    /// Mac Island has no sharing server: this host never resolves and `RecordingShareService` never calls it.
++    static let productionEndpoint = URL(string: "https://sharing.unavailable.invalid")!
+     static let developerBundleIdentifier = "be.roldy.macisland.dev"
+     /// Leaves transport headroom below the public 100 MB request ceiling.
+     static let maximumUploadBytes = 96_000_000

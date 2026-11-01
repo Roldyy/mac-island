@@ -1,0 +1,18 @@
+# Files of Sources/PortKit allowed to load a private or undocumented symbol (dlopen, dlsym, @_silgen_name).
+# Read by Tests/PortKitTests/PortSourceScrubTests: a new site fails the test until it is reviewed and listed here.
+# Source of the list: port-plan.md section 5.4. Paths are relative to Sources/PortKit.
+Core/SymbolicHotKeys.swift
+Services/Audio/AirPlayRouteManager.swift
+Services/Bluetooth/BluetoothSleepService.swift
+Services/Display/BrightnessService.swift
+Services/DockPreview/DockAutohideHold.swift
+Services/MiddleClick/MiddleClickService.swift
+Services/Notch/NotchLockScreenService.swift
+Services/Notch/NotchOverlaySpace.swift
+Services/QuickTools/QuickTogglesService.swift
+Services/Recorder/RecorderCursorCatalog.swift
+Services/ResponsibleProcess.swift
+Services/Switcher/AXWindowResolver.swift
+Services/Switcher/SpaceWindowBridge.swift
+Services/Switcher/WindowPreviewProvider.swift
+Services/Switcher/WindowServerCaptureQueue.swift

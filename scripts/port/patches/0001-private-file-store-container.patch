@@ -1,0 +1,22 @@
+--- a/Services/PrivateFileStore.swift
++++ b/Services/PrivateFileStore.swift
+@@ -18,14 +18,15 @@
+     private static let directoryPermissions = 0o700
+     private static let filePermissions = 0o600
+ 
+-    /// `~/Library/Application Support/<bundle id>`, nil outside a real bundle.
++    /// `~/Library/Application Support/be.roldy.macisland/Data`, the folder the settings migrator filled.
++    /// Fixed (not read from the bundle) so a test host and a `swift run` binary agree with the app.
+     /// Building the URL touches no disk; `createDirectory(at:)` does that.
+     static var containerURL: URL? {
+         guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
+-                                                  in: .userDomainMask).first,
+-              let bundleID = Bundle.main.bundleIdentifier
++                                                  in: .userDomainMask).first
+         else { return nil }
+-        return base.appendingPathComponent(bundleID, isDirectory: true)
++        return base.appendingPathComponent(PortHost.bundleID, isDirectory: true)
++            .appendingPathComponent(PortHost.dataFolderName, isDirectory: true)
+     }
+ 
+     /// Creates `url` and its parents owner-only. `container` bounds how far up

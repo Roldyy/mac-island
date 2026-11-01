@@ -1,0 +1,6 @@
+// Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+module HIDEventSystem [system] {
+    header "include/HIDEventSystem.h"
+    link "IOKit"
+    export *
+}

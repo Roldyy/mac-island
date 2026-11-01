@@ -14,6 +14,7 @@ import KeepAwakeFeature
 import NowPlayingFeature
 import Observation
 import os
+import PortKit
 import ShelfFeature
 import IslandKit
 import ShellKit
@@ -100,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             relaunch: Self.relaunchAction)
         self.settings = settings
+        installPortBridge(settings: settings)
         KeepAwakeShortcutService.shared.arm(defaults: defaults) { KeepAwakeFeature.toggle() }
         menuBar = MenuBarItemController(
             onOpenSettings: { settings.show() },
@@ -297,6 +299,22 @@ extension ClosedStrip {
             case .working: ClaudeWorkSample(id: session.id, isWaiting: false, since: session.updatedAt)
             case .waiting: ClaudeWorkSample(id: session.id, isWaiting: true, since: session.updatedAt)
             case .idle, .unknown: nil
+            }
+        }
+    }
+}
+
+extension AppDelegate {
+    /// Connects the ported Vorssaint code (PortKit) to the shell. Inert: it lends closures and registers the
+    /// ported Settings page bodies (none yet); it starts no feature and Vorssaint's own island stays off.
+    func installPortBridge(settings: SettingsWindowController) {
+        let relaunch = Self.relaunchAction
+        PortBridge.install(host: PortBridge.Host(
+            openSettings: { MainActor.assumeIsolated { settings.show() } },
+            relaunch: relaunch.map { action in { MainActor.assumeIsolated { action() } } }))
+        for pageID in PortBridge.registeredPageIDs {
+            SettingsPageBodies.register(pageID: pageID) {
+                PortBridge.settingsBody(pageID: pageID) ?? AnyView(EmptyView())
             }
         }
     }

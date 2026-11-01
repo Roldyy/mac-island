@@ -1,0 +1,49 @@
+--- a/Core/FeatureCatalog.swift
++++ b/Core/FeatureCatalog.swift
+@@ -213,7 +213,8 @@
+         }
+     }
+ 
+-    var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
++    /// Mac Island's `FeatureRegistry` and the ported `FeatureRuntime` read the same switch.
++    var availabilityKey: String { "shell.enabled." + rawValue }
+ 
+     var isBeta: Bool { self == .fanControl || self == .killProcess }
+ 
+--- a/App/FeatureRuntime.swift
++++ b/App/FeatureRuntime.swift
+@@ -95,6 +95,16 @@
+     private func mayFlip(_ feature: AppFeature, to available: Bool) -> Bool {
+         guard feature.isAvailable != available else { return false }
+         return !available || feature.isHardwareSupported
++    }
++
++    /// Mac Island's registry is the only writer of `shell.enabled.<id>`: once a bridge sets
++    /// `PortHost.setEnabled`, the switch is handed over instead of written here.
++    private static func writeAvailability(_ feature: AppFeature, _ value: Bool) {
++        if let handOver = PortHost.setEnabled {
++            handOver(feature.rawValue, value)
++        } else {
++            UserDefaults.standard.set(value, forKey: feature.availabilityKey)
++        }
+     }
+ 
+     /// Flipping availability runs each feature's binding immediately, in the
+@@ -118,7 +128,7 @@
+             if available && enablingFirstInstalls {
+                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+             }
+-            UserDefaults.standard.set(available, forKey: feature.availabilityKey)
++            Self.writeAvailability(feature, available)
+             if available {
+                 loadedThisSession.insert(feature)
+                 offerableThisSession.remove(feature)
+@@ -154,7 +164,7 @@
+             if joins {
+                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+             }
+-            UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
++            Self.writeAvailability(feature, joins)
+             if joins {
+                 loadedThisSession.insert(feature)
+                 offerableThisSession.remove(feature)

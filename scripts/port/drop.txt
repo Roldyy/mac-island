@@ -1,0 +1,43 @@
+# Paths under Sources/Vorssaint that scripts/port/import.sh does NOT copy.
+# One entry per line: a file, or a folder ending in "/". Blank lines and "#" lines are ignored.
+
+# Entry point and app shell (Mac Island has its own; the facade lives in Compat/).
+main.swift
+App/AppDelegate.swift
+App/StatusItemController.swift
+Support/
+
+# Self-update, feedback, onboarding, release notes: nothing may reach a Vorssaint host.
+Services/Update/UpdateInstallerSupport.swift
+Services/Update/UpdateService.swift
+Services/Update/UpdateShowcaseMedia.swift
+# (Services/Update/UpdateServiceSupport.swift is kept: pure SemanticVersion code that Defaults.swift needs.)
+Services/Feedback/
+UI/Feedback/
+UI/Onboarding/
+UI/UpdateHighlightsView.swift
+Core/BundleMigration.swift
+Core/ReleaseNotes.swift
+Core/ReleaseDigest.swift
+Core/ReleaseChangeAliases.swift
+Services/SelfUninstall.swift
+
+# Share uploads (screenshots.vorssaint.com) and the remote price table.
+Services/QuickTools/ScreenshotShareService.swift
+Services/Recorder/RecordingShareService.swift
+# (the two *SharingSupport.swift files are kept for their pure types; a patch points their endpoint nowhere.)
+Services/AgentUsage/AgentPriceSource.swift
+
+# Languages: French and English only (English lives in Localization.swift, French in Strings+French.swift).
+Core/Localizations/Strings+ChineseSimplified.swift
+Core/Localizations/Strings+ChineseTraditionalHK.swift
+Core/Localizations/Strings+ChineseTraditionalTW.swift
+Core/Localizations/Strings+German.swift
+Core/Localizations/Strings+Italian.swift
+Core/Localizations/Strings+Japanese.swift
+Core/Localizations/Strings+Korean.swift
+Core/Localizations/Strings+Russian.swift
+Core/Localizations/Strings+Slovak.swift
+Core/Localizations/Strings+Spanish.swift
+Core/Localizations/Strings+Turkish.swift
+Core/Localizations/Strings+Ukrainian.swift

@@ -1,0 +1,6 @@
+name=Vorssaint
+version=3.4.2
+build=104
+commit=833967fd45153fc9dc95651d34c867f5c4aee7f1
+tgz_sha256=cecfe91073b8affe2c046490b8d3712a9a15672ce52bed501b1b7500d63f63ee
+license=GPL-3.0-or-later

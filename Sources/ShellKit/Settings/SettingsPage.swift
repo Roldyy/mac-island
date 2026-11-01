@@ -35,5 +35,6 @@ public struct SettingsPage: Identifiable, Equatable, Sendable {
     /// True when nothing on the page can be changed yet.
     public var isComingSoon: Bool {
         kind == .declarative && featureID == nil && SettingsLive.isEmpty(pageID: id)
+            && !SettingsPageBodies.hasBody(for: id)
     }
 }

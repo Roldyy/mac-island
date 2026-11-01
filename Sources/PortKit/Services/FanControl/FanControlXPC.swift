@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+
+import Foundation
+
+enum FanControlIdentifiers {
+    /// Mac Island's own signing identity and root helper (see `FanHelperContract`). The ported fan code never
+    /// registers a daemon: the bridge talks to Mac Island's helper.
+    static let teamID = "U3TUL63HHK"
+
+    static let appBundleID = "be.roldy.macisland"
+
+    static let helperID = "\(appBundleID).fanhelper"
+    static let plistName = "\(helperID).plist"
+
+    static let appCodeRequirement =
+        "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(appBundleID)\""
+    static let helperCodeRequirement =
+        "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(helperID)\""
+}
+
+@objc protocol FanControlXPCProtocol {
+    func status(withReply reply: @escaping (Data) -> Void)
+    func startMaximumCooling(withReply reply: @escaping (Data) -> Void)
+    func applyConfiguration(_ configuration: Data, withReply reply: @escaping (Data) -> Void)
+    func heartbeat(withReply reply: @escaping (Data) -> Void)
+    func restoreAutomatic(withReply reply: @escaping (Data) -> Void)
+}
+
+enum FanControlIPC {
+    static func encode(_ response: FanControlResponse) -> Data {
+        // Every value in this closed response model is JSON encodable. Keeping
+        // one deterministic fallback avoids ever violating the XPC reply shape.
+        (try? JSONEncoder().encode(response))
+            ?? Data(#"{"succeeded":false,"snapshot":{"fans":[],"isCooling":false},"error":"controlFailed"}"#.utf8)
+    }
+
+    static func decode(_ data: Data) -> FanControlResponse? {
+        try? JSONDecoder().decode(FanControlResponse.self, from: data)
+    }
+
+    static func encode(_ configuration: FanControlConfiguration) -> Data? {
+        try? JSONEncoder().encode(configuration)
+    }
+
+    static func decodeConfiguration(_ data: Data) -> FanControlConfiguration? {
+        guard let configuration = try? JSONDecoder().decode(FanControlConfiguration.self,
+                                                              from: data),
+              FanControlPolicy.validConfiguration(configuration) else { return nil }
+        return configuration
+    }
+}

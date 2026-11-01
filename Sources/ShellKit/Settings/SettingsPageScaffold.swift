@@ -28,6 +28,7 @@ struct SettingsPageScaffold<Content: View>: View {
                         .foregroundStyle(IslandPalette.textSecondary.color)
                 }
                 content
+                if let ported = SettingsPageBodies.body(for: page.id) { ported }
             }
             .padding(IslandSpacing.xl)
             .frame(maxWidth: 720, alignment: .leading)

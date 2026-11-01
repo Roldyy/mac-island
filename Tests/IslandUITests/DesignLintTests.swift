@@ -84,6 +84,11 @@ import Testing
         #expect(DesignLint.scannedFolders.contains("Sources/IslandKit"))
     }
 
+    @Test func portedCodeIsReportOnly() {
+        #expect(DesignLint.scannedFolders.contains("Sources/PortKit"))
+        #expect(!Self.enforcedFolders.contains("Sources/PortKit"))
+    }
+
     @Test func folderMembershipIsExact() {
         let v = DesignLintViolation(file: "Sources/ShellKit/A.swift", line: 1, rule: "r", excerpt: "")
         #expect(Self.folder(of: v) == "Sources/ShellKit")
