@@ -1,0 +1,13 @@
+--- a/Services/Recorder/RecorderSystemAudioTap.swift
++++ b/Services/Recorder/RecorderSystemAudioTap.swift
+@@ -154,6 +154,10 @@
+     /// it to that app's sound.
+     static func make(hearing pid: pid_t?) async -> RecorderSystemAudioTap? {
+         guard #available(macOS 14.4, *) else { return nil }
++        // Mac Island: building a tap is what makes macOS ask for System Audio Recording, so none is built until a
++        // click on "Autoriser" proved the grant (Bridge/Mixer.swift, Bridge/Recorder.swift). Until then the
++        // recording takes the Mac's sound from the capture stream, which needs no extra permission.
++        guard MixerAudioCapture.allowsTaps else { return nil }
+         let queue = DispatchQueue(label: "be.roldy.macisland.recorder.systemaudio",
+                                   qos: .userInitiated)
+         return await withCheckedContinuation { continuation in

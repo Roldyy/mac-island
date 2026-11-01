@@ -1,0 +1,19 @@
+--- a/UI/Settings/ScreenRecorderSettings.swift
++++ b/UI/Settings/ScreenRecorderSettings.swift
+@@ -153,6 +153,8 @@
+                 }
+             }
+ 
++            // Mac Island has no sharing server: the whole section stays hidden (Compat/ShareStubs.swift).
++            if RecordingShareService.isAvailable {
+             Section {
+                 Toggle(screenshotStrings.shareEnabledToggle, isOn: $sharingEnabled)
+                 if sharingEnabled {
+@@ -184,6 +186,7 @@
+             } header: {
+                 Text(screenshotStrings.shareSectionTitle)
+             }
++            }
+         }
+         .onAppear { sharing.refresh() }
+         .sheet(isPresented: $showingSharedLinks) {

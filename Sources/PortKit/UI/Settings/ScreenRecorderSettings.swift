@@ -153,6 +153,8 @@ struct ScreenRecordingCaptureSettings: View {
                 }
             }
 
+            // Mac Island has no sharing server: the whole section stays hidden (Compat/ShareStubs.swift).
+            if RecordingShareService.isAvailable {
             Section {
                 Toggle(screenshotStrings.shareEnabledToggle, isOn: $sharingEnabled)
                 if sharingEnabled {
@@ -183,6 +185,7 @@ struct ScreenRecordingCaptureSettings: View {
                 }
             } header: {
                 Text(screenshotStrings.shareSectionTitle)
+            }
             }
         }
         .onAppear { sharing.refresh() }

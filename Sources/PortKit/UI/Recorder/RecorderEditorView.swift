@@ -138,7 +138,8 @@ struct RecorderEditorView: View {
                 .disabled(model.isExporting)
             }
 
-            if sharingEnabled {
+            // Mac Island has no sharing server: the button stays hidden (Compat/ShareStubs.swift).
+            if sharingEnabled, RecordingShareService.isAvailable {
                 shareMenu
             }
 

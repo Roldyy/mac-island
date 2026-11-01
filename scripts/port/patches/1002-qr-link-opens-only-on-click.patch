@@ -1,0 +1,16 @@
+--- a/Services/QuickTools/QRResultController.swift
++++ b/Services/QuickTools/QRResultController.swift
+@@ -170,11 +170,12 @@
+             HStack(spacing: 8) {
+                 Spacer(minLength: 0)
+                 if url != nil {
++                    // Mac Island: a link opens only from a click on "Ouvrir". Return is Copy, never Open.
+                     Button(strings.qrResultCopy, action: copy)
+                         .buttonStyle(.bordered)
++                        .keyboardShortcut(.defaultAction)
+                     Button(strings.qrResultOpen, action: open)
+                         .buttonStyle(.borderedProminent)
+-                        .keyboardShortcut(.defaultAction)
+                 } else {
+                     Button(strings.qrResultCopy, action: copy)
+                         .buttonStyle(.borderedProminent)

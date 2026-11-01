@@ -2,8 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Lane W4C: hardened runtime refuses the camera (the preview mirror) without this entitlement. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
     <!-- Hardened runtime: AppleScript to Finder, Spotify and Music needs this entitlement. -->
     <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <!-- Lane W4B (screen recorder): the hardened runtime blocks microphone capture without this entitlement.
+         Only the microphone recording of the recorder uses it; macOS still asks (NSMicrophoneUsageDescription). -->
+    <key>com.apple.security.device.audio-input</key>
     <true/>
 </dict>
 </plist>

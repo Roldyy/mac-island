@@ -693,12 +693,21 @@ enum RecorderSupport {
     /// second copy of the whole recording, and it carries the destination's
     /// own extension, so nothing on the way writes a file of one kind under
     /// the name of another.
+    /// The hidden name every staged file starts with. Mac Island's launch recovery (Bridge/Recorder.swift) deletes a
+    /// staged file a crash left behind, and only a file with this prefix.
+    static let stagingPrefix = ".macisland-partial-"
+
+    /// Told of every staged URL before anything is written to it (Bridge/Recorder.swift journals it).
+    nonisolated(unsafe) static var stagedObserver: (@Sendable (URL) -> Void)?
+
     static func stagingURL(for destination: URL) -> URL {
-        let name = ".vorssaint-partial-\(UUID().uuidString)"
+        let name = "\(stagingPrefix)\(UUID().uuidString)"
         let staged = destination.deletingLastPathComponent().appendingPathComponent(name)
-        return destination.pathExtension.isEmpty
+        let url = destination.pathExtension.isEmpty
             ? staged
             : staged.appendingPathExtension(destination.pathExtension)
+        stagedObserver?(url)
+        return url
     }
 
     /// Puts the finished file where the person asked for it, replacing what

@@ -130,6 +130,8 @@ public enum PortBridge {
         DisplayBrightnessLane.recoverAtLaunch(defaults: defaults)
         // The Dock auto-hide a "keep the Dock visible" hover left held: entered only when its journal is set.
         DockLane.recoverAtLaunch(defaults: defaults)
+        // A recording a crash cut short: saved when it plays, deleted when it does not (only when its journal is set).
+        RecorderLane.recoverAtLaunchLive()
     }
 
     // MARK: Settings page bodies

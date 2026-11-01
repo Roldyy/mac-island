@@ -1,0 +1,10 @@
+# Lane W4-C (OCR, colour picker, camera preview, QR): the upstream harness tests this lane turns on (names as in Tests/ of
+# the pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here.
+# Plain-Swift check scripts the upstream harness rewrites (generate_sources.py) against stub singletons: they extract
+# ScreenTextService and the screenshot preview's OCR control from the production text, which patches 1000-1002 do not
+# touch (they edit CameraPreviewService, CameraPreviewView and QRResultController only). Upstream has no test file of its
+# own for the colour sampler, the camera preview service or the QR panel: the camera checks sit in the notch tests
+# (NotchActivityTests, NotchCompactTests, owned by the notch lane). This lane's own checks are
+# Tests/PortKitTests/CaptureTools*Tests.swift (port plan section 4, lane 4C).
+ScreenTextCompletionTests.swift
+ScreenshotOCRControlTests.swift

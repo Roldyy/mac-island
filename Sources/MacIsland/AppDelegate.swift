@@ -71,6 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .screenRecording: UserPermissionRequest.request(MonitoredPermission.screenRecording)
             }
         }
+        // The OCR page's own "Autoriser": ask once so macOS lists the app, then open the pane.
+        PortCaptureTools.requestPermission = { _ in UserPermissionRequest.request(MonitoredPermission.screenRecording) }
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
         let live = ClaudeLiveMonitor(

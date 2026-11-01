@@ -36,6 +36,9 @@ final class RecorderTakeStore: @unchecked Sendable {
             .appendingPathComponent("Recordings", isDirectory: true)
     }
 
+    /// Where the takes live (Mac Island's launch recovery reads its journal and the leftover takes from here).
+    var recordingsRoot: URL? { root }
+
     /// Space left where recordings are written, the way the system reports it
     /// for something the person actually wants to keep.
     func freeBytes() -> Int64 {
@@ -164,7 +167,16 @@ final class RecorderTakeStore: @unchecked Sendable {
     /// Turns a finished take into the file the person keeps. The take stays
     /// intact if either step fails, so the editor can still recover it.
     func saveDirectly(_ take: Take, to destination: URL) throws {
-        try manager.copyItem(at: take.videoURL, to: destination)
+        // Mac Island: the copy is written beside the destination under a hidden name and renamed into place once
+        // whole, so a crash or a full disk never leaves a half file under the final name in the person's folder.
+        let staged = RecorderSupport.stagingURL(for: destination)
+        do {
+            try manager.copyItem(at: take.videoURL, to: staged)
+            try manager.moveItem(at: staged, to: destination)
+        } catch {
+            try? manager.removeItem(at: staged)
+            throw error
+        }
         do {
             try manager.removeItem(at: take.folder)
         } catch {

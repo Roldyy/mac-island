@@ -1,0 +1,101 @@
+--- a/Services/QuickTools/CameraPreviewService.swift
++++ b/Services/QuickTools/CameraPreviewService.swift
+@@ -15,7 +15,9 @@
+     static let shared = CameraPreviewService()
+ 
+     enum PreviewState {
+-        case idle, waitingPermission, starting, running, denied, noCamera, unavailable
++        /// Mac Island: `needsPermission` = the camera was never asked about. Nothing is asked until the user clicks
++        /// "Autoriser" (`requestAccessByClick`); `waitingPermission` is the system dialog being up.
++        case idle, needsPermission, waitingPermission, starting, running, denied, noCamera, unavailable
+     }
+ 
+     @Published private(set) var shortcutRegistrationFailed = false
+@@ -153,28 +155,13 @@
+ 
+     private func beginCapture() {
+         captureGeneration = UUID()
+-        let generation = captureGeneration
+         switch AVCaptureDevice.authorizationStatus(for: .video) {
+         case .authorized:
+             startSession()
+         case .notDetermined:
+-            state = .waitingPermission
+-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+-                DispatchQueue.main.async {
+-                    Permissions.shared.refresh()
+-                    guard let self, self.isPresented, self.captureGeneration == generation else { return }
+-                    self.permissionResolvedAt = Date()
+-                    // The system dialog appears mid fade-in and was observed
+-                    // leaving the panel stuck transparent; the resolution is
+-                    // the moment the mirror must be fully there.
+-                    self.panel?.alphaValue = 1
+-                    if granted {
+-                        self.startSession()
+-                    } else {
+-                        self.state = .denied
+-                    }
+-                }
+-            }
++            // Mac Island never prompts from a shortcut, a menu entry or a launch: the panel says what the
++            // camera is for and waits for the click on "Autoriser".
++            state = .needsPermission
+         case .denied, .restricted:
+             state = .denied
+         @unknown default:
+@@ -182,6 +169,30 @@
+         }
+     }
+ 
++    /// Mac Island: the ONLY place the system camera prompt can come from. Called by the "Autoriser" button of the
++    /// preview panel, so always a click by the user.
++    func requestAccessByClick() {
++        guard isPresented, state == .needsPermission else { return }
++        let generation = captureGeneration
++        state = .waitingPermission
++        AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
++            DispatchQueue.main.async {
++                Permissions.shared.refresh()
++                guard let self, self.isPresented, self.captureGeneration == generation else { return }
++                self.permissionResolvedAt = Date()
++                // The system dialog appears mid fade-in and was observed
++                // leaving the panel stuck transparent; the resolution is
++                // the moment the mirror must be fully there.
++                self.panel?.alphaValue = 1
++                if granted {
++                    self.startSession()
++                } else {
++                    self.state = .denied
++                }
++            }
++        }
++    }
++
+     private func startSession() {
+         guard isPresented else { return }
+         // A session may still be alive when a queued permission callback or
+@@ -344,7 +355,7 @@
+             if !devices.isEmpty {
+                 startSession()
+             }
+-        case .idle, .waitingPermission, .denied, .unavailable:
++        case .idle, .needsPermission, .waitingPermission, .denied, .unavailable:
+             break
+         }
+     }
+--- a/UI/CameraPreview/CameraPreviewView.swift
++++ b/UI/CameraPreview/CameraPreviewView.swift
+@@ -51,6 +51,13 @@
+             ProgressView()
+                 .controlSize(.small)
+                 .tint(.white)
++        case .needsPermission:
++            // Mac Island: the system prompt comes only from this click, never from the shortcut that opened the panel.
++            statusMessage(icon: "video",
++                          text: "Mac Island montre votre caméra uniquement dans cette fenêtre. Rien n’est enregistré.") {
++                Button("Autoriser la caméra") { service.requestAccessByClick() }
++                    .controlSize(.small)
++            }
+         case .denied:
+             statusMessage(icon: "video.slash", text: strings.deniedMessage) {
+                 Button(l10n.s.permissionOpenSettings) {

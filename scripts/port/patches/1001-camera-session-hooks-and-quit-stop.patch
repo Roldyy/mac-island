@@ -1,0 +1,82 @@
+--- a/Services/QuickTools/CameraPreviewService.swift
++++ b/Services/QuickTools/CameraPreviewService.swift
+@@ -33,6 +33,14 @@
+     /// its preview layer from it while the panel is up.
+     private(set) var session: AVCaptureSession?
+ 
++    /// Mac Island camera safety (`Bridge/CaptureTools.swift`). `onSessionChange(true)` the moment a capture session
++    /// exists, `onSessionChange(false)` the moment it is released: the island shows its camera indicator in between.
++    /// `onUserActivity` is every interaction with the preview, which re-arms the 5 minute inactivity close.
++    var onSessionChange: ((Bool) -> Void)?
++    var onUserActivity: (() -> Void)?
++
++    func noteActivity() { onUserActivity?() }
++
+     private let hotkey = QuickToolHotkey(id: 16)
+     /// startRunning blocks for a moment, so every session mutation happens
+     /// here and only state lands back on the main thread.
+@@ -211,6 +219,7 @@
+         let request = CameraPreviewRequest()
+         sessionRequest = request
+         self.session = session
++        onSessionChange?(true)
+         for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
+             sessionObservers.append(NotificationCenter.default.addObserver(forName: name, object: session,
+                 queue: .main) { [weak self] _ in
+@@ -247,6 +256,7 @@
+         sessionRequest?.cancel(); sessionRequest = nil
+         guard let session else { return }
+         self.session = nil
++        onSessionChange?(false)
+         sessionQueue.async {
+             if session.isRunning {
+                 session.stopRunning()
+@@ -263,9 +273,17 @@
+     }
+ 
+     func selectCamera(_ device: AVCaptureDevice) {
++        noteActivity()
+         activateCamera(device, rememberChoice: true)
+     }
+ 
++    /// Mac Island: the quit hook. Releases the camera and WAITS for the capture queue to finish `stopRunning`, so the
++    /// camera light is off before the process ends. Main thread only.
++    func shutdownForQuit() {
++        hide()
++        sessionQueue.sync {}
++    }
++
+     private func activateCamera(_ device: AVCaptureDevice, rememberChoice: Bool) {
+         guard device.uniqueID != selectedDeviceID else { return }
+         selectedDeviceID = device.uniqueID
+@@ -419,6 +437,7 @@
+         removeMonitors()
+         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
+             guard let self, let panel, event.window === panel else { return event }
++            self.noteActivity()
+             if event.keyCode == UInt16(kVK_Escape) {
+                 self.hide()
+                 return nil
+@@ -430,6 +449,8 @@
+             guard let self, let panel, panel.isVisible, self.dismissesOnOutsideInteraction else { return event }
+             if event.window !== panel, !Self.mouseIsInside(panel) {
+                 self.hide()
++            } else {
++                self.noteActivity()
+             }
+             return event
+         }
+--- a/UI/CameraPreview/CameraPreviewView.swift
++++ b/UI/CameraPreview/CameraPreviewView.swift
+@@ -37,7 +37,10 @@
+         // The surface is always black, so the controls (spinner, menu,
+         // buttons) must draw for a dark background in either system look.
+         .environment(\.colorScheme, .dark)
+-        .onHover { hovering = $0 }
++        .onHover {
++            hovering = $0
++            if $0 { service.noteActivity() }
++        }
+     }
+ 
+     @ViewBuilder

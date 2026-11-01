@@ -15,7 +15,9 @@ final class CameraPreviewService: ObservableObject {
     static let shared = CameraPreviewService()
 
     enum PreviewState {
-        case idle, waitingPermission, starting, running, denied, noCamera, unavailable
+        /// Mac Island: `needsPermission` = the camera was never asked about. Nothing is asked until the user clicks
+        /// "Autoriser" (`requestAccessByClick`); `waitingPermission` is the system dialog being up.
+        case idle, needsPermission, waitingPermission, starting, running, denied, noCamera, unavailable
     }
 
     @Published private(set) var shortcutRegistrationFailed = false
@@ -30,6 +32,14 @@ final class CameraPreviewService: ObservableObject {
     /// The session is created on show and destroyed on hide. The view builds
     /// its preview layer from it while the panel is up.
     private(set) var session: AVCaptureSession?
+
+    /// Mac Island camera safety (`Bridge/CaptureTools.swift`). `onSessionChange(true)` the moment a capture session
+    /// exists, `onSessionChange(false)` the moment it is released: the island shows its camera indicator in between.
+    /// `onUserActivity` is every interaction with the preview, which re-arms the 5 minute inactivity close.
+    var onSessionChange: ((Bool) -> Void)?
+    var onUserActivity: (() -> Void)?
+
+    func noteActivity() { onUserActivity?() }
 
     private let hotkey = QuickToolHotkey(id: 16)
     /// startRunning blocks for a moment, so every session mutation happens
@@ -153,32 +163,41 @@ final class CameraPreviewService: ObservableObject {
 
     private func beginCapture() {
         captureGeneration = UUID()
-        let generation = captureGeneration
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             startSession()
         case .notDetermined:
-            state = .waitingPermission
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                DispatchQueue.main.async {
-                    Permissions.shared.refresh()
-                    guard let self, self.isPresented, self.captureGeneration == generation else { return }
-                    self.permissionResolvedAt = Date()
-                    // The system dialog appears mid fade-in and was observed
-                    // leaving the panel stuck transparent; the resolution is
-                    // the moment the mirror must be fully there.
-                    self.panel?.alphaValue = 1
-                    if granted {
-                        self.startSession()
-                    } else {
-                        self.state = .denied
-                    }
-                }
-            }
+            // Mac Island never prompts from a shortcut, a menu entry or a launch: the panel says what the
+            // camera is for and waits for the click on "Autoriser".
+            state = .needsPermission
         case .denied, .restricted:
             state = .denied
         @unknown default:
             state = .denied
+        }
+    }
+
+    /// Mac Island: the ONLY place the system camera prompt can come from. Called by the "Autoriser" button of the
+    /// preview panel, so always a click by the user.
+    func requestAccessByClick() {
+        guard isPresented, state == .needsPermission else { return }
+        let generation = captureGeneration
+        state = .waitingPermission
+        AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+            DispatchQueue.main.async {
+                Permissions.shared.refresh()
+                guard let self, self.isPresented, self.captureGeneration == generation else { return }
+                self.permissionResolvedAt = Date()
+                // The system dialog appears mid fade-in and was observed
+                // leaving the panel stuck transparent; the resolution is
+                // the moment the mirror must be fully there.
+                self.panel?.alphaValue = 1
+                if granted {
+                    self.startSession()
+                } else {
+                    self.state = .denied
+                }
+            }
         }
     }
 
@@ -200,6 +219,7 @@ final class CameraPreviewService: ObservableObject {
         let request = CameraPreviewRequest()
         sessionRequest = request
         self.session = session
+        onSessionChange?(true)
         for name in [AVCaptureSession.runtimeErrorNotification, AVCaptureSession.wasInterruptedNotification] {
             sessionObservers.append(NotificationCenter.default.addObserver(forName: name, object: session,
                 queue: .main) { [weak self] _ in
@@ -236,6 +256,7 @@ final class CameraPreviewService: ObservableObject {
         sessionRequest?.cancel(); sessionRequest = nil
         guard let session else { return }
         self.session = nil
+        onSessionChange?(false)
         sessionQueue.async {
             if session.isRunning {
                 session.stopRunning()
@@ -252,7 +273,15 @@ final class CameraPreviewService: ObservableObject {
     }
 
     func selectCamera(_ device: AVCaptureDevice) {
+        noteActivity()
         activateCamera(device, rememberChoice: true)
+    }
+
+    /// Mac Island: the quit hook. Releases the camera and WAITS for the capture queue to finish `stopRunning`, so the
+    /// camera light is off before the process ends. Main thread only.
+    func shutdownForQuit() {
+        hide()
+        sessionQueue.sync {}
     }
 
     private func activateCamera(_ device: AVCaptureDevice, rememberChoice: Bool) {
@@ -344,7 +373,7 @@ final class CameraPreviewService: ObservableObject {
             if !devices.isEmpty {
                 startSession()
             }
-        case .idle, .waitingPermission, .denied, .unavailable:
+        case .idle, .needsPermission, .waitingPermission, .denied, .unavailable:
             break
         }
     }
@@ -408,6 +437,7 @@ final class CameraPreviewService: ObservableObject {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
+            self.noteActivity()
             if event.keyCode == UInt16(kVK_Escape) {
                 self.hide()
                 return nil
@@ -419,6 +449,8 @@ final class CameraPreviewService: ObservableObject {
             guard let self, let panel, panel.isVisible, self.dismissesOnOutsideInteraction else { return event }
             if event.window !== panel, !Self.mouseIsInside(panel) {
                 self.hide()
+            } else {
+                self.noteActivity()
             }
             return event
         }

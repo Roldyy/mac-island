@@ -1,0 +1,23 @@
+# Upstream test files lane W4-B (screen recorder and GIF export) turns on in the port harness (scripts/port/test.sh, one name per line).
+# Plain-Swift check scripts the harness rewrites against stub singletons: none of them runs under `swift test`, and the
+# harness itself is not in this tree, so nothing here has been run: UNVERIFIED. The lane's own checks are
+# Tests/PortKitTests/Recorder*Tests.swift (fakes only, run with `swift test --filter`).
+# What the lane's patches (0950-0955) change, so the harness owner knows what to expect:
+# - RecorderFeatureTests reads Services/Recorder/ScreenRecorderService.swift, RecorderSystemAudioTap.swift and
+#   RecorderComposer/Exporter/EditorController by line. The patches only ADD lines (two hooks, a guard in
+#   RecorderSystemAudioTap.make, a staged copy in RecorderTakeStore.saveDirectly) and remove the microphone request
+#   from the recording start (RecorderPreparationTests builds its own Permissions struct, so it is not affected). None of
+#   the pinned lines it reads moves or changes.
+# - The staging prefix of an export is ".macisland-partial-" now; the test only asks for a leading ".".
+RecorderExportChipTests.swift
+RecorderExportRenderingTests.swift
+RecorderExportSpeedTests.swift
+RecorderFeatureTests.swift
+RecorderGIFWriterTests.swift
+RecorderPreparationTests.swift
+RecorderPresetImageStoreTests.swift
+RecorderSampleTimingTests.swift
+RecorderSystemAudioTapLifecycleTests.swift
+RecorderSystemAudioTrustTests.swift
+RecorderWriterTests.swift
+RecorderZoomAimingTests.swift

@@ -1,0 +1,59 @@
+--- a/Services/Recorder/ScreenRecorderService.swift
++++ b/Services/Recorder/ScreenRecorderService.swift
+@@ -294,6 +294,11 @@
+     /// Set while the disk is being asked how much room is left, so a slow
+     /// answer cannot pile the next second's question on top of it.
+     private var isCheckingDisk = false
++    /// Mac Island (Bridge/Recorder.swift): told when a take starts being written and when its recording is over
++    /// (written, failed or handed to the editor), so a crash in between leaves a journal entry the next launch
++    /// recovers. Set by the lane; nothing here depends on them.
++    var onTakeStarted: ((RecorderTakeStore.Take) -> Void)?
++    var onTakeSettled: ((RecorderTakeStore.Take) -> Void)?
+ 
+     private var strings: RecorderFeatureStrings {
+         FeatureStrings.recorder(L10n.shared.language)
+@@ -428,18 +433,8 @@
+         switch Permissions.shared.microphone {
+         case .granted:
+             startCountdown(for: region, generation: generation)
+-        case .undetermined:
+-            isAwaitingMicrophone = true
+-            Permissions.shared.requestMicrophone { [weak self] granted in
+-                guard let self, self.pendingStartIsAuthorized(generation) else { return }
+-                self.isAwaitingMicrophone = false
+-                if !granted {
+-                    QuickToolHUD.show(icon: "mic.slash",
+-                                      message: self.strings.microphoneUnavailableHUD)
+-                }
+-                self.startCountdown(for: region, generation: generation)
+-            }
+-        case .denied, .unknown:
++        case .undetermined, .denied, .unknown:
++            // Mac Island never asks for the microphone from a recording start: the Settings page asks, on a click.
+             QuickToolHUD.show(icon: "mic.slash", message: strings.microphoneUnavailableHUD)
+             startCountdown(for: region, generation: generation)
+         }
+@@ -523,6 +518,7 @@
+                                         capturesSystemAudio: Bool, generation: Int) {
+         let take = session.take
+         let region = session.region
++        onTakeStarted?(take)
+         session.onUnexpectedStop = { [weak self] _ in
+             // The stream ended without being asked to. Whatever was recorded
+             // is still worth keeping, so this closes the file rather than
+@@ -575,6 +571,7 @@
+                 self.indicator?.hide()
+                 self.indicator = nil
+                 RecorderTakeStore.shared.delete(take)
++                self.onTakeSettled?(take)
+                 self.report(failure)
+                 return
+             }
+@@ -685,6 +682,7 @@
+                 RecorderTakeStore.shared.delete(session.take)
+                 QuickToolHUD.show(icon: "record.circle", message: self.strings.recordFailed)
+             }
++            self.onTakeSettled?(session.take)
+             self.sweepTakes()
+         }
+     }

@@ -37,7 +37,10 @@ struct CameraPreviewView: View {
         // The surface is always black, so the controls (spinner, menu,
         // buttons) must draw for a dark background in either system look.
         .environment(\.colorScheme, .dark)
-        .onHover { hovering = $0 }
+        .onHover {
+            hovering = $0
+            if $0 { service.noteActivity() }
+        }
     }
 
     @ViewBuilder
@@ -51,6 +54,13 @@ struct CameraPreviewView: View {
             ProgressView()
                 .controlSize(.small)
                 .tint(.white)
+        case .needsPermission:
+            // Mac Island: the system prompt comes only from this click, never from the shortcut that opened the panel.
+            statusMessage(icon: "video",
+                          text: "Mac Island montre votre caméra uniquement dans cette fenêtre. Rien n’est enregistré.") {
+                Button("Autoriser la caméra") { service.requestAccessByClick() }
+                    .controlSize(.small)
+            }
         case .denied:
             statusMessage(icon: "video.slash", text: strings.deniedMessage) {
                 Button(l10n.s.permissionOpenSettings) {
