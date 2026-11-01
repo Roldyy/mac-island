@@ -1,8 +1,8 @@
 --- a/Services/RadialMenu/RadialNowPlayingService.swift
 +++ b/Services/RadialMenu/RadialNowPlayingService.swift
-@@ -335,15 +335,14 @@
+@@ -335,17 +335,16 @@
      private static let replyTimeout: TimeInterval = 2.0
-
+ 
      func fetch(completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
 -        guard let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
 -              let library = Bundle.main.privateFrameworksURL?
@@ -15,8 +15,10 @@
              return
          }
          queue.async {
--            let result = BoundedProcessRunner.run("/usr/bin/perl", [script.path, library.path],
-+            let result = BoundedProcessRunner.run("/usr/bin/perl", adapter,
+             // Mac Island: taint mode and a minimal environment, same as the music service's child.
+             let result = BoundedProcessRunner.run("/usr/bin/perl",
+-                                                  MediaRemoteAdapterLocator.perlArguments(adapter: [script.path, library.path], mode: "get"),
++                                                  MediaRemoteAdapterLocator.perlArguments(adapter: adapter, mode: "get"),
                                                    timeout: Self.replyTimeout,
-                                                   maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes)
-             guard result.status == 0, !result.timedOut,
+                                                   maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes,
+                                                   environment: MediaRemoteAdapterLocator.childEnvironment())
