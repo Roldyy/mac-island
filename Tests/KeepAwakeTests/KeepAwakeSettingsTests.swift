@@ -2,37 +2,36 @@ import Foundation
 import Testing
 @testable import KeepAwakeFeature
 
+/// In-memory preferences: nothing is ever written to ~/Library/Preferences.
+final class MemoryDefaults: KeyValueReading {
+    private var values: [String: Any] = [:]
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { values[key] = value }
+}
+
+final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
+
 @Suite struct KeepAwakeSettingsTests {
     func fresh() -> MemoryDefaults { MemoryDefaults() }
 
     @Test func defaultsWhenAbsent() {
         let s = KeepAwakeSettings(defaults: fresh())
-        #expect(!s.mouseJiggleEnabled)
-        #expect(s.mouseJiggleIntervalMinutes == 1)
         #expect(s.defaultDurationMinutes == 0)
         #expect(s.activityKeepsAwake)
-        #expect(!s.preventDisplaySleep)
-        #expect(s.clamshellPreferred == false)
     }
 
     @Test func readsTheMigratedKeysWithTheirOldNames() {
         let d = fresh()
-        d.set(true, forKey: "keepAwakeMouseJiggleEnabled")
-        d.set(5, forKey: "keepAwakeMouseJiggleIntervalMinutes")
         d.set(120, forKey: "defaultDurationMinutes")
         d.set(false, forKey: "notchKeepAwakeActivity")
-        d.set(true, forKey: "clamshellPreferred")
         let s = KeepAwakeSettings(defaults: d)
-        #expect(s.mouseJiggleEnabled)
-        #expect(s.mouseJiggleIntervalMinutes == 5)
         #expect(s.defaultDurationMinutes == 120)
         #expect(!s.activityKeepsAwake)
-        #expect(s.clamshellPreferred)
     }
 
-    @Test func intervalBelowOneIsClamped() {
+    @Test func aNegativeDurationMeansNoLimit() {
         let d = fresh()
-        d.set(0, forKey: "keepAwakeMouseJiggleIntervalMinutes")
-        #expect(KeepAwakeSettings(defaults: d).mouseJiggleIntervalMinutes == 1)
+        d.set(-5, forKey: "defaultDurationMinutes")
+        #expect(KeepAwakeSettings(defaults: d).defaultDurationMinutes == 0)
     }
 }

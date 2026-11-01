@@ -16,20 +16,24 @@ import SwiftUI
 ///   switch alone.
 /// - Keep Awake's global shortcut is owned by Mac Island's own `KeepAwakeShortcutService` (Carbon, ⌃⌥⌘K by
 ///   default, `keepAwakeShortcutEnabled` and `keepAwakeShortcut`). The upstream `HotkeyManager` registers the
-///   same key and stays idle (`upstreamKeepAwakeHotkeyAllowed` false) until the Energy lane retires one of the
-///   two. The shortcuts of Clipboard, Shelf and Command bar likewise stay on our own pages until their lanes.
+///   same key and stays idle (`upstreamKeepAwakeHotkeyAllowed` false): the Energy lane kept OURS and retired the
+///   upstream registrar for good. The shortcuts of Clipboard, Shelf and Command bar likewise stay on our own pages until their lanes.
 enum PortShortcutOwnership {
     /// False: only `KeepAwakeShortcutService` registers the Keep Awake key. Tests flip it.
     nonisolated(unsafe) static var upstreamKeepAwakeHotkeyAllowed = false
 
-    /// A lane bound this feature (running or not).
+    /// A lane bound this feature (running or not). Keep Awake is bound by the Energy lane (its ported manager runs
+    /// the sessions) but its SHORTCUT surfaces stay ours: while `upstreamKeepAwakeHotkeyAllowed` is false it is
+    /// reported unbound here, so the central editor and the recorders never edit or register a second key for it.
     static func isBound(_ feature: AppFeature) -> Bool {
-        PortHost.availability?(feature.registryID) != nil
+        if feature == .keepAwake, !upstreamKeepAwakeHotkeyAllowed { return false }
+        return PortHost.availability?(feature.registryID) != nil
     }
 
-    /// A lane bound this feature and the registry lets it run right now.
+    /// A lane bound this feature and the registry lets it run right now (same Keep Awake exception).
     static func isRunning(_ feature: AppFeature) -> Bool {
-        PortHost.availability?(feature.registryID) == true
+        if feature == .keepAwake, !upstreamKeepAwakeHotkeyAllowed { return false }
+        return PortHost.availability?(feature.registryID) == true
     }
 
     /// The Keep Awake shortcut as Mac Island's page shows it: nil when the person switched it off.

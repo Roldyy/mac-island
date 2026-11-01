@@ -12,16 +12,23 @@ import Testing
     }
 
     @Test func plannedRowsOnMixedPagesAreDisabledToo() {
-        let page = SettingsPageCatalog.page("keepawake")!
-        let rows = SettingsPageModel.blocks(for: page).flatMap(\.rows)
-        let live = rows.filter(\.isLive)
-        #expect(live.count >= 4)
-        let suspended = rows.first { $0.item.label == "Suspendre lorsque le Mac est verrouillé" }
-        #expect(suspended?.isEnabled == false)
+        // Keep Awake used to be the mixed page of this test; its ported body now draws it whole. Any page that
+        // still mixes live and planned rows must keep the planned ones inert.
+        func isPlanned(_ row: SettingsRow) -> Bool {
+            !row.isLive && row.item.kind != .caption && row.item.kind != .heading
+        }
+        var mixed = 0
+        for page in SettingsPageCatalog.all {
+            let rows = SettingsPageModel.blocks(for: page).flatMap(\.rows)
+            guard rows.contains(where: \.isLive), rows.contains(where: isPlanned) else { continue }
+            mixed += 1
+            for row in rows where isPlanned(row) { #expect(!row.isEnabled, "\(page.id): \(row.item.label)") }
+        }
+        #expect(mixed >= 1)
     }
 
     @Test func realFeaturePagesHaveLiveControls() {
-        for id in ["keepawake", "dockclicks", "clipboard", "commandbar", "monitor", "shelf", "cutpaste"] {
+        for id in ["dockclicks", "clipboard", "commandbar", "monitor", "shelf", "cutpaste"] {
             let page = SettingsPageCatalog.page(id)!
             #expect(SettingsPageModel.blocks(for: page).flatMap(\.rows).contains { $0.isLive }, "\(id)")
         }
@@ -29,7 +36,7 @@ import Testing
 
     @Test func liveKeysAreTheMigratedNames() {
         let keys = SettingsLive.table.values.flatMap { $0.bound.values.map(\.key) + $0.extras.map(\.key) }
-        for key in ["defaultDurationMinutes", "dockClickMinimize", "clipboardHistoryEnabled", "pastePlainShortcut", "finderCutPasteEnabled"] {
+        for key in ["notchIdleShowKeepAwake", "dockClickMinimize", "clipboardHistoryEnabled", "pastePlainShortcut", "finderCutPasteEnabled"] {
             #expect(keys.contains(key), "\(key)")
         }
     }

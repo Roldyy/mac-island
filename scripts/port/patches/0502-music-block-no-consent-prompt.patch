@@ -1,0 +1,13 @@
+--- a/Services/Audio/MusicLaunchBlocker.swift
++++ b/Services/Audio/MusicLaunchBlocker.swift
+@@ -255,7 +255,9 @@
+         let target = NSAppleEventDescriptor(processIdentifier: app.processIdentifier)
+         // Consent is asked once per app, right after the key that needs it;
+         // a refusal leaves the app opened, as before.
+-        var status = Int(AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true))
++        // Mac Island never raises the Apple Events consent prompt from a key press (`false`): without a grant the
++        // replacement is only opened, which is what upstream does after a refusal.
++        var status = Int(AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, false))
+         if status == Int(noErr) {
+             let event = NSAppleEventDescriptor(eventClass: command.eventClass, eventID: command.eventID,
+                                                targetDescriptor: target,

@@ -1,0 +1,18 @@
+# Upstream test files (Tests/ of the pinned tree) lane W2-2C (energy and microphone) turns on in the harness, one per line.
+# The harness itself (scripts/port/test.sh) is lane P0-D; nothing here runs without it, and it is not in this tree: UNVERIFIED.
+KeepAwakeCatalogTests.swift
+KeepAwakeClamshellTests.swift
+KeepAwakeDimmingTests.swift
+KeepAwakeLidSleepTests.swift
+KeepAwakeTimerHandoffTests.swift
+#
+# KNOWN, DELIBERATE DIVERGENCE (patch 0500 changes KeepAwakeManager.swift): the closed-lid flow no longer asks for the
+# administrator password except from two click entry points (`setClosedLidMode(true)` and `restoreSleepFromClick()`),
+# and the init no longer probes `sudo -n`. Upstream's behavioural checks that assume the old prompts fail on the patched
+# tree and must be re-pointed (not skipped) by whoever wires the harness; the behaviour that replaces them is covered by
+# Tests/PortKitTests/Energy*Tests (safety policy, click-only prompts, recovery without a prompt, carried preference dropped):
+#   KeepAwakeClamshellTests: every check that expects `Sudoers.install` or `restoreSleepWithAuthorization` to run from a
+#     session start, an automation start, a launch recovery or a failed silent restore (setup retry, "installCompletions"
+#     expectations, the quit-drain prompt checks), and the `refreshPasswordlessStatus` at init (staleStatus).
+#   KeepAwakeLidSleepTests: the launch recovery that falls back to the authorization prompt.
+# KeepAwakeCatalogTests, KeepAwakeDimmingTests and KeepAwakeTimerHandoffTests pin no prompt and are expected to stay green.

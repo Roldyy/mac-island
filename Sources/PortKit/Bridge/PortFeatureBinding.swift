@@ -41,7 +41,8 @@ public final class PortFeatureBinding {
     public static let shared = PortFeatureBinding()
 
     private struct Entry {
-        let descriptor: FeatureDescriptor
+        /// Nil for an adopted feature: the registry already has the descriptor of the module that owns it.
+        let descriptor: FeatureDescriptor?
         let permissions: Set<Gate>
         let start: @MainActor () -> Void
         let stop: @MainActor () -> Void
@@ -108,6 +109,22 @@ public final class PortFeatureBinding {
         let id = feature.registryID
         entries[id] = Entry(descriptor: Self.descriptor(for: feature), permissions: [], start: start, stop: stop,
                             page: page, ownsDescriptor: false)
+        order.append(id)
+        state.bind(id)
+        return true
+    }
+
+    /// Gives the starter and stopper of a ported service to a feature one of our own modules already owns
+    /// (`PortFeatureIDs.existing`: Keep Awake). The registry already holds that module's descriptor, so none is
+    /// added, and the ported service has no permission gate of its own to wait for. The ported page bodies of such a
+    /// feature are registered through `PortBridge.register(pageID:body:)` (its catalog row already carries the
+    /// feature card). Returns false for an id nobody owns or that is already bound.
+    @discardableResult
+    func adopt(_ feature: AppFeature, start: @escaping @MainActor () -> Void,
+               stop: @escaping @MainActor () -> Void) -> Bool {
+        let id = feature.registryID
+        guard PortFeatureIDs.isOwnedByExistingModule(feature.rawValue), entries[id] == nil else { return false }
+        entries[id] = Entry(descriptor: nil, permissions: [], start: start, stop: stop, page: nil, ownsDescriptor: false)
         order.append(id)
         state.bind(id)
         return true

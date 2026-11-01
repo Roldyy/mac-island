@@ -9,32 +9,20 @@ protocol KeyValueReading {
 
 extension UserDefaults: KeyValueReading {}
 
-/// Reads the migrated preference keys (old names kept) from the app's defaults suite.
-/// Observed in the old app's domain: keepAwakeMouseJiggleEnabled, keepAwakeMouseJiggleIntervalMinutes,
-/// notchKeepAwakeActivity, clamshellPreferred and defaultDurationMinutes. All of them are migrated now;
+/// The two preferences this module still reads itself (everything else about Keep Awake is read by the ported
+/// manager): the island's own hold and the default duration the Éveil tab opens on. Migrated keys, old names kept;
 /// an absent key means the default below.
 struct KeepAwakeSettings {
-    static let suiteName = "be.roldy.macisland"
-    /// New key (not migrated): also keep the display awake. The old keepAwakeExternalDisplay is unexplained, so unused.
-    static let preventDisplaySleepKey = "keepAwakePreventDisplaySleep"
-
     let defaults: any KeyValueReading
 
     init(defaults: any KeyValueReading = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
     }
 
-    var mouseJiggleEnabled: Bool { (defaults.object(forKey: "keepAwakeMouseJiggleEnabled") as? Bool) ?? false }
-    var mouseJiggleIntervalMinutes: Int {
-        max(1, (defaults.object(forKey: "keepAwakeMouseJiggleIntervalMinutes") as? NSNumber)?.intValue ?? 1)
-    }
     /// 0 = no limit.
     var defaultDurationMinutes: Int {
         max(0, (defaults.object(forKey: "defaultDurationMinutes") as? NSNumber)?.intValue ?? 0)
     }
     /// The island itself keeps the Mac awake while open or in use.
     var activityKeepsAwake: Bool { (defaults.object(forKey: "notchKeepAwakeActivity") as? Bool) ?? true }
-    var preventDisplaySleep: Bool { (defaults.object(forKey: Self.preventDisplaySleepKey) as? Bool) ?? false }
-    /// Out of scope: lid-closed mode needs root.
-    var clamshellPreferred: Bool { (defaults.object(forKey: "clamshellPreferred") as? Bool) ?? false }
 }

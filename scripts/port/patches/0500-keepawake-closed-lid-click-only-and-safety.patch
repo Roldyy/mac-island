@@ -1,0 +1,293 @@
+--- a/Services/KeepAwakeManager.swift
++++ b/Services/KeepAwakeManager.swift
+@@ -13,6 +13,8 @@
+ /// and the battery protection watchdog.
+ final class KeepAwakeManager: ObservableObject {
+     static let shared = KeepAwakeManager()
++    /// Mac Island: set only by `setClosedLidMode(true)`, the click on the Energy page.
++    static let closedLidConfirmedKey = "macIslandClosedLidConfirmed"
+     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                     category: "keep-awake")
+ 
+@@ -29,12 +31,20 @@
+     @Published private(set) var clamshellActive = false {
+         didSet {
+             guard clamshellActive != oldValue else { return }
++            // Mac Island: the safety policy's duration cap runs from the moment sleep was really disabled.
++            clamshellActiveSince = clamshellActive ? Date() : nil
+             syncLidDimmingObserver()
+         }
+     }
+     @Published private(set) var passwordlessClamshell = false
+     @Published private(set) var clamshellSetupInProgress = false
+     @Published private(set) var clamshellSetupFailed = false
++    /// Mac Island: `pmset disablesleep` could not be put back without an administrator password and nothing may
++    /// ask for one outside a click. The recovery marker stays set; the Energy page and the island offer
++    /// `restoreSleepFromClick()` and the manual command.
++    @Published private(set) var sleepRestoreNeeded = false
++    /// Mac Island: why the safety policy ended the closed-lid mode last (battery, heat, duration); nil otherwise.
++    @Published private(set) var clamshellStopReason: ClamshellSafetyPolicy.Violation?
+ 
+     /// Persistent preference: when on, every keep-awake session also disables
+     /// lid sleep, and ending the session restores it — no per-session setup.
+@@ -42,6 +52,7 @@
+         didSet {
+             guard clamshellPreferred != oldValue else { return }
+             PortHost.defaults.set(clamshellPreferred, forKey: DefaultsKey.clamshellPreferred)
++            if !clamshellPreferred { clamshellSetupClickPending = false }
+             clamshellSetupFailed = false
+             guard !isTerminating else { return }
+             if clamshellPreferred {
+@@ -89,7 +100,13 @@
+     private var screenLocked = false
+     private var sessionPausedForScreenLock = false
+     private var automationSuppressedUntilConditionsClear = false
+-    private var recoveryCompleted = false
++    /// Mac Island: automation waits for it, and nothing sets it unless `recoverIfNeeded` ran, so the lane's start
++    /// calls `recoverIfNeeded` once when the launch plan found no marker to recover.
++    private(set) var recoveryCompleted = false
++    private var recoveryStarted = false
++    private var clamshellActiveSince: Date?
++    /// Mac Island: the one click that may ask for the administrator password to create the closed-lid rule.
++    private var clamshellSetupClickPending = false
+     private var isTerminating = false
+     private var clamshellEnablePending = false
+     private var clamshellRestorePending = false
+@@ -112,9 +129,16 @@
+     private var preferenceSyncScheduled = false
+ 
+     private init() {
+-        clamshellPreferred = PortHost.defaults.bool(forKey: DefaultsKey.clamshellPreferred)
++        // Mac Island: closed-lid mode is OFF until the person chose it here. A `clamshellPreferred` carried over by
++        // the Vorssaint migration was never confirmed in this app, so it is dropped (the rule it needs may even
++        // exist already, and a session would then disable lid sleep with nobody having asked).
++        let carried = PortHost.defaults.bool(forKey: DefaultsKey.clamshellPreferred)
++        let confirmed = PortHost.defaults.bool(forKey: Self.closedLidConfirmedKey)
++        if carried, !confirmed { PortHost.defaults.set(false, forKey: DefaultsKey.clamshellPreferred) }
++        clamshellPreferred = carried && confirmed
+         dimScreenOnLidClose = PortHost.defaults.bool(forKey: DefaultsKey.dimScreenOnLidClose)
+-        refreshPasswordlessStatus()
++        // Mac Island: no `sudo -n` probe at launch. The status is read when the Energy page opens or a closed-lid
++        // attempt starts (`refreshPasswordlessStatus`).
+         // Every settings write announces itself, including the ones made from
+         // inside this class, so a burst folds into a single reply on the next
+         // turn of the run loop rather than one full pass per write.
+@@ -188,6 +212,63 @@
+         }
+     }
+ 
++    // MARK: - Click entry points (the only place an administrator prompt can start)
++
++    /// Mac Island: the click on "Activer le mode capot fermé" or "Désactiver" (Energy page). Turning it on records
++    /// that the person chose it here and lets the one setup attempt it starts end in the administrator prompt that
++    /// creates the restricted rule; no other path (a session, an automation, a launch) can prompt.
++    func setClosedLidMode(_ on: Bool) {
++        guard on else {
++            clamshellPreferred = false
++            return
++        }
++        clamshellStopReason = nil
++        if let violation = currentClamshellViolation(activeSince: nil, now: Date()) {
++            clamshellStopReason = violation
++            return
++        }
++        PortHost.defaults.set(true, forKey: Self.closedLidConfirmedKey)
++        clamshellSetupClickPending = true
++        if clamshellPreferred {
++            applyClamshellPreference()
++        } else {
++            clamshellPreferred = true
++        }
++    }
++
++    /// Creates the sudoers rule (administrator prompt). Reached only from `prepareClamshellPreference` while
++    /// `clamshellSetupClickPending` holds, which only `setClosedLidMode(true)` sets.
++    private func installClosedLidRuleFromClick(requestID: UUID) {
++        let uid = getuid()
++        guard ClosedLidRule.isValid(SudoersSupport.clamshellRule(uid: uid), uid: uid) else {
++            finishClamshellSetup(ok: false, requestID: requestID)
++            return
++        }
++        Sudoers.install { ok in
++            DispatchQueue.main.async { self.finishClamshellSetup(ok: ok, requestID: requestID) }
++        }
++    }
++
++    /// The click on "Rétablir la veille maintenant": puts `pmset disablesleep` back to 0 through the system
++    /// administrator prompt, for the case where nothing could do it silently (a crash with no rule).
++    func restoreSleepFromClick() {
++        guard sleepRestoreNeeded || PortHost.defaults.bool(forKey: DefaultsKey.sleepDisabledFlag) else { return }
++        Sudoers.restoreSleepWithAuthorization(
++            prompt: L10n.shared.s.adminPromptRecover,
++            shouldProceed: { !self.isTerminating }
++        ) { ok in
++            DispatchQueue.main.async {
++                guard ok else { return }
++                PortHost.defaults.set(false, forKey: DefaultsKey.sleepDisabledFlag)
++                self.sleepRestoreNeeded = false
++                self.clamshellActive = false
++                self.clamshellPreferred = false
++            }
++        }
++    }
++
++    // MARK: - End of the click entry points
++
+     // MARK: - Session
+ 
+     func toggle() {
+@@ -741,6 +822,8 @@
+         clamshellSetupID = requestID
+         clamshellSetupInProgress = true
+         clamshellSetupFailed = false
++        // Mac Island: only the click of `setClosedLidMode(true)` may end in the administrator prompt.
++        let mayPrompt = clamshellSetupClickPending
+ 
+         DispatchQueue.global(qos: .userInitiated).async {
+             let configured = Sudoers.isConfigured()
+@@ -748,12 +831,10 @@
+                 guard !self.isTerminating, self.clamshellSetupID == requestID else { return }
+                 if configured {
+                     self.finishClamshellSetup(ok: true, requestID: requestID)
++                } else if mayPrompt {
++                    self.installClosedLidRuleFromClick(requestID: requestID)
+                 } else {
+-                    Sudoers.install { ok in
+-                        DispatchQueue.main.async {
+-                            self.finishClamshellSetup(ok: ok, requestID: requestID)
+-                        }
+-                    }
++                    self.finishClamshellSetup(ok: false, requestID: requestID)
+                 }
+             }
+         }
+@@ -761,6 +842,7 @@
+ 
+     private func finishClamshellSetup(ok: Bool, requestID: UUID) {
+         guard !isTerminating, clamshellSetupID == requestID else { return }
++        clamshellSetupClickPending = false
+         clamshellSetupID = nil
+         clamshellSetupInProgress = false
+         passwordlessClamshell = ok
+@@ -788,6 +870,12 @@
+     private func enableClamshell() {
+         guard !isTerminating, isActive, clamshellPreferred, !sessionPausedForScreenLock,
+               !clamshellActive, !clamshellEnablePending, !clamshellRestorePending else { return }
++        // Mac Island: never disable lid sleep while the safety policy already says no (low battery unplugged, hot).
++        if let violation = currentClamshellViolation(activeSince: nil, now: Date()) {
++            clamshellStopReason = violation
++            DispatchQueue.main.async { [weak self] in self?.clamshellPreferred = false }
++            return
++        }
+         clamshellOperationGeneration &+= 1
+         let generation = clamshellOperationGeneration
+         clamshellEnablePending = true
+@@ -847,18 +935,11 @@
+                         self.finishClamshellRestore(ok: true, usedPasswordless: true,
+                                                    generation: generation, synchronous: false)
+                     } else {
+-                        // Never wait for a prompt on Sudoers' native queue:
+-                        // quit drains that queue while running on the main thread.
+-                        Sudoers.restoreSleepWithAuthorization(
+-                            prompt: L10n.shared.s.adminPromptClamshellOff,
+-                            shouldProceed: { !self.isTerminating && self.clamshellOperationGeneration == generation }
+-                        ) { restored in
+-                            DispatchQueue.main.async {
+-                                guard !self.isTerminating else { return }
+-                                self.finishClamshellRestore(ok: restored, usedPasswordless: false,
+-                                                           generation: generation, synchronous: false)
+-                            }
+-                        }
++                        // Mac Island: no administrator prompt outside a click. The marker stays set (the
++                        // restore did not happen); the page and the island offer `restoreSleepFromClick()`.
++                        self.sleepRestoreNeeded = true
++                        self.finishClamshellRestore(ok: false, usedPasswordless: false,
++                                                   generation: generation, synchronous: false)
+                     }
+                 }
+             }
+@@ -874,6 +955,7 @@
+         // system-wide override may still be set.
+         guard ok else { return }
+         PortHost.defaults.set(false, forKey: DefaultsKey.sleepDisabledFlag)
++        sleepRestoreNeeded = false
+         if !isTerminating, isActive, clamshellPreferred, !sessionPausedForScreenLock {
+             enableClamshell()
+         } else {
+@@ -940,6 +1022,12 @@
+     /// behavior on the next launch.
+     func recoverIfNeeded(completion: (() -> Void)? = nil) {
+         guard !isTerminating else { return }
++        // Mac Island: once per process (the launch plan and the lane's start both ask).
++        guard !recoveryStarted else {
++            if recoveryCompleted { completion?() }
++            return
++        }
++        recoveryStarted = true
+         recoverDimmedDisplayIfNeeded()
+         guard PortHost.defaults.bool(forKey: DefaultsKey.sleepDisabledFlag) else {
+             finishRecovery(completion)
+@@ -955,7 +1043,10 @@
+         let finish: (Bool) -> Void = { ok in
+             guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
+             self.clamshellRestorePending = false
+-            if ok { PortHost.defaults.set(false, forKey: DefaultsKey.sleepDisabledFlag) }
++            if ok {
++                PortHost.defaults.set(false, forKey: DefaultsKey.sleepDisabledFlag)
++                self.sleepRestoreNeeded = false
++            }
+             self.finishRecovery(completion)
+             if ok, self.isActive, self.clamshellPreferred, !self.sessionPausedForScreenLock {
+                 self.enableClamshell()
+@@ -973,12 +1064,10 @@
+             } else {
+                 DispatchQueue.main.async {
+                     guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
+-                    Sudoers.restoreSleepWithAuthorization(
+-                        prompt: L10n.shared.s.adminPromptRecover,
+-                        shouldProceed: { !self.isTerminating && self.clamshellOperationGeneration == generation }
+-                    ) { ok in
+-                        DispatchQueue.main.async { finish(ok) }
+-                    }
++                    // Mac Island: no administrator prompt at launch. The marker stays; the Energy page and the
++                    // island offer `restoreSleepFromClick()`.
++                    self.sleepRestoreNeeded = true
++                    finish(false)
+                 }
+             }
+         }
+@@ -1129,10 +1218,32 @@
+     }
+ 
+     private func checkBattery() {
+-        guard isActive, batteryProtectionPercent() != nil else { return }
+-        deactivate(reason: .battery)
++        guard isActive else { return }
++        if batteryProtectionPercent() != nil {
++            deactivate(reason: .battery)
++            return
++        }
++        checkClamshellSafety()
+     }
+ 
++    /// Mac Island: the closed-lid safety policy (`ClamshellSafetyPolicy`: battery under 20 % unplugged, a hot Mac,
++    /// a duration cap). A violation ends the closed-lid mode only (the keep-awake session itself goes on) and
++    /// turns the preference off, so it takes a new click to start it again.
++    func checkClamshellSafety(now: Date = Date()) {
++        guard clamshellActive, let violation = currentClamshellViolation(activeSince: clamshellActiveSince, now: now)
++        else { return }
++        clamshellStopReason = violation
++        clamshellPreferred = false
++    }
++
++    private func currentClamshellViolation(activeSince: Date?, now: Date) -> ClamshellSafetyPolicy.Violation? {
++        let battery = SystemInfo.batterySnapshot()
++        return ClamshellSafetyPolicy.violation(onBattery: battery?.isOnBattery ?? false,
++                                               batteryPercent: battery?.percent,
++                                               thermalState: ProcessInfo.processInfo.thermalState,
++                                               activeSince: activeSince, now: now)
++    }
++
+     /// The battery level while battery protection would end any session at
+     /// once (on battery, at or below the limit); nil when a session can run.
+     func batteryProtectionPercent() -> Int? {

@@ -25,7 +25,9 @@ final class BluetoothSleepService {
                                                   IOServiceMatching("IOBluetoothHCIController"))
         guard service != 0 else { return false }
         IOObjectRelease(service)
-        return true
+        // Mac Island: the private power switch must load too, else the feature fails closed (never starts, and
+        // the page says it is unavailable) instead of observing sleep and doing nothing.
+        return controllerPower != nil
     }()
 
     private var observers: [NSObjectProtocol] = []
@@ -77,6 +79,13 @@ final class BluetoothSleepService {
             restoresOnWake: defaults.bool(forKey: DefaultsKey.bluetoothSleepRestoreOnWake))
         defaults.set(plan.owesRestore, forKey: DefaultsKey.bluetoothSleepRestorePending)
         if plan.powersOff { Self.setPowered(false) }
+    }
+
+    /// Mac Island: pays the restore still owed, now. The registry's stop and the app's quit call it, so Bluetooth the
+    /// app switched off for sleep never stays off because the app went away first.
+    func restoreNow() {
+        guard Self.isSupported else { return }
+        restoreIfOwed()
     }
 
     private func restoreIfOwed() {

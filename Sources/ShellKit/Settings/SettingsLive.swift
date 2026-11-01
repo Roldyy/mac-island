@@ -66,22 +66,8 @@ public enum SettingsLive {
                      hint: "Remonte vos choix habituels dans les résultats."),
                 source("web").withTitle("Recherche sur le web"),
             ]),
-        "keepawake": Page(
-            bound: [
-                "Durée par défaut": C("defaultDurationMinutes", .choice(options: [
-                    .init("15 minutes", 15), .init("30 minutes", 30), .init("1 heure", 60), .init("2 heures", 120),
-                    .init("4 heures", 240), .init("8 heures", 480), .init("Indéfinie", 0),
-                ], defaultValue: 0)),
-                "Déplacer légèrement le pointeur": flag("keepAwakeMouseJiggleEnabled", false),
-                "Intervalle": C("keepAwakeMouseJiggleIntervalMinutes", .choice(options: [
-                    .init("1 min", 1), .init("2 min", 2), .init("5 min", 5), .init("10 min", 10),
-                ], defaultValue: 1)),
-                "Autoriser l’écran à s’éteindre": flag("keepAwakePreventDisplaySleep", true, inverted: true),
-            ],
-            extras: [
-                flag("notchKeepAwakeActivity", true, title: "Rester éveillé tant que l’île est utilisée",
-                     hint: "Ouvrir ou utiliser l’île retarde la veille."),
-            ]),
+        // "keepawake" has no live entry any more: the ported Keep Awake page (PortKit, Energy lane) draws the whole
+        // page, its default duration, automation, jiggle, display sleep, battery limit, island hold and closed lid.
         "dockpreview": Page(bound: [
             "Prévisualiser les fenêtres dans le Dock": flag("dockPreviewEnabled", false),
             "Délai d’ouverture": C("dockPreviewDelayMilliseconds", .stepper(range: 100...2000, defaultValue: 400, unit: "ms")),
