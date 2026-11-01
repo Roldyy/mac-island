@@ -20,17 +20,17 @@ enum NotchLockScreenSupport {
     /// it, even at the shielding window level, stays behind it.
     static let spaceLevel: Int32 = 400
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
     }
 
-    static func playsSounds(in defaults: UserDefaults = .standard) -> Bool {
+    static func playsSounds(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
     }
 
     /// Music follows the island's Music section, not its resting choice: an
     /// island that rests empty still has music to show when locked.
-    static func showsMusic(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsMusic(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.modules(in: defaults).contains(.music)
     }
 

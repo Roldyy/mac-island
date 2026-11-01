@@ -80,7 +80,7 @@ struct KeepAwakeAutomationEditor: View {
 
     private func saveRunningApps(_ bundleIDs: [String]) {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
-        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.keepAwakeRunningAppBundleIDs)
+        PortHost.defaults.set(sanitized, forKey: DefaultsKey.keepAwakeRunningAppBundleIDs)
         awake.automationPreferencesDidChange()
     }
 

@@ -22,7 +22,7 @@ final class MonitorAlertService {
     /// alert is on for an available metric, so the service costs nothing
     /// otherwise. The alert toggles in Settings call this on every change.
     func syncWithPreferences() {
-        let enabled = Self.anyEnabled(in: .standard)
+        let enabled = Self.anyEnabled(in: PortHost.defaults)
         if enabled {
             startSinkIfNeeded()
         } else {
@@ -37,7 +37,7 @@ final class MonitorAlertService {
     static func anyEnabled(in defaults: UserDefaults) -> Bool {
         AppFeature.anyMonitorAlertEnabled(
             isAvailable: {
-                defaults.bool(forKey: $0.availabilityKey)
+                $0.isAvailable(in: defaults)
                     && ($0 != .monitorPower || PowerSampler.hasInternalBattery)
             },
             boolFor: { defaults.bool(forKey: $0) }
@@ -62,7 +62,7 @@ final class MonitorAlertService {
     }
 
     private func evaluate(_ snapshot: SystemSnapshot) {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         guard Self.anyEnabled(in: defaults) else {
             cpuUsageGate.reset()
             cpuTemperatureGate.reset()
@@ -73,7 +73,7 @@ final class MonitorAlertService {
 
         func alertOn(_ key: String, _ feature: AppFeature) -> Bool {
             defaults.bool(forKey: key)
-                && defaults.bool(forKey: feature.availabilityKey)
+                && feature.isAvailable(in: defaults)
                 && (feature != .monitorPower || PowerSampler.hasInternalBattery)
         }
 
@@ -195,7 +195,7 @@ final class MonitorAlertService {
     private func send(_ kind: MonitorAlertKind, title: String, body: String) {
         let now = Date()
         let minutes = Defaults.sanitizedMonitorAlertCooldown(
-            UserDefaults.standard.integer(forKey: DefaultsKey.monitorAlertCooldownMinutes)
+            PortHost.defaults.integer(forKey: DefaultsKey.monitorAlertCooldownMinutes)
         )
         if let previous = lastSent[kind], now.timeIntervalSince(previous) < Double(minutes * 60) {
             return

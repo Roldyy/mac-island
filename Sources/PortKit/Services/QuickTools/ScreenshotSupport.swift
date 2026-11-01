@@ -79,14 +79,14 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
-    func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+    func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = PortHost.defaults) -> Bool {
         !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
     }
 
     /// A running recording blocks the capture menu, because picking recording
     /// from it would stop the take. A shortcut that skips the menu can only
     /// reach its own tool, so it may run on top of the recording.
-    func opensDuringRecording(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+    func opensDuringRecording(fromShortcut: Bool, defaults: UserDefaults = PortHost.defaults) -> Bool {
         self != .recording && !showsCaptureMenu(fromShortcut: fromShortcut, defaults: defaults)
     }
 
@@ -353,7 +353,7 @@ enum ScreenshotSupport {
 
     /// Captures go to the shelf on their own only while the shelf is
     /// installed and on, so a switched-off shelf never fills up unseen.
-    static func addsCapturesToShelf(in defaults: UserDefaults = .standard) -> Bool {
+    static func addsCapturesToShelf(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
             && AppFeature.shelf.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.shelfEnabled)
@@ -3062,7 +3062,7 @@ enum ScreenshotDefaultAction: String, CaseIterable {
 
     /// The persisted choice; an unknown raw value reads as `.none`.
     static var current: ScreenshotDefaultAction {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
+        let raw = PortHost.defaults.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
         return ScreenshotDefaultAction(rawValue: raw) ?? .none
     }
 

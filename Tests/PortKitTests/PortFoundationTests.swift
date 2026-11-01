@@ -18,7 +18,7 @@ import Testing
 
     @Test func availabilityKeyIsTheRegistrySwitch() {
         for feature in AppFeature.allCases {
-            #expect(feature.availabilityKey == "shell.enabled." + feature.rawValue)
+            #expect(feature.availabilityKey == "shell.enabled." + feature.registryID)
         }
     }
 

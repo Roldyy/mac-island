@@ -39,7 +39,7 @@ final class MicMuteService: ObservableObject {
     /// sweep is still running must re-assert the request in flight, never the
     /// state it is replacing: read from the flag, a mute still being applied
     /// looked like "unmuted, with claims to release" and was silently undone.
-    private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+    private var wantsMute = PortHost.defaults.bool(forKey: DefaultsKey.micMuteActive)
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -69,7 +69,7 @@ final class MicMuteService: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.micMute.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.micMuteShortcut,
                                             fallback: .micMuteDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -90,7 +90,7 @@ final class MicMuteService: ObservableObject {
             // with no control left to unmute it.
             if wantsMute || hasOutstandingClaims {
                 apply(muted: false, announce: false)
-                UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
+                PortHost.defaults.set(false, forKey: DefaultsKey.micMuteActive)
             }
             isMuted = false
         }
@@ -110,7 +110,7 @@ final class MicMuteService: ObservableObject {
 
     /// Devices this app silenced and has not yet put back, present or not.
     private var hasOutstandingClaims: Bool {
-        !(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []).isEmpty
+        !(PortHost.defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []).isEmpty
     }
 
     func suspend() {
@@ -126,7 +126,7 @@ final class MicMuteService: ObservableObject {
     }
 
     var inputVolumeAdjustmentLifetime: UUID? {
-        guard !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) else { return nil }
+        guard !PortHost.defaults.bool(forKey: DefaultsKey.micMuteActive) else { return nil }
         return inputVolumeLock.withLock { inputVolumeBlocked ? nil : inputVolumeLifetime }
     }
 
@@ -145,7 +145,7 @@ final class MicMuteService: ObservableObject {
     /// and a microphone left cut by an app that no longer exists is the one
     /// failure this feature cannot afford, so this one waits.
     func unmuteForTeardown() {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         // A mute still being applied has not reached the flag yet, and a claim
         // is a device this app owes its level back whatever the flag says.
         guard wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims else { return }
@@ -204,7 +204,7 @@ final class MicMuteService: ObservableObject {
     /// the devices the first had just silenced already quiet and unclaimed,
     /// leave them to "the user", and the unmute would never release them.
     private static func sweep(muted: Bool) -> MuteOutcome {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let outcome = applyToDevices(
             muted: muted,
             savedVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:],
@@ -235,7 +235,7 @@ final class MicMuteService: ObservableObject {
             return
         }
         if isMuted != muted { isMuted = muted }
-        UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
+        PortHost.defaults.set(muted, forKey: DefaultsKey.micMuteActive)
         syncListeners()
         guard announce else { return }
         // A partial result keeps the floating confirmation: the whole

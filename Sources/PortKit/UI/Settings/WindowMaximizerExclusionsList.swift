@@ -27,12 +27,12 @@ struct WindowMaximizerExclusionsList: View {
 
     private static var savedApps: [String] {
         Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? [])
+            PortHost.defaults.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? [])
     }
 
     private func save(_ bundleIDs: [String]) {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
-        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.windowMaximizeExcludedApps)
+        PortHost.defaults.set(sanitized, forKey: DefaultsKey.windowMaximizeExcludedApps)
         apps = sanitized
     }
 }

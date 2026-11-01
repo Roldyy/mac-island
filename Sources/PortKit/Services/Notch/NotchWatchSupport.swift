@@ -28,7 +28,7 @@ enum NotchWatchCondition: String, CaseIterable, Identifiable {
         }
     }
 
-    static func saved(in defaults: UserDefaults = .standard) -> NotchWatchCondition {
+    static func saved(in defaults: UserDefaults = PortHost.defaults) -> NotchWatchCondition {
         NotchWatchCondition(rawValue: defaults.string(forKey: DefaultsKey.notchWatchCondition) ?? "") ?? .changes
     }
 }
@@ -159,7 +159,7 @@ enum NotchWatchSupport {
     /// An area without text shows itself, this wide, where its reading would be.
     static let thumbnailWidth: CGFloat = 40
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.notchWatch.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchWatchEnabled)
             && NotchSupport.modules(in: defaults).contains(.watch)

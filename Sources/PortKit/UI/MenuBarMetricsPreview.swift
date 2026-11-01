@@ -137,7 +137,7 @@ struct MenuBarMetricsPreview: View {
         let _ = power
         let _ = fanSpeed
         let _ = connectedDevices
-        return MenuBarMetric.enabled(in: .standard)
+        return MenuBarMetric.enabled(in: PortHost.defaults)
     }
 
     @ViewBuilder

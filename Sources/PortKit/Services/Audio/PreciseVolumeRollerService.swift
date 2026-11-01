@@ -32,7 +32,7 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     func syncWithPreferences() {
         let wanted = AppFeature.mixer.isAvailable
-            && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            && (PortHost.defaults.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
@@ -122,7 +122,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if routeNotchVolume(nsEvent, event: event) { return nil }
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
+        guard PortHost.defaults.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
             return Unmanaged.passUnretained(event)
         }
@@ -162,7 +162,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             }
             return true
         }
-        let precise = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+        let precise = PortHost.defaults.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
         if precise, let direction = key.rollerDirection,
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
         feedbackStep &+= 1

@@ -110,7 +110,7 @@ struct QuickTogglesList: View {
 
     static func resetPanelDefaults() {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelToggleOrder)
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         for key in [DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleKeyboardLight,
                     DefaultsKey.panelToggleMicMute,
                     DefaultsKey.panelToggleEmptyTrash,
@@ -322,7 +322,7 @@ struct QuickTogglesList: View {
     }
 
     private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
-        guard role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
+        guard role.requiredEnableKeys.allSatisfy({ PortHost.defaults.bool(forKey: $0) })
         else { return nil }
         return role.savedShortcut.displayString
     }

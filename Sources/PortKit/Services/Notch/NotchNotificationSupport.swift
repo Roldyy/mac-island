@@ -118,7 +118,7 @@ enum NotchNotificationSupport {
         return source.isEmpty || source.utf8.count > 256 ? nil : source
     }
 
-    static func dismissesNative(in defaults: UserDefaults = .standard) -> Bool {
+    static func dismissesNative(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchDismissNativeNotifications)
     }
 
@@ -128,7 +128,7 @@ enum NotchNotificationSupport {
         return matches.count == 1 ? matches.first : nil
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults)
             && AppFeature.notchNotifications.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled)

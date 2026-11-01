@@ -67,7 +67,7 @@ final class AudioInputDeviceManager: ObservableObject {
     /// follows the mixer's hub availability.
     func syncWithPreferences() {
         inputPriorityIsActive = AppFeature.audioPriority.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
         if AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable {
             start()
         } else {
@@ -136,9 +136,9 @@ final class AudioInputDeviceManager: ObservableObject {
             return
         }
         if let sanitized {
-            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.preferredInputDevice)
+            PortHost.defaults.set(sanitized, forKey: DefaultsKey.preferredInputDevice)
         } else {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.preferredInputDevice)
+            PortHost.defaults.removeObject(forKey: DefaultsKey.preferredInputDevice)
         }
         preferredInputDeviceUID = sanitized
         lastError = nil
@@ -313,7 +313,7 @@ final class AudioInputDeviceManager: ObservableObject {
         guard let generation = refresh.begin() else { return }
         let request = RefreshRequest(
             savedUID: Defaults.sanitizedPreferredInputDeviceUID(
-                UserDefaults.standard.string(forKey: DefaultsKey.preferredInputDevice)),
+                PortHost.defaults.string(forKey: DefaultsKey.preferredInputDevice)),
             inputDeviceBeforeOverride: inputDeviceBeforeOverride,
             mayApplyPreferred: !applyingPreferred && !inputPriorityIsActive,
             priorityIsActive: inputPriorityIsActive,

@@ -15,7 +15,7 @@ enum ClipboardHistoryLayout: String, CaseIterable {
 
     /// A value this version does not know, such as one from a newer
     /// version, reads as the default.
-    static func current(in defaults: UserDefaults = .standard) -> ClipboardHistoryLayout {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> ClipboardHistoryLayout {
         defaults.string(forKey: DefaultsKey.clipboardHistoryLayout).flatMap(Self.init(rawValue:)) ?? .list
     }
 

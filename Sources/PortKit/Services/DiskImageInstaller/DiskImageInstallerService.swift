@@ -145,7 +145,7 @@ final class DiskImageInstallerService {
             else { return false }
             return Self.validBundle(at: url)
         }
-        let useUserApplications = UserDefaults.standard.bool(
+        let useUserApplications = PortHost.defaults.bool(
             forKey: DefaultsKey.diskImageInstallerUseUserApplications)
         guard apps.count == 1, let appURL = apps.first,
               let collisionURLs = DiskImageInstallerSupport.collisionURLs(for: appURL,
@@ -175,7 +175,7 @@ final class DiskImageInstallerService {
         alert.addButton(withTitle: strings.installButton)
         alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
 
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let trashDownload = NSButton(checkboxWithTitle: strings.trashDownloadOption, target: nil, action: nil)
         trashDownload.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerTrashesDownload) ? .on : .off
         let revealApp = NSButton(checkboxWithTitle: strings.revealAppOption, target: nil, action: nil)

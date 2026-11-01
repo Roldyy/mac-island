@@ -118,7 +118,7 @@ enum WindowEnumerator {
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
-                storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
+                storedValue: PortHost.defaults.dictionary(forKey: DefaultsKey.switcherAppRules)),
             groupByApp: groupByApp,
             preservingGroupedWindows: preservingGroupedWindows,
             marksHiddenSpaces: true,
@@ -150,16 +150,16 @@ enum WindowEnumerator {
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
-            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
-            takeOverSystemShortcuts: UserDefaults.standard.bool(
+            storedValue: PortHost.defaults.string(forKey: DefaultsKey.switcherWindowlessApps),
+            takeOverSystemShortcuts: PortHost.defaults.bool(
                 forKey: DefaultsKey.switcherTakeOverSystemShortcuts))
-        let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let currentSpaceOnly = PortHost.defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
         let minimizedPlacement = WindowSwitchMinimizedPlacement(
-            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+            rawValue: PortHost.defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
         ) ?? .normal
-        let treatHiddenAppsLikeMinimized = UserDefaults.standard.bool(
+        let treatHiddenAppsLikeMinimized = PortHost.defaults.bool(
             forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
-        let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
+        let showFullscreenWindows = PortHost.defaults.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
@@ -183,13 +183,13 @@ enum WindowEnumerator {
     /// all-desktop list and never inherit either preview or switcher settings.
     static func listWindowsForDockPreview(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
         listWindows(for: pid, maximumCount: maximumCount,
-                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+                    currentSpaceOnly: PortHost.defaults.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
                     marksHiddenSpaces: true)
     }
 
     /// A desktop can change after enumeration, including between pinned refreshes.
     static func dockPreviewMayActivate(_ item: SwitcherItem) -> Bool {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+        guard PortHost.defaults.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
               let windowID = item.windowID else { return true }
         return !SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
     }

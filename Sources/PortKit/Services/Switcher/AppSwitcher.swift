@@ -51,7 +51,7 @@ final class AppSwitcher: ObservableObject {
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
             if sessionActive, simpleModeEnabled, !usesWindowRow {
-                resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
+                resizePanel(animated: !PortHost.defaults.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
         }
     }
@@ -212,7 +212,7 @@ final class AppSwitcher: ObservableObject {
     private var tapIsWanted: Bool {
         SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.switcher.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+                && PortHost.defaults.bool(forKey: DefaultsKey.switcherEnabled),
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
     }
@@ -235,7 +235,7 @@ final class AppSwitcher: ObservableObject {
             installTap()
             // A live tap can pick up a shortcut change without rebuilding;
             // apply here so the native hotkeys follow immediately.
-            if !UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
+            if !PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
                 secureInputWatch.stop()
                 restoreNativeHotkeys()
             } else {
@@ -465,7 +465,7 @@ final class AppSwitcher: ObservableObject {
     /// does either.
     private func applyNativeHotkeySuppression() {
         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
-        let takeOver = UserDefaults.standard.bool(
+        let takeOver = PortHost.defaults.bool(
             forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
         SystemShortcutTakeover.setWanted(
             SwitcherSupport.nativeHotkeyIDs(
@@ -487,10 +487,10 @@ final class AppSwitcher: ObservableObject {
         // must not hold them either or the keys flip off and on.
         guard SessionActivitySupport.tapShouldRun(
                   featureWanted: AppFeature.switcher.isAvailable
-                      && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+                      && PortHost.defaults.bool(forKey: DefaultsKey.switcherEnabled),
                   accessibilityGranted: AXIsProcessTrusted(),
                   sessionIsActive: SessionActivity.shared.isActive),
-              UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
+              PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
         else { return [] }
         return SwitcherSupport.nativeHotkeyIDs(
             takeOverSystemShortcuts: true,
@@ -733,7 +733,7 @@ final class AppSwitcher: ObservableObject {
             guard sessionActive else { return Unmanaged.passUnretained(event) }
             // A remote screen's scroll comes already turned the controlling
             // computer's way, so Scroll Direction is for local wheels only.
-            let direction = ScrollDirectionPreferences(defaults: .standard)
+            let direction = ScrollDirectionPreferences(defaults: PortHost.defaults)
             let directionApplies = direction.isEnabled
                 && ScrollWheelHIDStage.shared.passed(event)
                 && !MouseAppExceptions.shared.excludesPointerTarget(
@@ -927,7 +927,7 @@ final class AppSwitcher: ObservableObject {
             return routePendingSessionStart
         }) else { return }
         let allApps = requested.scope == .allApps
-        let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+        let mergeWindowsByApp = PortHost.defaults.bool(forKey: DefaultsKey.switcherMergeTabs)
         let groupByApp = allApps && mergeWindowsByApp
         let preservesGroupedWindows = SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
             allApps: allApps,
@@ -1721,7 +1721,7 @@ final class AppSwitcher: ObservableObject {
         }
         pendingShow = work
         let appearanceDelay = SwitcherSupport.appearanceDelay(
-            milliseconds: UserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
+            milliseconds: PortHost.defaults.integer(forKey: DefaultsKey.switcherAppearanceDelay))
         DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
     }
 
@@ -1776,31 +1776,31 @@ final class AppSwitcher: ObservableObject {
     }
 
     private var iconRowModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
+        PortHost.defaults.bool(forKey: DefaultsKey.switcherIconRowMode)
     }
 
     private var simpleModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+        PortHost.defaults.bool(forKey: DefaultsKey.switcherSimpleMode)
     }
 
     private var currentSpaceOnly: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        PortHost.defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
     }
 
     private var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(
             simpleMode: simpleModeEnabled,
-            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+            mergeWindowsByApp: PortHost.defaults.bool(forKey: DefaultsKey.switcherMergeTabs),
             sessionScope: sessionScope
         )
     }
 
     private var searchPinEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSearchPinEnabled)
+        PortHost.defaults.bool(forKey: DefaultsKey.switcherSearchPinEnabled)
     }
 
     private var showsShortcutHints: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowShortcutHints)
+        PortHost.defaults.bool(forKey: DefaultsKey.switcherShowShortcutHints)
     }
 
     private var usesIconRowLayout: Bool {
@@ -1816,7 +1816,7 @@ final class AppSwitcher: ObservableObject {
 
     private var screenPlacement: SwitcherScreenPlacement {
         SwitcherScreenPlacement.placement(
-            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherScreenPlacement))
+            storedValue: PortHost.defaults.string(forKey: DefaultsKey.switcherScreenPlacement))
     }
 
     /// The screen the panel is laid out on. Every choice falls back to the
@@ -1850,7 +1850,7 @@ final class AppSwitcher: ObservableObject {
 
     /// Freeze the pointer's display before the asynchronous window walk.
     private var currentDisplayScope: WindowEnumerator.DisplayScope? {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
+        guard PortHost.defaults.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
             return nil
         }
         let screens = NSScreen.screens

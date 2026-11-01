@@ -54,6 +54,6 @@ import Testing
 
     @Test func nothingElseStartsAtImport() {
         // The registry bridge is only a hook: until a lane sets it, the ported runtime writes nothing for us.
-        #expect(PortHost.setEnabled == nil)
+        #expect(PortHostFixture.read { PortHost.setEnabled } == nil)
     }
 }

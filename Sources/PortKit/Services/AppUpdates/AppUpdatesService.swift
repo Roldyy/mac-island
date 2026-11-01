@@ -76,17 +76,17 @@ final class AppUpdatesService: ObservableObject {
     private var upgradeObserver: AnyCancellable?
 
     private init() {
-        let stamp = UserDefaults.standard.double(forKey: DefaultsKey.appUpdatesLastCheck)
+        let stamp = PortHost.defaults.double(forKey: DefaultsKey.appUpdatesLastCheck)
         lastCheck = stamp > 0 ? Date(timeIntervalSince1970: stamp) : nil
         rules = AppUpdatesSupport.decodedRules(
-            UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesRules))
+            PortHost.defaults.string(forKey: DefaultsKey.appUpdatesRules))
     }
 
     // MARK: - Lifecycle
 
     var frequency: AppUpdatesSupport.CheckFrequency {
         AppUpdatesSupport.CheckFrequency.sanitized(
-            UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency))
+            PortHost.defaults.string(forKey: DefaultsKey.appUpdatesCheckFrequency))
     }
 
     func syncWithPreferences() {
@@ -162,10 +162,10 @@ final class AppUpdatesService: ObservableObject {
         lastError = nil
         scanGeneration += 1
         let generation = scanGeneration
-        let includeHomebrewApps = UserDefaults.standard.bool(
+        let includeHomebrewApps = PortHost.defaults.bool(
             forKey: DefaultsKey.appUpdatesIncludeHomebrewApps)
-        let includeAppStore = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
-        let includeOnlineCatalog = UserDefaults.standard.bool(
+        let includeAppStore = PortHost.defaults.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
+        let includeOnlineCatalog = PortHost.defaults.bool(
             forKey: DefaultsKey.appUpdatesIncludeOnlineCatalog)
         let country = Locale.current.region?.identifier
 
@@ -289,8 +289,8 @@ final class AppUpdatesService: ObservableObject {
         isChecking = false
         let now = Date()
         lastCheck = now
-        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: DefaultsKey.appUpdatesLastCheck)
-        UserDefaults.standard.set(newItems.count, forKey: DefaultsKey.appUpdatesLastCount)
+        PortHost.defaults.set(now.timeIntervalSince1970, forKey: DefaultsKey.appUpdatesLastCheck)
+        PortHost.defaults.set(newItems.count, forKey: DefaultsKey.appUpdatesLastCount)
         if shouldFinishAutomatically {
             if notifyIfWanted(freshCount: fresh.count, total: newItems.count) {
                 announced = Set(newItems.map(\.id))
@@ -305,7 +305,7 @@ final class AppUpdatesService: ObservableObject {
     /// stays quiet after the first notice. True when a notice went out.
     private func notifyIfWanted(freshCount: Int, total: Int) -> Bool {
         guard freshCount > 0,
-              UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesNotify) else { return false }
+              PortHost.defaults.bool(forKey: DefaultsKey.appUpdatesNotify) else { return false }
         let strings = FeatureStrings.appUpdates(L10n.shared.language)
         let body = total == 1
             ? strings.notificationBodyOne
@@ -315,11 +315,11 @@ final class AppUpdatesService: ObservableObject {
     }
 
     private static func announcedIDs() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.appUpdatesNotifiedIDs) ?? [])
+        Set(PortHost.defaults.stringArray(forKey: DefaultsKey.appUpdatesNotifiedIDs) ?? [])
     }
 
     private static func saveAnnouncedIDs(_ ids: Set<String>) {
-        UserDefaults.standard.set(ids.sorted(), forKey: DefaultsKey.appUpdatesNotifiedIDs)
+        PortHost.defaults.set(ids.sorted(), forKey: DefaultsKey.appUpdatesNotifiedIDs)
     }
 
     // MARK: - Package manager source
@@ -624,14 +624,14 @@ final class AppUpdatesService: ObservableObject {
     private func saveRules(_ newRules: [AppUpdatesSupport.UpdateRule]) {
         guard let raw = AppUpdatesSupport.encodedRules(newRules) else { return }
         rules = newRules
-        UserDefaults.standard.set(raw, forKey: DefaultsKey.appUpdatesRules)
+        PortHost.defaults.set(raw, forKey: DefaultsKey.appUpdatesRules)
         applyRules()
     }
 
     /// Settings restore and reset use the same preference as the panel.
     private func reloadRules() {
         let restored = AppUpdatesSupport.decodedRules(
-            UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesRules))
+            PortHost.defaults.string(forKey: DefaultsKey.appUpdatesRules))
         guard restored != rules else { return }
         rules = restored
         hasCheckedThisSession = false
@@ -645,7 +645,7 @@ final class AppUpdatesService: ObservableObject {
                                                           knownIDs: knownIDs, items: visible)
         knownIDs = Set(visible.map(\.id))
         items = visible
-        UserDefaults.standard.set(visible.count, forKey: DefaultsKey.appUpdatesLastCount)
+        PortHost.defaults.set(visible.count, forKey: DefaultsKey.appUpdatesLastCount)
         Self.saveAnnouncedIDs(Self.announcedIDs().intersection(knownIDs))
     }
 

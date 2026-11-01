@@ -80,7 +80,7 @@ final class SmoothScrollService: ObservableObject {
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
         let wanted = AppFeature.smoothScroll.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.smoothScrollEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.smoothScrollEnabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -184,7 +184,7 @@ final class SmoothScrollService: ObservableObject {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             stopGlide()
             let wanted = AppFeature.smoothScroll.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.smoothScrollEnabled)
+                && PortHost.defaults.bool(forKey: DefaultsKey.smoothScrollEnabled)
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: wanted,
                 accessibilityGranted: AXIsProcessTrusted(),
@@ -281,7 +281,7 @@ final class SmoothScrollService: ObservableObject {
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID)
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let direction = ScrollDirectionPreferences(defaults: defaults)
         let redirected: Bool
         if adjustDirectionHere, let modifier = direction.horizontalModifier {

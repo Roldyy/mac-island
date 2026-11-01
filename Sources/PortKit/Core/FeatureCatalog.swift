@@ -93,10 +93,10 @@ extension AppFeature {
 
     var monitorsPermissionChanges: Bool {
         monitorsPermissionChanges(
-            edgeSnapDisabledZones: UserDefaults.standard.string(
+            edgeSnapDisabledZones: PortHost.defaults.string(
                 forKey: DefaultsKey.windowEdgeSnapDisabledZones
             ),
-            boolFor: UserDefaults.standard.bool(forKey:)
+            boolFor: PortHost.defaults.bool(forKey:)
         )
     }
 
@@ -150,7 +150,7 @@ extension AppFeature {
         case .textSnippets: return "text.append"
         case .superKey:
             return SuperKeySource.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
+                PortHost.defaults.string(forKey: DefaultsKey.superKeySource)
             ).systemImage
         case .mouseClickDebounce: return "cursorarrow.click"
         case .quitWindowProtection: return "shield.lefthalf.filled"
@@ -213,19 +213,25 @@ extension AppFeature {
         }
     }
 
-    /// Mac Island's `FeatureRegistry` and the ported `FeatureRuntime` read the same switch.
-    var availabilityKey: String { "shell.enabled." + rawValue }
+    /// Mac Island's `FeatureRegistry` and the ported `FeatureRuntime` read the same switch: `shell.enabled.<id>`
+    /// where `<id>` is the registry id (`registryID`: the raw value, except for the features one of our own
+    /// modules already owns, see `PortFeatureIDs`).
+    var availabilityKey: String { "shell.enabled." + registryID }
 
     var isBeta: Bool { self == .fanControl || self == .killProcess }
 
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {
-        isAvailable(in: .standard)
+        isAvailable(in: PortHost.defaults)
     }
 
+    /// A feature a bridge lane bound answers with what the registry says (switch, kill switch, safe mode,
+    /// quarantine), so a settings toggle on a ported page can never start a service the registry stopped.
+    /// Any other feature, and any defaults object but the host's own (unit tests inject theirs), reads the key.
     func isAvailable(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: availabilityKey)
+        if defaults === PortHost.defaults, let hosted = PortHost.availability?(registryID) { return hosted }
+        return defaults.bool(forKey: availabilityKey)
     }
 
     /// The feature's own enable keys; any one being true means the feature is
@@ -603,9 +609,9 @@ extension AppFeature {
 
     /// Runtime convenience over the injectable core.
     static func activeFeatures(using permission: AppPermission,
-                               defaults: UserDefaults = .standard) -> [AppFeature] {
+                               defaults: UserDefaults = PortHost.defaults) -> [AppFeature] {
         activeFeatures(using: permission,
-                       isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
+                       isAvailable: { $0.isAvailable(in: defaults) },
                        boolFor: { defaults.bool(forKey: $0) },
                        stringFor: { defaults.string(forKey: $0) },
                        dataFor: { defaults.data(forKey: $0) })

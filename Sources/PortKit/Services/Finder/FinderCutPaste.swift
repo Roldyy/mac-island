@@ -104,10 +104,10 @@ final class FinderCutPaste: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.finderCutPaste.isAvailable
         cutPasteEnabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
-        showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
+            && PortHost.defaults.bool(forKey: DefaultsKey.finderCutPasteEnabled)
+        showHUD = PortHost.defaults.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
+            && PortHost.defaults.bool(forKey: DefaultsKey.finderPasteImageAsFile)
         if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {

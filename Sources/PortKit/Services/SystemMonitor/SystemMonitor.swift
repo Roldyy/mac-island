@@ -271,7 +271,7 @@ final class SystemMonitor: ObservableObject {
             let monitor = Unmanaged<SystemMonitor>.fromOpaque(context).takeUnretainedValue()
             DispatchQueue.main.async {
                 guard monitor.shouldRun,
-                      monitor.currentPlan(defaults: .standard).needPower else { return }
+                      monitor.currentPlan(defaults: PortHost.defaults).needPower else { return }
                 monitor.refresh(forcing: [.power, .powerDraw])
             }
         }, context)?.takeRetainedValue()
@@ -356,7 +356,7 @@ final class SystemMonitor: ObservableObject {
                 }
                 return
             }
-            let defaults = UserDefaults.standard
+            let defaults = PortHost.defaults
             let previousNeeds = menuPanelNeeds
             let neededGPUBefore = currentPlan(defaults: defaults).needGPUUsage
             menuPanelNeeds = needs
@@ -385,7 +385,7 @@ final class SystemMonitor: ObservableObject {
             guard let self else { return }
             let until = ProcessInfo.processInfo.systemUptime + max(0.1, duration)
             suppressGPUReadsUntil = max(suppressGPUReadsUntil, until)
-            if shouldSample(), currentPlan(defaults: .standard).needGPUUsage {
+            if shouldSample(), currentPlan(defaults: PortHost.defaults).needGPUUsage {
                 scheduleDeferredGPURefreshIfNeeded()
             }
         }
@@ -435,7 +435,7 @@ final class SystemMonitor: ObservableObject {
     private func resyncIfPlanChanged() {
         syncPeripheralBatterySampling()
         guard shouldSample() else { return }
-        let plan = currentPlan(defaults: .standard)
+        let plan = currentPlan(defaults: PortHost.defaults)
         guard plan != lastSyncedPlan else { return }
         syncTimerCadence(plan: plan)
         refresh()
@@ -456,7 +456,7 @@ final class SystemMonitor: ObservableObject {
             intervalSeconds = clamped
             // Strides are derived from the interval, so the wake cadence must
             // resync before the timer is rebuilt on the new base interval.
-            syncTimerCadence(plan: currentPlan(defaults: .standard))
+            syncTimerCadence(plan: currentPlan(defaults: PortHost.defaults))
             if timer != nil { restartTimer() }
         }
     }
@@ -473,7 +473,7 @@ final class SystemMonitor: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
             guard let self,
                   self.shouldRun,
-                  self.currentPlan(defaults: .standard).needGPUUsage else { return }
+                  self.currentPlan(defaults: PortHost.defaults).needGPUUsage else { return }
             self.refresh()
         }
     }
@@ -485,7 +485,7 @@ final class SystemMonitor: ObservableObject {
 
     private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
 
-    private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
+    private func shouldSample(defaults: UserDefaults = PortHost.defaults) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
     }
 
@@ -586,7 +586,7 @@ final class SystemMonitor: ObservableObject {
             (panelNeedsPower && defaults.bool(forKey: DefaultsKey.monitorPwrTemperature))
                 || menuPanelNeeds.batteryTemperature
                 || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
-        if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
+        if AppFeature.fanControl.isAvailable(in: defaults),
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
                 || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
@@ -601,7 +601,7 @@ final class SystemMonitor: ObservableObject {
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
         func available(_ feature: AppFeature) -> Bool {
-            defaults.bool(forKey: feature.availabilityKey)
+            feature.isAvailable(in: defaults)
         }
         if !available(.monitorCPU) {
             plan.needCPU = false
@@ -627,7 +627,7 @@ final class SystemMonitor: ObservableObject {
     }
 
     private func syncPeripheralBatterySampling() {
-        let enabled = shouldRun && currentPlan(defaults: .standard).needPeripheralBattery
+        let enabled = shouldRun && currentPlan(defaults: PortHost.defaults).needPeripheralBattery
         if enabled != peripheralSamplingEnabled { peripheralSampleDue = enabled }
         peripheralSamplingEnabled = enabled
         peripheralBatterySampler.setEnabled(enabled)
@@ -636,7 +636,7 @@ final class SystemMonitor: ObservableObject {
     private func ensureTimer() {
         syncPeripheralBatterySampling()
         guard shouldSample() else { return }
-        syncTimerCadence(plan: currentPlan(defaults: .standard))
+        syncTimerCadence(plan: currentPlan(defaults: PortHost.defaults))
         guard timer == nil else { return }
         startTimer()
     }
@@ -704,7 +704,7 @@ final class SystemMonitor: ObservableObject {
             DispatchQueue.main.async { [weak self] in self?.refresh(suppressImmediateGPU: suppressImmediateGPU, forcing: forcing) }
             return
         }
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let plan = currentPlan(defaults: defaults)
         syncPeripheralBatterySampling()
         guard plan.any else {

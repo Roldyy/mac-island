@@ -979,7 +979,7 @@ struct CommandBarQueryHabitStoreCache {
 enum CommandBarLearning {
     /// Keep one random key on this Mac so saved query digests mean the same
     /// thing after a relaunch. A missing or damaged key invalidates old digests.
-    static func installationKey(in defaults: UserDefaults = .standard) -> Data {
+    static func installationKey(in defaults: UserDefaults = PortHost.defaults) -> Data {
         if let raw = defaults.string(forKey: DefaultsKey.commandBarQueryHabitKey),
            let key = Data(base64Encoded: raw), key.count == 32 {
             return key
@@ -990,7 +990,7 @@ enum CommandBarLearning {
         return key
     }
 
-    static func forgetAll(in defaults: UserDefaults = .standard) {
+    static func forgetAll(in defaults: UserDefaults = PortHost.defaults) {
         defaults.removeObject(forKey: DefaultsKey.commandBarUsage)
         defaults.removeObject(forKey: DefaultsKey.commandBarQueryHabits)
     }

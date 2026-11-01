@@ -531,7 +531,7 @@ final class WindowPreviewProvider {
 
     private static func captureIsPaused(excludedAppsKey: String) -> Bool {
         let excluded = Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: excludedAppsKey) ?? [])
+            PortHost.defaults.stringArray(forKey: excludedAppsKey) ?? [])
         let front = NSWorkspace.shared.frontmostApplication
         return SwitcherSupport.shouldPausePreviewCapture(
             frontmostBundleIdentifier: front?.bundleIdentifier,

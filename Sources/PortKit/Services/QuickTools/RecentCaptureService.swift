@@ -40,7 +40,7 @@ final class RecentCaptureService: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.recentCapturesShortcut,
                                             fallback: .recentCapturesDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,

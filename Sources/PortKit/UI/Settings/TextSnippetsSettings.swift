@@ -18,7 +18,7 @@ struct TextSnippetsSettings: View {
     @AppStorage(DefaultsKey.snippetSoundEnabled) private var soundEnabled = false
     @AppStorage(DefaultsKey.snippetSoundName) private var soundName = Defaults.defaultSnippetSoundName
     @State private var snippets: [TextSnippet] = TextSnippetSupport.decode(
-        UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
+        PortHost.defaults.data(forKey: DefaultsKey.textSnippets))
     @State private var editing: TextSnippet?
     @State private var creating = false
 
@@ -172,7 +172,7 @@ struct TextSnippetsSettings: View {
     }
 
     private func persist() {
-        UserDefaults.standard.set(TextSnippetSupport.encode(snippets),
+        PortHost.defaults.set(TextSnippetSupport.encode(snippets),
                                   forKey: DefaultsKey.textSnippets)
         TextSnippetService.shared.syncWithPreferences()
         SnippetLibraryService.shared.syncWithPreferences()

@@ -81,6 +81,20 @@ public final class FeatureRegistry {
 
     public func descriptor(_ id: String) -> FeatureDescriptor? { descriptors.first { $0.id == id } }
 
+    /// The value stored under `shell.enabled.<id>`: what the user (or the migration) chose, nil when nothing
+    /// was ever stored. `switches` always holds a value (the descriptor's default fills the gap); the ported
+    /// first-launch seeds need to tell "chose off" from "never chose".
+    public func storedSwitch(_ id: String) -> Bool? { defaults.object(forKey: Keys.enabled(id)) as? Bool }
+
+    /// Sets the switch of a feature this registry knows; an unknown id is ignored (it would persist a key no
+    /// descriptor owns). The one door the ported code uses to flip a switch.
+    @discardableResult
+    public func setSwitch(_ id: String, to value: Bool) -> Bool {
+        guard switches[id] != nil else { return false }
+        switches[id] = value
+        return true
+    }
+
     public func refreshCapabilities() {
         let fresh = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.id, capabilityProvider($0)) })
         // Assigning an equal dictionary still publishes: the 1.5 s poll would redraw every page for nothing.

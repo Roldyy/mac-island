@@ -11,7 +11,7 @@ enum ScreenshotShareDuration: Int, CaseIterable, Codable, Identifiable {
 
     var id: Int { rawValue }
 
-    static func saved(in defaults: UserDefaults = .standard) -> Self {
+    static func saved(in defaults: UserDefaults = PortHost.defaults) -> Self {
         Self(rawValue: defaults.integer(forKey: DefaultsKey.screenshotUploadDuration)) ?? .oneHour
     }
 
@@ -63,12 +63,12 @@ struct ScreenshotShareResponse: Decodable {
 }
 
 enum ScreenshotSharingSupport {
-    static func uploadShortcutEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func uploadShortcutEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
             && defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled)
     }
 
-    static func retainsLatestCapture(in defaults: UserDefaults = .standard) -> Bool {
+    static func retainsLatestCapture(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.bool(forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
             || uploadShortcutEnabled(in: defaults)
     }

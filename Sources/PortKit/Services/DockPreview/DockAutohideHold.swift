@@ -16,7 +16,7 @@ final class DockAutohideHold {
 
     static var isSupported: Bool { CoreDock.get != nil && CoreDock.set != nil }
 
-    init(defaults: UserDefaults = .standard,
+    init(defaults: UserDefaults = PortHost.defaults,
          readAutohide: @escaping () -> Bool? = { CoreDock.read() },
          writeAutohide: @escaping (Bool) -> Bool = { CoreDock.write($0) }) {
         self.defaults = defaults

@@ -1231,36 +1231,36 @@ enum NotchMascotSupport {
     }
 
     /// Installed on the Features page, switched on, and in an island that is on.
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         AppFeature.notchMascot.isAvailable(in: defaults) && NotchSupport.isEnabled(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchMascotEnabled)
     }
 
-    static func visits(in defaults: UserDefaults = .standard) -> Bool {
+    static func visits(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchMascotVisits)
     }
 
     /// Whether it comes out to react to what the island sees, and watches a
     /// countdown run out.
-    static func reacts(in defaults: UserDefaults = .standard) -> Bool {
+    static func reacts(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchMascotReactions)
     }
 
     /// Whether it hides in the island once nothing has happened for a
     /// while, and comes out only to visit or to react.
-    static func hidesWhenIdle(in defaults: UserDefaults = .standard) -> Bool {
+    static func hidesWhenIdle(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchMascotHidesWhenIdle)
     }
 
-    static func visitFrequency(in defaults: UserDefaults = .standard) -> NotchMascotVisitFrequency {
+    static func visitFrequency(in defaults: UserDefaults = PortHost.defaults) -> NotchMascotVisitFrequency {
         NotchMascotVisitFrequency(rawValue: defaults.string(forKey: DefaultsKey.notchMascotVisitFrequency) ?? "") ?? .normal
     }
 
-    static func side(in defaults: UserDefaults = .standard) -> NotchMascotSide {
+    static func side(in defaults: UserDefaults = PortHost.defaults) -> NotchMascotSide {
         NotchMascotSide(rawValue: defaults.string(forKey: DefaultsKey.notchMascotSide) ?? "") ?? .left
     }
 
-    static func look(in defaults: UserDefaults = .standard) -> NotchMascotLook {
+    static func look(in defaults: UserDefaults = PortHost.defaults) -> NotchMascotLook {
         NotchMascotLook(
             style: NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "") ?? .minimal,
             shape: NotchMascotShape(rawValue: defaults.string(forKey: DefaultsKey.notchMascotShape) ?? "") ?? .ball,
@@ -1269,7 +1269,7 @@ enum NotchMascotSupport {
 
     /// How the Command Bar comes out of the island, or nil when it opens in
     /// its own window as it always has.
-    static func commandBarStyle(in defaults: UserDefaults = .standard) -> NotchCommandBarStyle? {
+    static func commandBarStyle(in defaults: UserDefaults = PortHost.defaults) -> NotchCommandBarStyle? {
         guard isEnabled(in: defaults), AppFeature.commandBar.isAvailable(in: defaults),
               defaults.bool(forKey: DefaultsKey.notchCommandBar) else { return nil }
         return NotchCommandBarStyle(rawValue: defaults.string(forKey: DefaultsKey.notchCommandBarStyle) ?? "") ?? .droplet

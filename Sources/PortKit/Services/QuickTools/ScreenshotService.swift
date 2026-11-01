@@ -58,7 +58,7 @@ final class ScreenshotService: ObservableObject {
     }
 
     private var hideVorssaintWindows: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHideVorssaintWindows)
+        PortHost.defaults.bool(forKey: DefaultsKey.screenshotHideVorssaintWindows)
     }
 
     /// The surfaces that make up the act of capturing. The quick preview is
@@ -131,7 +131,7 @@ final class ScreenshotService: ObservableObject {
             teardownSurfaces()
             return
         }
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let fullScreenEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotFullScreenShortcutEnabled)
         let fullScreenShortcut = GlobalShortcut.saved(
@@ -252,7 +252,7 @@ final class ScreenshotService: ObservableObject {
             return
         }
         let delay = ScreenshotSupport.sanitizedDelay(
-            UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
+            PortHost.defaults.integer(forKey: DefaultsKey.screenshotDelay))
         if delay > 0 {
             countdownMode = mode
             countdownRemaining = delay
@@ -291,7 +291,7 @@ final class ScreenshotService: ObservableObject {
         guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         preview?.close()
         preview = nil
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let controller = ScreenshotSelectionController(
             freeze: mode == .scrolling
                 ? false
@@ -349,7 +349,7 @@ final class ScreenshotService: ObservableObject {
         let displayID = screen.displayID
         let scale = screen.backingScaleFactor
         let frame = screen.frame
-        let includePointer = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotIncludePointer)
+        let includePointer = PortHost.defaults.bool(forKey: DefaultsKey.screenshotIncludePointer)
         let hideWindows = hideVorssaintWindows
         let protectedIDs = protectedWindowIDs
         directCaptureTask = Task { @MainActor [weak self] in
@@ -450,7 +450,7 @@ final class ScreenshotService: ObservableObject {
         NotchService.shared.reactMascot(.flash, patience: 1)
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
             autoCopy(capture)
         }
@@ -807,7 +807,7 @@ final class ScreenshotService: ObservableObject {
     /// would only repeat that. A failure still beeps, since nothing else
     /// would reveal an empty clipboard before the paste.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale)
         guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
             NSSound.beep()
             return
@@ -876,7 +876,7 @@ final class ScreenshotService: ObservableObject {
         autoShelvedItem = nil
         guard ScreenshotSupport.addsCapturesToShelf() else { return }
         let token = latestCaptureToken
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale)
         let name = saved?.lastPathComponent
             ?? ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
         autoShelfTasks[token] = Task { @MainActor [weak self] in
@@ -909,7 +909,7 @@ final class ScreenshotService: ObservableObject {
     private func shareDirect(_ capture: ScreenshotSelectionController.Capture,
                              duration: ScreenshotShareDuration,
                              completion: @escaping @MainActor (ScreenshotShareRecord?) -> Void) {
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale)
         Task { @MainActor [weak self] in
             guard let self else {
                 completion(nil)
@@ -1007,7 +1007,7 @@ final class ScreenshotService: ObservableObject {
         -> ScreenshotRenderer.Export? {
         Self.flatten(
             capture,
-            downscaleTo1x: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale))
+            downscaleTo1x: PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale))
     }
 
     private static func flatten(_ capture: ScreenshotSelectionController.Capture,
@@ -1067,7 +1067,7 @@ final class ScreenshotService: ObservableObject {
     static func saveDestination(strings: ScreenshotFeatureStrings) -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
         var folder: URL?
-        let stored = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
+        let stored = PortHost.defaults.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
         if !stored.isEmpty {
             let expanded = (stored as NSString).expandingTildeInPath
             var isDirectory: ObjCBool = false
@@ -1079,7 +1079,7 @@ final class ScreenshotService: ObservableObject {
         var destination = folder
             ?? manager.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? manager.homeDirectoryForCurrentUser
-        let subfolderPattern = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveSubfolder) ?? ""
+        let subfolderPattern = PortHost.defaults.string(forKey: DefaultsKey.screenshotSaveSubfolder) ?? ""
         let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date())
         if !subfolder.isEmpty {
             let dated = destination.appendingPathComponent(subfolder, isDirectory: true)
@@ -1102,7 +1102,7 @@ final class ScreenshotService: ObservableObject {
     /// an optional "%#" number sequence expanded. Advances and persists the
     /// number sequence when the pattern actually uses it.
     private static func fileName(strings: ScreenshotFeatureStrings) -> (name: String, consumedNumber: Int?) {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pattern.isEmpty else {
@@ -1124,7 +1124,7 @@ final class ScreenshotService: ObservableObject {
     /// deleted — but only while nothing else advanced the sequence since,
     /// so a rewind can never undo another capture's number.
     static func rewindNumberSequence(toReuse consumed: Int) {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         guard defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext) == consumed + 1 else {
             return
         }

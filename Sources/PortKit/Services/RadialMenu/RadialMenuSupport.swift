@@ -373,7 +373,7 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     /// saved Shelf slice stays dormant while Shelf is explicitly disabled and
     /// returns automatically when the user enables it again.
     func isRunnable(isFeatureAvailable: (AppFeature) -> Bool = { $0.isAvailable },
-                    boolFor: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) }) -> Bool {
+                    boolFor: (String) -> Bool = { PortHost.defaults.bool(forKey: $0) }) -> Bool {
         guard isFeatureAvailable(feature) else { return false }
         return self != .shelf || boolFor(DefaultsKey.shelfEnabled)
     }
@@ -468,11 +468,11 @@ extension RadialMenuSupport {
     /// never the items, and never `decodeProfiles`, which decodes their
     /// custom icons. Asking never wakes the radial menu service.
     static func claimsMouseButton(_ button: Int64) -> Bool {
-        claimsMouseButton(button, defaults: .standard)
+        claimsMouseButton(button, defaults: PortHost.defaults)
     }
 
     static func claimsMouseButton(_ button: Int64, defaults: UserDefaults) -> Bool {
-        guard defaults.bool(forKey: AppFeature.radialMenu.availabilityKey),
+        guard AppFeature.radialMenu.isAvailable(in: defaults),
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled) else { return false }
         return claimedMouseButtons(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
                                    defaults: defaults).contains(button)
@@ -833,7 +833,7 @@ enum RadialMenuSupport {
     /// every wheel. The legacy fallback is the same one it migrates from, so
     /// the two answers cannot drift apart for a user who has not saved a
     /// profile yet.
-    static func claimedMouseButtons(_ data: Data?, defaults: UserDefaults = .standard) -> [Int64] {
+    static func claimedMouseButtons(_ data: Data?, defaults: UserDefaults = PortHost.defaults) -> [Int64] {
         if let data, let decoded = try? JSONDecoder().decode([RadialMenuProfileTriggers].self, from: data) {
             return decoded.compactMap { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber }
         }
@@ -846,7 +846,7 @@ enum RadialMenuSupport {
     /// triggers that keep an input tap running while the menu is on. Read
     /// like `claimedMouseButtons`, from the stored triggers alone and with
     /// the same legacy fallback, so the Features hub never decodes icons.
-    static func opensFromMouseOrTrackpad(_ data: Data?, defaults: UserDefaults = .standard) -> Bool {
+    static func opensFromMouseOrTrackpad(_ data: Data?, defaults: UserDefaults = PortHost.defaults) -> Bool {
         if let data, let decoded = try? JSONDecoder().decode([RadialMenuProfileTriggers].self, from: data) {
             return decoded.contains {
                 RadialMenuMouseTrigger.sanitized($0.mouseButton) != .off || $0.trackpadTap
@@ -864,7 +864,7 @@ enum RadialMenuSupport {
     /// `RadialMenuFaviconFetcher.maxStoredIconBytes` of PNG apiece), so it
     /// belongs to settings and session start, never to an event-tap callback.
     /// A callback that only needs the summoner wants `claimedMouseButtons`.
-    static func decodeProfiles(_ data: Data?, defaults: UserDefaults = .standard) -> [RadialMenuProfile] {
+    static func decodeProfiles(_ data: Data?, defaults: UserDefaults = PortHost.defaults) -> [RadialMenuProfile] {
         if let data, let decoded = try? JSONDecoder().decode([FailableRadialMenuProfile].self, from: data) {
             let sanitized = sanitizedProfiles(decoded.compactMap(\.value))
             if !sanitized.isEmpty { return sanitized }
@@ -894,7 +894,7 @@ enum RadialMenuSupport {
     /// The combinations the wheels answer to, read the way `RadialMenuService`
     /// registers them. Before any profile is saved that is the shortcut the
     /// first wheel migrates from, and a wheel without one claims nothing.
-    static func profileShortcuts(defaults: UserDefaults = .standard) -> [GlobalShortcut] {
+    static func profileShortcuts(defaults: UserDefaults = PortHost.defaults) -> [GlobalShortcut] {
         decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles), defaults: defaults)
             .compactMap { GlobalShortcut(storageValue: $0.shortcut) }
     }

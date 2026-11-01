@@ -88,7 +88,7 @@ final class WhatsAppDownloadManager: ObservableObject {
         phase = .scanning
 
         let settings = Self.settingsSnapshot()
-        let excluded = Set(UserDefaults.standard.stringArray(
+        let excluded = Set(PortHost.defaults.stringArray(
             forKey: DefaultsKey.whatsAppDownloadsExclusions) ?? [])
 
         queue.async { [weak self] in
@@ -127,13 +127,13 @@ final class WhatsAppDownloadManager: ObservableObject {
                 guard let self, self.operationToken == token else { return }
                 switch result {
                 case let .success(found):
-                    UserDefaults.standard.set(true,
+                    PortHost.defaults.set(true,
                                               forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed)
                     self.accessStatus = .available
                     self.candidates = found
                     self.phase = .results
                 case .failure:
-                    UserDefaults.standard.set(false,
+                    PortHost.defaults.set(false,
                                               forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed)
                     self.accessStatus = .denied
                     self.candidates = []
@@ -165,10 +165,10 @@ final class WhatsAppDownloadManager: ObservableObject {
 
     func exclude(_ id: String) {
         guard let index = candidates.firstIndex(where: { $0.id == id }) else { return }
-        var exclusions = Set(UserDefaults.standard.stringArray(
+        var exclusions = Set(PortHost.defaults.stringArray(
             forKey: DefaultsKey.whatsAppDownloadsExclusions) ?? [])
         exclusions.insert(id)
-        UserDefaults.standard.set(Array(exclusions).sorted(),
+        PortHost.defaults.set(Array(exclusions).sorted(),
                                   forKey: DefaultsKey.whatsAppDownloadsExclusions)
         candidates[index].excluded = true
         candidates[index].include = false
@@ -176,10 +176,10 @@ final class WhatsAppDownloadManager: ObservableObject {
 
     func removeExclusion(_ id: String) {
         guard let index = candidates.firstIndex(where: { $0.id == id }) else { return }
-        var exclusions = Set(UserDefaults.standard.stringArray(
+        var exclusions = Set(PortHost.defaults.stringArray(
             forKey: DefaultsKey.whatsAppDownloadsExclusions) ?? [])
         exclusions.remove(id)
-        UserDefaults.standard.set(Array(exclusions).sorted(),
+        PortHost.defaults.set(Array(exclusions).sorted(),
                                   forKey: DefaultsKey.whatsAppDownloadsExclusions)
         candidates[index].excluded = false
         candidates[index].include = candidates[index].eligibleForRules
@@ -242,7 +242,7 @@ final class WhatsAppDownloadManager: ObservableObject {
     }
 
     private func recordCleanup(moved: Int, bytes: Int64, failed: Int, automatic: Bool) {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         defaults.set(Date().timeIntervalSince1970, forKey: DefaultsKey.whatsAppDownloadsLastCleanup)
         defaults.set(moved, forKey: DefaultsKey.whatsAppDownloadsLastCleanupCount)
         defaults.set(bytes, forKey: DefaultsKey.whatsAppDownloadsLastCleanupBytes)
@@ -258,7 +258,7 @@ final class WhatsAppDownloadManager: ObservableObject {
     }
 
     private static func settingsSnapshot() -> SettingsSnapshot {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let start = defaults.double(forKey: DefaultsKey.whatsAppDownloadsAutomaticStartDate)
         return SettingsSnapshot(
             retentionDays: WhatsAppDownloadSupport.sanitizedRetentionDays(

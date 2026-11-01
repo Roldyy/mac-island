@@ -103,7 +103,7 @@ final class MiddleClickService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let enabled = AppFeature.middleClick.isAvailable
             && defaults.bool(forKey: DefaultsKey.middleClickEnabled)
         let tap = enabled ? Defaults.sanitizedMiddleClickTapFingers(
@@ -488,7 +488,7 @@ final class MiddleClickService: ObservableObject {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             releaseHeldMiddleButton()
             let enabled = AppFeature.middleClick.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
+                && PortHost.defaults.bool(forKey: DefaultsKey.middleClickEnabled)
                 || stateLock.withLock { radialMenuTapFingers > 0 }
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: enabled,

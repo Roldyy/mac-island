@@ -97,7 +97,7 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let enabled = AppFeature.mouseButtonShortcuts.isAvailable
             && defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
         mappings = MouseButtonShortcutSupport.decode(
@@ -286,7 +286,7 @@ final class MouseButtonShortcutService: ObservableObject {
             }
 
             let enabled = AppFeature.mouseButtonShortcuts.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
+                && PortHost.defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
             let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil
             let shouldRun = SessionActivitySupport.tapShouldRun(
                 featureWanted: wanted || !consumedButtons.isEmpty,
@@ -352,7 +352,7 @@ final class MouseButtonShortcutService: ObservableObject {
             guard let shortcut = MouseButtonShortcutSupport.firesShortcut(
                 for: button,
                 isAvailable: AppFeature.mouseButtonShortcuts.isAvailable,
-                isEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
+                isEnabled: PortHost.defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
                 mappings: mappings,
                 claimedByWheel: RadialMenuSupport.claimsMouseButton)
             else { return Unmanaged.passUnretained(event) }
@@ -418,7 +418,7 @@ final class MouseButtonShortcutService: ObservableObject {
         spacesGesture = SpacesGesturePress(
             button: button,
             down: down,
-            followsDrag: UserDefaults.standard.bool(forKey: DefaultsKey.mouseSpacesGestureFollowsDrag),
+            followsDrag: PortHost.defaults.bool(forKey: DefaultsKey.mouseSpacesGestureFollowsDrag),
             tracker: .init(origin: event.location))
         return nil
     }

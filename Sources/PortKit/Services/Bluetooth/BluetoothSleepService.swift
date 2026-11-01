@@ -41,7 +41,7 @@ final class BluetoothSleepService {
         // nothing Vorssaint took away is ever kept.
         restoreIfOwed()
         if AppFeature.bluetoothSleep.isAvailable,
-           UserDefaults.standard.bool(forKey: DefaultsKey.bluetoothSleepEnabled) {
+           PortHost.defaults.bool(forKey: DefaultsKey.bluetoothSleepEnabled) {
             start()
         } else {
             stop()
@@ -71,7 +71,7 @@ final class BluetoothSleepService {
     }
 
     private func macWillSleep() {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let plan = BluetoothSleepSupport.sleepPlan(
             isPoweredOn: Self.isPoweredOn,
             restoresOnWake: defaults.bool(forKey: DefaultsKey.bluetoothSleepRestoreOnWake))
@@ -80,7 +80,7 @@ final class BluetoothSleepService {
     }
 
     private func restoreIfOwed() {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let restores = BluetoothSleepSupport.restores(
             owesRestore: defaults.bool(forKey: DefaultsKey.bluetoothSleepRestorePending),
             isPoweredOn: Self.isPoweredOn)

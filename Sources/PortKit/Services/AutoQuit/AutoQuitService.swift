@@ -84,7 +84,7 @@ final class AutoQuitService: ObservableObject {
 
     func syncWithPreferences() {
         let enabled = AppFeature.autoQuit.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.autoQuitEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.autoQuitEnabled)
         if enabled, Permissions.shared.accessibility {
             start()
         } else {
@@ -950,10 +950,10 @@ final class AutoQuitService: ObservableObject {
     // MARK: - Exceptions
 
     func reloadExceptions() {
-        let raw = UserDefaults.standard.stringArray(forKey: DefaultsKey.autoQuitExceptions) ?? []
+        let raw = PortHost.defaults.stringArray(forKey: DefaultsKey.autoQuitExceptions) ?? []
         let sanitized = Defaults.sanitizedAutoQuitExceptions(raw)
         if raw != sanitized {
-            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.autoQuitExceptions)
+            PortHost.defaults.set(sanitized, forKey: DefaultsKey.autoQuitExceptions)
         }
         exceptions = sanitized
     }
@@ -963,14 +963,14 @@ final class AutoQuitService: ObservableObject {
         guard !bundleID.isEmpty, !exceptions.contains(bundleID) else { return }
         var list = Defaults.sanitizedAutoQuitExceptions(exceptions)
         list.append(bundleID)
-        UserDefaults.standard.set(list, forKey: DefaultsKey.autoQuitExceptions)
+        PortHost.defaults.set(list, forKey: DefaultsKey.autoQuitExceptions)
         reloadExceptions()
     }
 
     func removeException(_ bundleID: String) {
         guard !isMandatoryException(bundleID) else { return }
         let list = Defaults.sanitizedAutoQuitExceptions(exceptions.filter { $0 != bundleID })
-        UserDefaults.standard.set(list, forKey: DefaultsKey.autoQuitExceptions)
+        PortHost.defaults.set(list, forKey: DefaultsKey.autoQuitExceptions)
         reloadExceptions()
     }
 

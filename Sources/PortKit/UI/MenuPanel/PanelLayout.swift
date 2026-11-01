@@ -111,7 +111,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
 /// position, so a section can never silently disappear. Collapsed sections are a
 /// comma-joined set of ids.
 enum PanelLayout {
-    private static var defaults: UserDefaults { .standard }
+    private static var defaults: UserDefaults { PortHost.defaults }
 
     /// The sections in display order: the user's saved order first, then any not
     /// yet listed, in their canonical order.

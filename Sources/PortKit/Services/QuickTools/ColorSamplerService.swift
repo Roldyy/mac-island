@@ -42,13 +42,13 @@ final class ColorSamplerService: ObservableObject {
     func formattedValue(_ color: NSColor) -> String? {
         guard let srgb = color.usingColorSpace(.sRGB) else { return nil }
         let format = ColorCopyFormat.sanitized(
-            UserDefaults.standard.string(forKey: DefaultsKey.colorPickerFormat) ?? "hex"
+            PortHost.defaults.string(forKey: DefaultsKey.colorPickerFormat) ?? "hex"
         )
         return ColorValue.string(red: srgb.redComponent,
                                  green: srgb.greenComponent,
                                  blue: srgb.blueComponent,
                                  format: format,
-                                 bareHex: UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerBareHex))
+                                 bareHex: PortHost.defaults.bool(forKey: DefaultsKey.colorPickerBareHex))
     }
 
     /// Copies without the HUD. The capture surface calls this while its

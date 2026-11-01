@@ -18,7 +18,7 @@ enum NotchBrowserArtworkSupport {
 
     /// The lookup reads the browser's saved session and goes online, so it
     /// waits for its own option in the music settings, which starts off.
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchBrowserCovers)
     }
 
@@ -36,7 +36,7 @@ enum NotchBrowserArtworkSupport {
     /// the option is off, the player is no Firefox-family browser, or its own
     /// cover is sharp. Two songs can share a title, so the artist keeps their
     /// covers and their cooldowns apart.
-    static func lookupKey(for playback: NotchPlayback, defaults: UserDefaults = .standard) -> String? {
+    static func lookupKey(for playback: NotchPlayback, defaults: UserDefaults = PortHost.defaults) -> String? {
         guard isEnabled(in: defaults),
               let bundle = playback.track.appBundleIdentifier, profileFolders[bundle] != nil,
               let title = playback.track.title, needsCover(playback.track.artworkData) else { return nil }

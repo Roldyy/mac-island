@@ -14,7 +14,7 @@ enum NotchPreferredPlayer {
     /// it names what the person was listening to, not a setting.
     static var lastPlayed: String?
 
-    static func choice(in defaults: UserDefaults = .standard) -> String {
+    static func choice(in defaults: UserDefaults = PortHost.defaults) -> String {
         let value = defaults.string(forKey: DefaultsKey.notchPreferredPlayer) ?? automatic
         return value.utf8.count <= 256 ? value : automatic
     }

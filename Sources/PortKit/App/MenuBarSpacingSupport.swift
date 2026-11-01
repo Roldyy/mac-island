@@ -12,7 +12,7 @@ enum MenuBarMetricSpacing: String, CaseIterable {
     case standard, compact
 
     static var current: MenuBarMetricSpacing {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricSpacing) ?? ""
+        let raw = PortHost.defaults.string(forKey: DefaultsKey.menuBarMetricSpacing) ?? ""
         return MenuBarMetricSpacing(rawValue: Defaults.sanitizedMenuBarMetricSpacing(raw)) ?? .standard
     }
 }
@@ -26,7 +26,7 @@ enum MenuBarMetricAppearance: String, CaseIterable {
     var allowsCombinedTemperatures: Bool { self == .values }
 
     static var current: MenuBarMetricAppearance {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricAppearance) ?? ""
+        let raw = PortHost.defaults.string(forKey: DefaultsKey.menuBarMetricAppearance) ?? ""
         let appearance = Defaults.sanitizedMenuBarMetricAppearance(raw)
         return MenuBarMetricAppearance(rawValue: appearance) ?? .values
     }
@@ -85,14 +85,14 @@ enum MenuBarUsageBarSupport {
     }
 
     static func currentLevel(for fraction: Double,
-                             defaults: UserDefaults = .standard) -> Level {
+                             defaults: UserDefaults = PortHost.defaults) -> Level {
         level(for: fraction,
               mediumPercent: defaults.integer(forKey: DefaultsKey.menuBarUsageBarMediumThreshold),
               highPercent: defaults.integer(forKey: DefaultsKey.menuBarUsageBarHighThreshold))
     }
 
     static func currentColorHex(for level: Level,
-                                defaults: UserDefaults = .standard) -> String {
+                                defaults: UserDefaults = PortHost.defaults) -> String {
         switch level {
         case .normal:
             return sanitizedColorHex(defaults.string(forKey: DefaultsKey.menuBarUsageBarNormalColor),

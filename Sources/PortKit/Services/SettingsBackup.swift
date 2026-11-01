@@ -20,7 +20,7 @@ enum SettingsBackup {
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         ScratchpadService.shared.prepareForSettingsBackup()
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
         // where the user never touched a control.
@@ -75,7 +75,7 @@ enum SettingsBackup {
     /// defaults), writes the file's values and relaunches.
     static func applyAndRelaunch(settings: [String: Any]) {
         ScratchpadService.shared.prepareForSettingsRestore()
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
         let localWatermarkPresets = defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets)

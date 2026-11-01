@@ -50,7 +50,7 @@ struct NotchPomodoroConfiguration: Equatable {
         self.totalSessions = min(Self.sessionRange.upperBound, max(Self.sessionRange.lowerBound, totalSessions))
     }
 
-    static func load(in defaults: UserDefaults = .standard) -> Self {
+    static func load(in defaults: UserDefaults = PortHost.defaults) -> Self {
         Self(focusMinutes: defaults.object(forKey: DefaultsKey.notchPomodoroFocusMinutes) as? Int ?? 25,
              shortBreakMinutes: defaults.object(forKey: DefaultsKey.notchPomodoroShortBreakMinutes) as? Int ?? 5,
              longBreakMinutes: defaults.object(forKey: DefaultsKey.notchPomodoroLongBreakMinutes) as? Int ?? 15,
@@ -176,16 +176,16 @@ enum NotchTimerSupport {
     /// Hiding the countdown never disables the session or its completion
     /// alerts, and a finished timer shows in the closed island until it is
     /// dismissed. The expanded timer page remains available.
-    static func showsActivity(_ session: NotchTimerSession, in defaults: UserDefaults = .standard) -> Bool {
+    static func showsActivity(_ session: NotchTimerSession, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         session.hasSession && isEnabled(in: defaults)
             && (session.completed || !defaults.bool(forKey: DefaultsKey.notchHideTimerCountdown))
     }
 
-    static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isSoundEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.object(forKey: DefaultsKey.notchTimerSoundEnabled) as? Bool ?? true
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
             && NotchSupport.modules(in: defaults).contains(.timer)
@@ -238,7 +238,7 @@ enum NotchTimerSupport {
 
     static func timerMinutes(_ value: Int) -> Int { min(180, max(1, value)) }
 
-    static func savedMode(in defaults: UserDefaults = .standard) -> NotchTimerMode {
+    static func savedMode(in defaults: UserDefaults = PortHost.defaults) -> NotchTimerMode {
         NotchTimerMode(rawValue: defaults.string(forKey: DefaultsKey.notchTimerMode) ?? "") ?? .timer
     }
 

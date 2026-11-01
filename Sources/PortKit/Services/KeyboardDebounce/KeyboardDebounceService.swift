@@ -36,12 +36,12 @@ final class KeyboardDebounceService: ObservableObject {
     func syncWithPreferences() {
         let nextConfig = KeyboardDebounceConfig(
             enabled: AppFeature.keyboardDebounce.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.keyboardDebounceEnabled),
+                && PortHost.defaults.bool(forKey: DefaultsKey.keyboardDebounceEnabled),
             globalWindowMs: Defaults.sanitizedKeyboardDebounceWindow(
-                UserDefaults.standard.integer(forKey: DefaultsKey.keyboardDebounceWindowMs)
+                PortHost.defaults.integer(forKey: DefaultsKey.keyboardDebounceWindowMs)
             ),
             keyWindows: KeyboardDebounceConfig.decodeKeyWindows(
-                UserDefaults.standard.string(forKey: DefaultsKey.keyboardDebounceKeyWindows) ?? ""
+                PortHost.defaults.string(forKey: DefaultsKey.keyboardDebounceKeyWindows) ?? ""
             )
         )
         eventLock.withLock {

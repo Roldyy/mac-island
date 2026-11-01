@@ -146,8 +146,8 @@ enum MouseButtonShortcutSupport {
     /// the radial menu; pure defaults reads, so asking never wakes the
     /// service.
     static func claimsButton(_ button: Int64) -> Bool {
-        let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
+        let defaults = PortHost.defaults
+        guard AppFeature.mouseButtonShortcuts.isAvailable(in: defaults),
               !RadialMenuSupport.claimsMouseButton(button) else { return false }
         // Runs inside a HID tap callback during side-button drags: look up
         // just this button's entry instead of decoding the whole dictionary.
@@ -159,9 +159,9 @@ enum MouseButtonShortcutSupport {
     /// or nil when the gesture is off, unbound, or the button already belongs
     /// to a shortcut or to the radial menu. Defaults reads only, so both taps
     /// can ask on the hot path.
-    static func spacesGestureButton(_ defaults: UserDefaults = .standard) -> Int64? {
+    static func spacesGestureButton(_ defaults: UserDefaults = PortHost.defaults) -> Int64? {
         MouseSpacesGestureSupport.boundButton(
-            isAvailable: defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
+            isAvailable: AppFeature.mouseButtonShortcuts.isAvailable(in: defaults),
             isEnabled: defaults.bool(forKey: DefaultsKey.mouseSpacesGestureEnabled),
             button: Int64(defaults.integer(forKey: DefaultsKey.mouseSpacesGestureButton)),
             hasShortcut: { hasActiveShortcut($0, defaults) },

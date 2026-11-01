@@ -569,7 +569,7 @@ enum ShelfDockPlacement: String {
 
     /// The Dynamic Island owns the top center of the screen while it is on,
     /// so the top center placement waits until it is off.
-    static func current(in defaults: UserDefaults = .standard) -> Self {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> Self {
         guard !NotchSupport.isEnabled(in: defaults),
               defaults.string(forKey: DefaultsKey.shelfDockPlacement) == Self.topCenter.rawValue
         else { return .menuBar }

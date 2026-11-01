@@ -79,13 +79,13 @@ final class WallpaperService: ObservableObject {
 
     var applyAllDisplays: Bool {
         get {
-            if UserDefaults.standard.object(forKey: DefaultsKey.wallpaperApplyAllDisplays) == nil {
+            if PortHost.defaults.object(forKey: DefaultsKey.wallpaperApplyAllDisplays) == nil {
                 return true
             }
-            return UserDefaults.standard.bool(forKey: DefaultsKey.wallpaperApplyAllDisplays)
+            return PortHost.defaults.bool(forKey: DefaultsKey.wallpaperApplyAllDisplays)
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: DefaultsKey.wallpaperApplyAllDisplays)
+            PortHost.defaults.set(newValue, forKey: DefaultsKey.wallpaperApplyAllDisplays)
             objectWillChange.send()
         }
     }
@@ -121,7 +121,7 @@ final class WallpaperService: ObservableObject {
 
     func setFilter(_ filter: WallpaperSupport.Filter) {
         self.filter = filter
-        UserDefaults.standard.set(filter.rawValue, forKey: DefaultsKey.wallpaperFilter)
+        PortHost.defaults.set(filter.rawValue, forKey: DefaultsKey.wallpaperFilter)
         preparePageThumbs(for: filter, around: 1)
     }
 
@@ -506,22 +506,22 @@ final class WallpaperService: ObservableObject {
     }
 
     private func loadBookmarks() {
-        ownBookmarks = UserDefaults.standard.array(forKey: DefaultsKey.wallpaperOwnBookmarks) as? [Data]
+        ownBookmarks = PortHost.defaults.array(forKey: DefaultsKey.wallpaperOwnBookmarks) as? [Data]
             ?? []
     }
 
     private func persistBookmarks() {
-        UserDefaults.standard.set(ownBookmarks, forKey: DefaultsKey.wallpaperOwnBookmarks)
+        PortHost.defaults.set(ownBookmarks, forKey: DefaultsKey.wallpaperOwnBookmarks)
     }
 
     private func loadExclusions() {
-        let list = UserDefaults.standard.array(forKey: DefaultsKey.wallpaperExcludedOwnPaths) as? [String]
+        let list = PortHost.defaults.array(forKey: DefaultsKey.wallpaperExcludedOwnPaths) as? [String]
             ?? []
         excludedOwnPaths = Set(list)
     }
 
     private func persistExclusions() {
-        UserDefaults.standard.set(Array(excludedOwnPaths).sorted(),
+        PortHost.defaults.set(Array(excludedOwnPaths).sorted(),
                                   forKey: DefaultsKey.wallpaperExcludedOwnPaths)
     }
 
@@ -572,7 +572,7 @@ final class WallpaperService: ObservableObject {
     }
 
     private func loadFilter() {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.wallpaperFilter) ?? ""
+        let raw = PortHost.defaults.string(forKey: DefaultsKey.wallpaperFilter) ?? ""
         filter = WallpaperSupport.Filter(rawValue: raw) ?? .all
     }
 

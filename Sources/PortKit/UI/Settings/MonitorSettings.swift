@@ -352,7 +352,7 @@ private struct MenuBarMetricTiles: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
-    @State private var order: [MenuBarMetric] = MenuBarMetric.order(in: .standard)
+    @State private var order: [MenuBarMetric] = MenuBarMetric.order(in: PortHost.defaults)
     @State private var dragging: MenuBarMetric?
 
     var body: some View {
@@ -368,12 +368,12 @@ private struct MenuBarMetricTiles: View {
             }
             .monitorTokenGroup()
         }
-        .onAppear { order = MenuBarMetric.order(in: .standard) }
+        .onAppear { order = MenuBarMetric.order(in: PortHost.defaults) }
         .onChange(of: order) { _, order in
             // Only a drag writes; reloading the saved order must not.
-            if order != MenuBarMetric.order(in: .standard) { MenuBarMetric.setOrder(order) }
+            if order != MenuBarMetric.order(in: PortHost.defaults) { MenuBarMetric.setOrder(order) }
         }
-        .onChange(of: metricOrder) { _, _ in order = MenuBarMetric.order(in: .standard) }
+        .onChange(of: metricOrder) { _, _ in order = MenuBarMetric.order(in: PortHost.defaults) }
     }
 
     /// Metrics whose family left the hub keep their saved slot but stay out

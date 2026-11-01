@@ -74,7 +74,7 @@ enum NotchAudioLevelSupport {
         return false
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.bool(forKey: DefaultsKey.notchLiveEqualizer)
     }
 

@@ -10,14 +10,20 @@ import CoreGraphics
 import EventKit
 import UserNotifications
 
-/// Central place to check, request and watch the TCC permissions the app uses.
+/// Central place to read and open the TCC permissions the app uses.
 /// Accessibility powers the scroll inverter and the switcher's event tap;
 /// Screen Recording powers window titles and thumbnails in the switcher.
+///
+/// Mac Island: Accessibility, Input Monitoring and Screen Recording come from the host's `PermissionMonitor`
+/// reading (`PortHost.permissionState`), so this class owns no timer and no observer for them, and no
+/// `request*` call shows a system prompt: each one opens the matching System Settings pane.
 final class Permissions: ObservableObject {
     static let shared = Permissions()
 
     @Published private(set) var accessibility = false
     @Published private(set) var screenRecording = false
+    /// Input Monitoring, for the ported taps that listen to the keyboard. Read from the host like the others.
+    @Published private(set) var inputMonitoring = false
     /// Optional — only used to make the uninstaller's scan more thorough by
     /// reaching protected locations. There is no API prompt for it; the user
     /// grants it in System Settings.
@@ -54,81 +60,36 @@ final class Permissions: ObservableObject {
         case granted, denied, undetermined, unknown
     }
 
-    private var activePermissionTimer: Timer?
-    private var activationObserver: NSObjectProtocol?
-    private var defaultsObserver: NSObjectProtocol?
-    private var permissionSurfaceDemands: Set<UUID> = []
-    private var currentPollInterval: TimeInterval?
+    private var hostObserver: AnyCancellable?
+    private let hostState: CurrentValueSubject<PortPermissionState, Never>
+    /// How a System Settings pane is opened (true when it opened), and how the guide card is floated. Swapped
+    /// by tests, which must open no window.
+    var openURL: (URL) -> Bool = { NSWorkspace.shared.open($0) }
+    var showGuide: (PermissionKind) -> Void = { PermissionGuideOverlay.shared.show(for: $0) }
 
-    private init() {
-        refresh()
-        // Watch Accessibility and Screen Recording only while a running
-        // feature or visible permission surface can use the result. One-shot
-        // tools refresh when invoked, so their mere availability must not keep
-        // a timer alive in the background.
+    private convenience init() {
+        self.init(hostState: PortHost.permissionState, refreshOnInit: true)
+    }
+
+    /// `hostState` is where the host publishes its reading; `refreshOnInit` is false in tests, because
+    /// `refresh()` probes Full Disk Access and the notification centre.
+    init(hostState: CurrentValueSubject<PortPermissionState, Never>, refreshOnInit: Bool) {
+        self.hostState = hostState
+        apply(hostState.value)
+        if refreshOnInit { refresh() }
+        // The host pushes every reading of its `PermissionMonitor` (activation, the Accessibility notification
+        // and its own poll), so a grant shows here without a timer or an observer of our own.
         // Full Disk Access is deliberately NOT polled here: it can only change
         // across a relaunch (a running process never gains or is meant to lose
         // it mid-session), and probing it touches protected paths, so polling it
         // would just be repeated denied accesses for no gain.
-        scheduleActivePermissionPolling()
-        // Re-check everything the instant the user returns from System Settings
-        // (e.g. after relaunching for Full Disk Access), so the state reflects
-        // immediately instead of waiting for the next poll.
-        activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
-                                                                    object: nil, queue: .main) { [weak self] _ in
-            self?.refresh()
-            self?.scheduleActivePermissionPolling()
-        }
-        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
-                                                                  object: nil, queue: .main) { [weak self] _ in
-            self?.scheduleActivePermissionPolling()
-        }
+        hostObserver = hostState.sink { [weak self] state in self?.apply(state) }
     }
 
-    deinit {
-        activePermissionTimer?.invalidate()
-        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
-        if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
-    }
-
-    private var desiredPollInterval: TimeInterval? {
-        let accessibilityIsNeeded = AppFeature.activeFeatures(using: .accessibility)
-            .contains { $0.monitorsPermissionChanges }
-        let screenRecordingIsNeeded = AppFeature.activeFeatures(using: .screenRecording)
-            .contains { $0.monitorsPermissionChanges }
-        return PermissionPollingSupport.interval(
-            visibleSurfaceCount: permissionSurfaceDemands.count,
-            accessibilityIsNeeded: accessibilityIsNeeded,
-            screenRecordingIsNeeded: screenRecordingIsNeeded,
-            accessibilityIsGranted: accessibility,
-            screenRecordingIsGranted: screenRecording)
-    }
-
-    private func scheduleActivePermissionPolling() {
-        let interval = desiredPollInterval
-        guard interval != currentPollInterval else { return }
-        currentPollInterval = interval
-        activePermissionTimer?.invalidate()
-        activePermissionTimer = nil
-        guard let interval else { return }
-        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-            self?.refreshActivePermissions()
-        }
-        timer.tolerance = interval * 0.4
-        RunLoop.main.add(timer, forMode: .common)
-        activePermissionTimer = timer
-    }
-
-    /// Visible permission UI owns a stable demand identifier so repeated
-    /// SwiftUI appearances cannot accidentally leave an unbalanced timer.
+    /// Visible permission UI used to demand a faster poll; the host's monitor decides the cadence now, so
+    /// showing the surface only takes a fresh reading.
     func setActivePermissionSurface(_ id: UUID, visible: Bool) {
-        if visible {
-            permissionSurfaceDemands.insert(id)
-            refreshActivePermissions()
-        } else {
-            permissionSurfaceDemands.remove(id)
-        }
-        scheduleActivePermissionPolling()
+        if visible { refreshActivePermissions() }
     }
 
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
@@ -200,18 +161,19 @@ final class Permissions: ObservableObject {
         }
     }
 
-    /// Accessibility and Screen Recording only — free, side-effect-free checks
-    /// suitable for frequent polling.
+    /// Accessibility, Input Monitoring and Screen Recording: the host's latest reading, no system call.
     private func refreshActivePermissions() {
-        let ax = AXIsProcessTrusted()
-        let sr = CGPreflightScreenCaptureAccess()
-        DispatchQueue.main.async {
-            if self.accessibility != ax { self.accessibility = ax }
-            if self.screenRecording != sr { self.screenRecording = sr }
-            // A flip can change which cadence applies (e.g. the last grant
-            // landed while the app was in the background).
-            self.scheduleActivePermissionPolling()
+        apply(hostState.value)
+    }
+
+    private func apply(_ state: PortPermissionState) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.apply(state) }
+            return
         }
+        if accessibility != state.accessibility { accessibility = state.accessibility }
+        if screenRecording != state.screenRecording { screenRecording = state.screenRecording }
+        if inputMonitoring != state.inputMonitoring { inputMonitoring = state.inputMonitoring }
     }
 
     /// Protected directories safe to use both as access probes and as
@@ -250,25 +212,29 @@ final class Permissions: ObservableObject {
         return gatedDirs.contains { (try? fm.contentsOfDirectory(atPath: $0)) != nil }
     }
 
-    /// Shows the system Accessibility prompt (once per TCC reset) and floats
-    /// the little guide card for the System Settings round trip.
+    /// Opens the Accessibility pane of System Settings (never the system prompt) and floats the little guide
+    /// card for the round trip.
     func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        openAccessibilitySettings()
         refreshActivePermissions()
         if !accessibility {
-            PermissionGuideOverlay.shared.show(for: .accessibility)
+            showGuide(.accessibility)
         }
     }
 
-    /// Shows the system Screen Recording prompt (once per TCC reset) and
-    /// floats the guide card, like the Accessibility path.
+    /// Opens the Screen Recording pane (never the system prompt) and floats the guide card, like the
+    /// Accessibility path.
     func requestScreenRecording() {
-        CGRequestScreenCaptureAccess()
+        openScreenRecordingSettings()
         refreshActivePermissions()
         if !screenRecording {
-            PermissionGuideOverlay.shared.show(for: .screenRecording)
+            showGuide(.screenRecording)
         }
+    }
+
+    /// Opens the Input Monitoring pane. There is no read-only way to ask, and none is wanted.
+    func requestInputMonitoring() {
+        openInputMonitoringSettings()
     }
 
     /// Drops this app's entry from the list and asks again. The entry macOS
@@ -302,6 +268,10 @@ final class Permissions: ObservableObject {
 
     func openScreenRecordingSettings() {
         open(pane: "Privacy_ScreenCapture")
+    }
+
+    func openInputMonitoringSettings() {
+        open(pane: "Privacy_ListenEvent")
     }
 
     func openFullDiskAccessSettings() {
@@ -392,7 +362,7 @@ final class Permissions: ObservableObject {
 
     func openNotificationSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
-        NSWorkspace.shared.open(url)
+        _ = openURL(url)
     }
 
     func openAutomationSettings() {
@@ -406,17 +376,17 @@ final class Permissions: ObservableObject {
     func openAppManagementSettings() {
         let pane = URL(string:
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
-        if NSWorkspace.shared.open(pane) { return }
+        if openURL(pane) { return }
 
         // A general Privacy & Security page is still useful if a future macOS
         // version stops accepting the pane identifier.
         let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
-        NSWorkspace.shared.open(fallback)
+        _ = openURL(fallback)
     }
 
     private func open(pane: String) {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
-        NSWorkspace.shared.open(url)
+        _ = openURL(url)
     }
 
     // MARK: - Automation (Apple Events)

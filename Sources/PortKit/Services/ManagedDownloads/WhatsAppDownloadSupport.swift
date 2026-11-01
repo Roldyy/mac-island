@@ -48,7 +48,7 @@ enum WhatsAppDownloadSupport {
     ]
 
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled)
+        PortHost.defaults.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled)
     }
 
     static func sanitizedRetentionDays(_ value: Int) -> Int {

@@ -43,13 +43,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
         let defaults = AppDefaults.make() ?? .standard
+        // The ported features: same defaults domain as the registry and the migrator, then every lane binds its
+        // features (descriptors the registry needs at init). Nothing starts here.
+        PortBridge.configure(defaults: defaults)
+        PortBridge.bindLanes()
+        let ported = PortFeatureBinding.shared
         let registry = FeatureRegistry(
-            descriptors: ShellDescriptors.all, defaults: defaults,
+            descriptors: ShellDescriptors.all + ported.descriptors, defaults: defaults,
             crashMarker: .standard(bundleID: Self.bundleID),
             capabilityProvider: SystemCapabilities.provider(.live(defaults: defaults)))
         // The migrator does not carry the old "kept features" key, so fall back to its source domain.
         registry.seedFromVorssaint(defaults.object(forKey: VorssaintHubSeed.key)
             ?? UserDefaults.standard.persistentDomain(forName: Self.vorssaintDomain)?[VorssaintHubSeed.key])
+        // Registry is the only writer of `shell.enabled.*`; the ported code reaches it through these two doors,
+        // and reads the permissions from our monitor. Only then are upstream's defaults registered (after the
+        // migration and the seed above), so a registered default is never read as a chosen value.
+        PortBridge.connectRegistry(
+            setEnabled: { id, enabled in MainActor.assumeIsolated { _ = registry.setSwitch(id, to: enabled) } },
+            storedSwitch: { id in MainActor.assumeIsolated { registry.storedSwitch(id) } })
+        PortBridge.updatePermissions(Self.portPermissions(PermissionProbe.live(defaults: defaults).snapshot()))
+        PortBridge.registerDefaults()
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
         let live = ClaudeLiveMonitor(
@@ -61,8 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // From here the registry also stops them: kill switch, safe mode and each switch call the stoppers.
         // Shelf, Clipboard and Now Playing expose no stop(): their switch takes effect at the next launch
         // and the Settings row says so.
+        // The ported features add their own starters and stoppers (permission-gated, never prompting).
         registry.launch(
-            starters: [
+            starters: ported.starters.merging([
                 "clipboard": { ClipboardFeature.start() },
                 "shelf": { ShelfFeature.start() },
                 "finder": { FinderFeature.start() },
@@ -74,8 +88,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "commandbar": { CommandBarFeature.start() },
                 "nowplaying": { NowPlayingFeature.start() },
                 "agents": { live.start() },
-            ],
-            stoppers: [
+            ]) { _, ours in ours },
+            stoppers: ported.stoppers.merging([
                 "finder": { FinderFeature.stop() },
                 "dock": { DockFeature.stop() },
                 "display": { DisplayFeature.stop() },
@@ -84,12 +98,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "monitor": { MonitorFeature.stop() },
                 "commandbar": { CommandBarFeature.stop() },
                 "agents": { live.stop() },  // withdraws every Claude activity through the sink
-            ],
+            ]) { _, ours in ours },
             activitySources: ["agents": ClaudeActivityMapper.source])
         self.registry = registry
         // Re-reads Accessibility, Input Monitoring and Screen Recording on activation, on the system
-        // notification and on a 1 s poll while one is missing; starts or stops the features that use it.
-        PermissionMonitor.attachLive(to: registry, probe: .live(defaults: defaults))
+        // notification and on a slow poll (2.5 s, backing off) while one is missing; starts or stops the
+        // features that use it. Every reading is copied to the ported code before the registry reacts.
+        let monitor = PermissionMonitor.attachLive(to: registry, probe: .live(defaults: defaults))
+        monitor.addSnapshotObserver { PortBridge.updatePermissions(Self.portPermissions($0)) }
 
         let tabs = ShellTabs.all
         let navigation = ShellNavigation()
@@ -320,6 +336,23 @@ extension AppDelegate {
                 PortBridge.settingsBody(pageID: pageID) ?? AnyView(EmptyView())
             }
         }
+        // A bound feature's page opens with its switch and status, then the ported body.
+        if let registry {
+            for page in PortFeatureBinding.shared.pages {
+                SettingsPageBodies.register(
+                    pageID: page.pageID, featureID: page.featureID, registry: registry,
+                    openPermission: { permission in
+                        if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
+                    },
+                    page.body)
+            }
+        }
+    }
+
+    /// ShellKit's reading in the ported code's own type.
+    static func portPermissions(_ snapshot: PermissionSnapshot) -> PortPermissionState {
+        PortPermissionState(accessibility: snapshot.accessibility, inputMonitoring: snapshot.inputMonitoring,
+                            screenRecording: snapshot.screenRecording)
     }
 }
 

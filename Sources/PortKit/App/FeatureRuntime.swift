@@ -97,14 +97,10 @@ final class FeatureRuntime: ObservableObject {
         return !available || feature.isHardwareSupported
     }
 
-    /// Mac Island's registry is the only writer of `shell.enabled.<id>`: once a bridge sets
-    /// `PortHost.setEnabled`, the switch is handed over instead of written here.
+    /// Mac Island's registry is the only writer of `shell.enabled.<id>`: the switch is handed over, by registry
+    /// id, and never written here. Without a host (`PortHost.setEnabled` unset) nothing is written.
     private static func writeAvailability(_ feature: AppFeature, _ value: Bool) {
-        if let handOver = PortHost.setEnabled {
-            handOver(feature.rawValue, value)
-        } else {
-            UserDefaults.standard.set(value, forKey: feature.availabilityKey)
-        }
+        PortHost.setEnabled?(feature.registryID, value)
     }
 
     /// Flipping availability runs each feature's binding immediately, in the
@@ -119,14 +115,14 @@ final class FeatureRuntime: ObservableObject {
         var changed = false
         let firstIslandInstall = available && features.contains(.notch)
             && mayFlip(.notch, to: true)
-            && !UserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            && !PortHost.defaults.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
         let requested = firstIslandInstall
             ? features + AppFeature.dynamicIslandInitialExtensions.filter { !features.contains($0) }
             : features
         let savedValues = savedPreferences()
         for feature in requested where mayFlip(feature, to: available) {
             if available && enablingFirstInstalls {
-                feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+                feature.enableOnFirstInstall(in: PortHost.defaults, savedValues: savedValues)
             }
             Self.writeAvailability(feature, available)
             if available {
@@ -137,7 +133,7 @@ final class FeatureRuntime: ObservableObject {
             changed = true
         }
         if firstIslandInstall && AppFeature.notch.isAvailable {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            PortHost.defaults.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         if changed { finishAvailabilityChange() }
     }
@@ -155,14 +151,14 @@ final class FeatureRuntime: ObservableObject {
     /// losing any of their settings.
     func replaceAvailable(with selected: Set<AppFeature>, enabling keys: [String] = []) {
         for key in keys {
-            UserDefaults.standard.set(true, forKey: key)
+            PortHost.defaults.set(true, forKey: key)
         }
         let savedValues = savedPreferences()
         for feature in AppFeature.allCases
         where mayFlip(feature, to: selected.contains(feature)) {
             let joins = selected.contains(feature)
             if joins {
-                feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
+                feature.enableOnFirstInstall(in: PortHost.defaults, savedValues: savedValues)
             }
             Self.writeAvailability(feature, joins)
             if joins {
@@ -180,7 +176,7 @@ final class FeatureRuntime: ObservableObject {
             Self.bindings[feature]?()
         }
         if selected.contains(.notch) && AppFeature.notch.isAvailable {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            PortHost.defaults.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         finishAvailabilityChange()
     }
@@ -191,7 +187,7 @@ final class FeatureRuntime: ObservableObject {
         let saved = savedPreferences()
         let kept = Self.keptFeatures()
         return AppFeature.neverSwitchedOn(isAvailable: \.isAvailable,
-                                          boolFor: UserDefaults.standard.bool(forKey:),
+                                          boolFor: PortHost.defaults.bool(forKey:),
                                           isSaved: { saved[$0] != nil })
             .filter { offerableThisSession.contains($0) && !kept.contains($0) }
     }
@@ -200,12 +196,12 @@ final class FeatureRuntime: ObservableObject {
     /// never used is still offered, on its own merits.
     func keep(_ features: [AppFeature]) {
         let kept = Self.keptFeatures().union(features)
-        UserDefaults.standard.set(kept.map(\.rawValue).sorted().joined(separator: ","),
+        PortHost.defaults.set(kept.map(\.rawValue).sorted().joined(separator: ","),
                                   forKey: DefaultsKey.featureHubKeptFeatures)
     }
 
     private static func keptFeatures() -> Set<AppFeature> {
-        Set((UserDefaults.standard.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
+        Set((PortHost.defaults.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
             .split(separator: ",")
             .compactMap { AppFeature(rawValue: String($0)) })
     }
@@ -216,8 +212,7 @@ final class FeatureRuntime: ObservableObject {
     }
 
     private func savedPreferences() -> [String: Any] {
-        guard let domain = Bundle.main.bundleIdentifier else { return [:] }
-        return UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+        PortHost.defaults.persistentDomain(forName: PortHost.bundleID) ?? [:]
     }
 
     /// Launch path: replaces the old unconditional sync block. Only available
@@ -409,7 +404,7 @@ final class FeatureRuntime: ObservableObject {
         .monitorPower: { FeatureRuntime.syncMonitor() },
         .fanControl: {
             SystemMonitor.shared.planDidChange()
-            let defaults = UserDefaults.standard
+            let defaults = PortHost.defaults
             let needsRecovery = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
             let hasRegisteredHelper = !(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) ?? "").isEmpty
             if needsRecovery || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {

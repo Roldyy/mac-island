@@ -1,3 +1,5 @@
+import IslandKit
+import IslandUI
 import SwiftUI
 
 /// Extension point for page bodies that live outside ShellKit (the ported Vorssaint pages). A lane registers
@@ -11,6 +13,20 @@ public enum SettingsPageBodies {
     /// Registers (or replaces) the body of one page.
     @MainActor public static func register(pageID: String, _ body: @escaping @MainActor () -> AnyView) {
         bodies[pageID] = body
+    }
+
+    /// Registers the body of a page that belongs to one registry feature (a ported feature's page): the page
+    /// opens with that feature's switch and status card, the same card the declarative pages show, then the body.
+    /// The catalog row of such a page has no `featureID`, and the catalog is not touched for it.
+    @MainActor public static func register(pageID: String, featureID: String, registry: FeatureRegistry,
+                                           openPermission: @escaping @MainActor (FeaturePermission) -> Void,
+                                           _ body: @escaping @MainActor () -> AnyView) {
+        register(pageID: pageID) {
+            AnyView(VStack(alignment: .leading, spacing: IslandSpacing.l) {
+                FeatureStatusCard(registry: registry, featureID: featureID, openPermission: openPermission)
+                body()
+            })
+        }
     }
 
     /// Removes every registered body (tests).

@@ -260,7 +260,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
-        queryHabitStore.reload(UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
+        queryHabitStore.reload(PortHost.defaults.string(forKey: DefaultsKey.commandBarQueryHabits))
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -271,7 +271,7 @@ final class CommandBarService: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.commandBar.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
                                             fallback: .commandBarDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -654,7 +654,7 @@ final class CommandBarService: ObservableObject {
     /// already does.
     private func adoptASCIIInputSource() {
         let apply = {
-            guard UserDefaults.standard.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else {
+            guard PortHost.defaults.bool(forKey: DefaultsKey.commandBarASCIILayoutEnabled) else {
                 self.restoreSuspendedInputSource()
                 return
             }
@@ -746,17 +746,17 @@ final class CommandBarService: ObservableObject {
     /// decoding the same handful of strings over and over.
     private var storedAliases: [String: String] {
         CommandBarPreferences.decodeAliases(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarAliases))
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarAliases))
     }
 
     private var storedPins: [String] {
         CommandBarPreferences.decodePins(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarPins) ?? "")
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarPins) ?? "")
     }
 
     var rowShortcuts: [String: GlobalShortcut] {
         CommandBarRowShortcuts.decode(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarRowShortcuts))
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarRowShortcuts))
     }
 
     func rowShortcut(for entry: CommandBarEntry) -> GlobalShortcut? {
@@ -816,7 +816,7 @@ final class CommandBarService: ObservableObject {
 
     private func storeRowShortcut(_ shortcut: GlobalShortcut?, forKey key: String) {
         let next = CommandBarRowShortcuts.setting(shortcut, for: key, in: rowShortcuts)
-        UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
+        PortHost.defaults.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
         refreshAfterPreferenceChange()
@@ -893,7 +893,7 @@ final class CommandBarService: ObservableObject {
         // argument and nothing on screen. Direct execution bypasses result
         // filtering. Do nothing when the row is hidden or Links is disabled.
         if let link = CommandBarLinks.directRunScript(forStableKey: key, in: CommandBarLinks.decode(
-            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))) {
+            PortHost.defaults.data(forKey: DefaultsKey.commandBarLinks))) {
             guard !hiddenCache.contains(key), isEnabled(.links) else { return }
             CommandBarCatalog.runScriptDirectly(link)
             return
@@ -930,7 +930,7 @@ final class CommandBarService: ObservableObject {
 
     private var storedHiddenKeys: Set<String> {
         CommandBarPreferences.decodeHidden(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarHidden) ?? "")
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarHidden) ?? "")
     }
 
     /// What was in the field, and what was selected, at the instant a row ran.
@@ -1158,11 +1158,11 @@ final class CommandBarService: ObservableObject {
         // Before `reloadFileSearchCaches()`, which asks whether the Files
         // source is on.
         disabledCache = CommandBarPreferences.disabledSources(
-            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
+            from: PortHost.defaults.string(forKey: DefaultsKey.commandBarDisabledSources) ?? "")
         usageCache = CommandBarUsage.decode(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage))
         shortcutCache = rowShortcuts
-        compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
+        compactMode = PortHost.defaults.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
         reloadFileSearchCaches()
     }
@@ -1170,8 +1170,8 @@ final class CommandBarService: ObservableObject {
     private func reloadFileSearchCaches() {
         // A cached answer belongs to the scopes and ignores that produced it.
         // Changing either invalidates pending and completed searches together.
-        let scopesRaw = UserDefaults.standard.string(forKey: DefaultsKey.commandBarFileScopes) ?? ""
-        let ignoresRaw = UserDefaults.standard.string(forKey: DefaultsKey.commandBarFileIgnores) ?? ""
+        let scopesRaw = PortHost.defaults.string(forKey: DefaultsKey.commandBarFileScopes) ?? ""
+        let ignoresRaw = PortHost.defaults.string(forKey: DefaultsKey.commandBarFileIgnores) ?? ""
         let enabled = isEnabled(.files)
         let signature = "\(enabled)\0\(scopesRaw)\0\(ignoresRaw)"
         guard signature != fileSearchPreferenceSignature else { return }
@@ -1251,13 +1251,13 @@ final class CommandBarService: ObservableObject {
     /// list refreshes the instant the person changes their mind.
     func togglePin(_ entry: CommandBarEntry) {
         let next = CommandBarPreferences.togglingPin(entry.stableKey, in: storedPins)
-        UserDefaults.standard.set(CommandBarPreferences.encodePins(next), forKey: DefaultsKey.commandBarPins)
+        PortHost.defaults.set(CommandBarPreferences.encodePins(next), forKey: DefaultsKey.commandBarPins)
         refreshAfterPreferenceChange()
     }
 
     func setAlias(_ alias: String, for entry: CommandBarEntry) {
         let next = CommandBarPreferences.settingAlias(alias, for: entry.stableKey, in: storedAliases)
-        UserDefaults.standard.set(CommandBarPreferences.encodeAliases(next),
+        PortHost.defaults.set(CommandBarPreferences.encodeAliases(next),
                                   forKey: DefaultsKey.commandBarAliases)
         refreshAfterPreferenceChange()
     }
@@ -1273,7 +1273,7 @@ final class CommandBarService: ObservableObject {
 
     func toggleHidden(_ entry: CommandBarEntry) {
         let next = CommandBarPreferences.togglingHidden(entry.stableKey, in: storedHiddenKeys)
-        UserDefaults.standard.set(CommandBarPreferences.encodeHidden(next),
+        PortHost.defaults.set(CommandBarPreferences.encodeHidden(next),
                                   forKey: DefaultsKey.commandBarHidden)
         refreshAfterPreferenceChange()
     }
@@ -1284,12 +1284,12 @@ final class CommandBarService: ObservableObject {
     /// ask for.
     func resetRanking(_ entry: CommandBarEntry) {
         var usage = CommandBarUsage.decode(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage))
         usage.removeValue(forKey: entry.id)
-        UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
+        PortHost.defaults.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
-        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+        PortHost.defaults.set(CommandBarQueryHabits.encode(queryHabitStore.store),
                                   forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
@@ -1346,7 +1346,7 @@ final class CommandBarService: ObservableObject {
         // their folded copy and refold every one.
         let emojiInputs = EmojiInputs(
             language: L10n.shared.language,
-            skinTone: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "",
+            skinTone: PortHost.defaults.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "",
             accessibility: Permissions.shared.accessibility)
         if emojiEntries.isEmpty || emojiInputs != builtEmojiInputs {
             emojiEntries = CommandBarCatalog.emojiEntries(bar: FeatureStrings.commandBar(L10n.shared.language))
@@ -1507,7 +1507,7 @@ final class CommandBarService: ObservableObject {
                     let byID = Dictionary(content.map { ($0.id, $0) },
                                           uniquingKeysWith: { first, _ in first })
                     let usage = CommandBarUsage.decode(
-                        UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+                        PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage))
                     let durableUsage = usage.filter { byID[$0.key]?.countsUsage == true }
                     rows = CommandBarUsage.categoryIDs(usage: durableUsage,
                                                        available: content.map(\.id))
@@ -1821,7 +1821,7 @@ final class CommandBarService: ObservableObject {
         // that one link is hidden - a switched-off source must not still
         // spawn a process behind it.
         let savedLinks = CommandBarLinks.decode(
-            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))
+            PortHost.defaults.data(forKey: DefaultsKey.commandBarLinks))
         let scriptMatch = isEnabled(.links)
             ? CommandBarLinks.matchingScriptLink(in: savedLinks, query: trimmed)
             : nil
@@ -2221,7 +2221,7 @@ final class CommandBarService: ObservableObject {
         guard let base = CommandBarPreferences.emojiIdentity(fromRowID: entry.id),
               CommandBarEmoji.acceptsSkinTone(base) else { return [] }
         let current = CommandBarPreferences.skinTone(
-            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
+            from: PortHost.defaults.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
         return CommandBarEmoji.SkinTone.allCases.filter { $0 != current }.map { tone in
             let character = CommandBarEmoji.applying(tone, to: base)
             return RowAction(id: "emojiSkinTone.\(tone.rawValue)",
@@ -2486,7 +2486,7 @@ final class CommandBarService: ObservableObject {
         let currentShortcuts = rowShortcuts
         let nextShortcuts = CommandBarRowShortcuts.removing(keys: targetKeys, in: currentShortcuts)
         if nextShortcuts.count != currentShortcuts.count {
-            UserDefaults.standard.set(CommandBarRowShortcuts.encode(nextShortcuts),
+            PortHost.defaults.set(CommandBarRowShortcuts.encode(nextShortcuts),
                                       forKey: DefaultsKey.commandBarRowShortcuts)
             for key in currentShortcuts.keys where targetKeys.contains(key) {
                 SystemShortcutTakeover.setTakeOver(CommandBarRowShortcuts.takeOverKey(for: key), false)
@@ -2497,31 +2497,31 @@ final class CommandBarService: ObservableObject {
         let currentAliases = storedAliases
         let nextAliases = CommandBarPreferences.removingAliases(for: targetKeys, in: currentAliases)
         if nextAliases.count != currentAliases.count {
-            UserDefaults.standard.set(CommandBarPreferences.encodeAliases(nextAliases),
+            PortHost.defaults.set(CommandBarPreferences.encodeAliases(nextAliases),
                                       forKey: DefaultsKey.commandBarAliases)
         }
 
         let currentPins = storedPins
         let nextPins = CommandBarPreferences.removingPins(for: targetKeys, in: currentPins)
         if nextPins.count != currentPins.count {
-            UserDefaults.standard.set(CommandBarPreferences.encodePins(nextPins),
+            PortHost.defaults.set(CommandBarPreferences.encodePins(nextPins),
                                       forKey: DefaultsKey.commandBarPins)
         }
 
         let currentHidden = storedHiddenKeys
         let nextHidden = CommandBarPreferences.removingHidden(for: targetKeys, in: currentHidden)
         if nextHidden.count != currentHidden.count {
-            UserDefaults.standard.set(CommandBarPreferences.encodeHidden(nextHidden),
+            PortHost.defaults.set(CommandBarPreferences.encodeHidden(nextHidden),
                                       forKey: DefaultsKey.commandBarHidden)
         }
 
         var usage = CommandBarUsage.decode(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage))
         let oldUsageCount = usage.count
         for key in targetKeys { usage.removeValue(forKey: key) }
         for path in paths { usage.removeValue(forKey: "app.\(path)") }
         if usage.count != oldUsageCount {
-            UserDefaults.standard.set(CommandBarUsage.encode(usage),
+            PortHost.defaults.set(CommandBarUsage.encode(usage),
                                       forKey: DefaultsKey.commandBarUsage)
         }
 
@@ -2702,7 +2702,7 @@ final class CommandBarService: ObservableObject {
     private func beginUninstallReview(appURL url: URL, entryID: String) {
         let uninstaller = AppUninstaller.shared
         guard AppFeature.uninstaller.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
+              PortHost.defaults.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
               uninstaller.select(appURL: url) else {
             uninstallWarning = uninstaller.isRemoving
                 ? L10n.shared.s.uninstallerRemoving : L10n.shared.s.uninstallerSelectionUnavailable
@@ -2832,11 +2832,11 @@ final class CommandBarService: ObservableObject {
             queryMemory.record(query: learningQuery, id: entry.id, step: queryMemoryStep)
         }
         if entry.countsUsage {
-            let stored = UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage)
+            let stored = PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage)
             let next = CommandBarUsage.recording(CommandBarUsage.decode(stored),
                                                  id: entry.id,
                                                  now: now)
-            UserDefaults.standard.set(CommandBarUsage.encode(next), forKey: DefaultsKey.commandBarUsage)
+            PortHost.defaults.set(CommandBarUsage.encode(next), forKey: DefaultsKey.commandBarUsage)
             usageCache = next
         }
         if entry.countsUsage, isVisible, !learningQuery.isEmpty {
@@ -2846,7 +2846,7 @@ final class CommandBarService: ObservableObject {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
-                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+                PortHost.defaults.set(CommandBarQueryHabits.encode(queryHabitStore.store),
                                           forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
@@ -2959,7 +2959,7 @@ final class CommandBarService: ObservableObject {
         guard AppFeature.commandBar.isAvailable, !appsLoading else { return }
         appsLoading = true
         let listsUninstallable = AppFeature.uninstaller.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
@@ -3152,7 +3152,7 @@ final class CommandBarService: ObservableObject {
     /// `loadSelection(for:)`.
     private func loadKillProcessEntries(for id: UUID) {
         guard AppFeature.killProcess.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) else { return }
+              PortHost.defaults.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) else { return }
         guard !killProcessEntriesLoading else { return }
         killProcessEntriesLoading = true
         KillProcessService.shared.refresh { [weak self] in
@@ -3185,7 +3185,7 @@ final class CommandBarService: ObservableObject {
 
     private func loadUninstallSelectionEntries(for id: UUID, requestID: UUID? = nil) {
         guard AppFeature.uninstaller.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+              PortHost.defaults.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         else { return }
         guard !uninstallSelectionLoading else { return }
         uninstallSelectionLoading = true
@@ -3414,7 +3414,7 @@ final class CommandBarService: ObservableObject {
     /// open on.
     private var positionOffset: CGSize {
         CommandBarPreferences.decodePositionOffset(
-            UserDefaults.standard.string(forKey: DefaultsKey.commandBarPositionOffset) ?? "")
+            PortHost.defaults.string(forKey: DefaultsKey.commandBarPositionOffset) ?? "")
     }
 
     // MARK: - Moving the bar
@@ -3435,9 +3435,9 @@ final class CommandBarService: ObservableObject {
                             height: panel.frame.maxY - (screen.minY + screen.height * 0.72))
         let encoded = CommandBarPreferences.encodePositionOffset(offset)
         if encoded.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
+            PortHost.defaults.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
         } else {
-            UserDefaults.standard.set(encoded, forKey: DefaultsKey.commandBarPositionOffset)
+            PortHost.defaults.set(encoded, forKey: DefaultsKey.commandBarPositionOffset)
         }
         hasCustomPosition = !encoded.isEmpty
     }
@@ -3446,7 +3446,7 @@ final class CommandBarService: ObservableObject {
     /// returns the bar to the spot it opens on by default, with the same
     /// short slide it took on the way there.
     func resetPanelPosition() {
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
+        PortHost.defaults.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
         hasCustomPosition = false
         guard let panel, panel.isVisible, presentation == .window else { return }
         position(panel, animated: true)

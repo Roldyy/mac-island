@@ -17,13 +17,13 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
     /// binding runs. Updates keep every existing availability choice, and an
     /// interrupted setup keeps the selection already applied on its purpose
     /// step.
-    static func prepareFirstRunAvailability(in defaults: UserDefaults = .standard) {
+    static func prepareFirstRunAvailability(in defaults: UserDefaults = PortHost.defaults) {
         guard !defaults.bool(forKey: DefaultsKey.hasOnboarded),
               defaults.integer(forKey: DefaultsKey.onboardingStep) == 0
         else { return }
         let selected = FeaturePreset.essential.features
         for feature in AppFeature.allCases {
-            defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
+            PortHost.setEnabled?(feature.registryID, selected.contains(feature))
         }
     }
 
@@ -101,15 +101,15 @@ extension AppFeature {
         case .switcher, .superKey, .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
-            let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+            let edgeSnapRuns = PortHost.defaults.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
                 && !WindowEdgeSnapZone.enabledZones(
-                    from: UserDefaults.standard.string(
+                    from: PortHost.defaults.string(
                         forKey: DefaultsKey.windowEdgeSnapDisabledZones)
                 ).isEmpty
-            let pointerTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+            let pointerTapRuns = PortHost.defaults.bool(forKey: DefaultsKey.windowGestureEnabled)
                 || edgeSnapRuns
-            let modifierTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
-                && UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
+            let modifierTapRuns = PortHost.defaults.bool(forKey: DefaultsKey.windowDirectionalEnabled)
+                && PortHost.defaults.string(forKey: DefaultsKey.windowDirectionalShortcut)
                     .flatMap(WindowDirectionalTrigger.init(storageValue:))
                     .map { if case .modifiers = $0 { return true }; return false } == true
             if modifierTapRuns { return .inputs }
@@ -118,7 +118,7 @@ extension AppFeature {
             // A side button or the trackpad tap on any wheel keeps an input
             // tap running; shortcut-only costs nothing at rest.
             return RadialMenuSupport.opensFromMouseOrTrackpad(
-                UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+                PortHost.defaults.data(forKey: DefaultsKey.radialMenuProfiles))
                 ? .mouse : .idle
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
@@ -135,13 +135,13 @@ extension AppFeature {
              .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
         case .mixer:
-            return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            return PortHost.defaults.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
         case .brightness:
             // Following the pointer, the overlay and a finer step answer the
             // brightness keys from a tap. Like Accessibility, the island's own
             // notices are counted under the island.
-            let defaults = UserDefaults.standard
+            let defaults = PortHost.defaults
             return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
                 || BrightnessSupport.KeyStep.sanitized(
@@ -156,7 +156,7 @@ extension AppFeature {
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.
             return AppUpdatesSupport.CheckFrequency.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
+                PortHost.defaults.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
                 ? .idle : .periodic
         }
     }

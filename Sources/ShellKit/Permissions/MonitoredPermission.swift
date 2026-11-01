@@ -37,9 +37,35 @@ public enum MonitoredPermission: String, CaseIterable, Sendable, Hashable {
     /// (`KeyEventTap` and `CleaningEventTap` both check `CGPreflightListenEventAccess`).
     static let inputMonitoringFeatureIDs: Set<String> = ["finder"]
 
+    /// The ported (Vorssaint) tap features: the permissions a grant must restart them for. Derived from the
+    /// ported feature catalog's permission table (`AppFeature.permissions`), not guessed: every one of these
+    /// is `[.accessibility]` there, and each of their taps is an active `.defaultTap`, which needs
+    /// Accessibility and not Input Monitoring (a listen-only tap would). `mouseAcceleration` lists none: it
+    /// changes a system setting and installs no tap. `PortFeatureBinding` builds the same permissions into
+    /// each descriptor, so `used(by:)` agrees either way; this table is the pinned statement, and a test
+    /// compares the two. Keys are registry ids (= upstream raw ids for features new to Mac Island).
+    static let portedFeaturePermissions: [String: Set<MonitoredPermission>] = [
+        "scrollInverter": [.accessibility],
+        "scrollHorizontal": [.accessibility],
+        "smoothScroll": [.accessibility],
+        "linearScroll": [.accessibility],
+        "mouseAcceleration": [],
+        "mouseNavigation": [.accessibility],
+        "mouseButtonShortcuts": [.accessibility],
+        "middleClick": [.accessibility],
+        "mouseClickDebounce": [.accessibility],
+        "focusFollowsMouse": [.accessibility],
+        "keyboardDebounce": [.accessibility],
+        "superKey": [.accessibility],
+        "quitWindowProtection": [.accessibility],
+        "textSnippets": [.accessibility],
+        "cleaningMode": [.accessibility],
+    ]
+
     public static func used(by descriptor: FeatureDescriptor) -> Set<MonitoredPermission> {
         var used = Set(descriptor.permissions.compactMap(MonitoredPermission.init))
         if inputMonitoringFeatureIDs.contains(descriptor.id) { used.insert(.inputMonitoring) }
+        used.formUnion(portedFeaturePermissions[descriptor.id] ?? [])
         return used
     }
 }

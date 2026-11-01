@@ -106,24 +106,24 @@ enum NotchCalendarSupport {
         hasError || ![.fullAccess, .denied, .restricted].contains(status)
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults)
             && AppFeature.notchCalendar.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchCalendarEnabled)
             && NotchSupport.modules(in: defaults).contains(.calendar)
     }
 
-    static func showsCountdown(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsCountdown(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         showsCountdown(chosen: false, in: defaults)
     }
 
     /// An event chosen from its menu counts down even while the countdown
     /// for every event is off.
-    static func showsCountdown(chosen: Bool, in defaults: UserDefaults = .standard) -> Bool {
+    static func showsCountdown(chosen: Bool, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && (chosen || defaults.bool(forKey: DefaultsKey.notchCalendarCountdown))
     }
 
-    static func showsTimeLeft(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsTimeLeft(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarTimeLeft)
     }
 
@@ -159,18 +159,18 @@ enum NotchCalendarSupport {
     /// Events chosen from their menu in the island, by countdown key, each
     /// with the end it had when last read. Only these identifiers are kept,
     /// never an event's text, and each is forgotten once its event ends.
-    static func chosenCountdowns(in defaults: UserDefaults = .standard) -> [String: Date] {
+    static func chosenCountdowns(in defaults: UserDefaults = PortHost.defaults) -> [String: Date] {
         (defaults.dictionary(forKey: DefaultsKey.notchCalendarChosenCountdowns) ?? [:]).compactMapValues { $0 as? Date }
     }
 
-    static func setCountdown(_ chosen: Bool, for event: NotchCalendarEvent, in defaults: UserDefaults = .standard) {
+    static func setCountdown(_ chosen: Bool, for event: NotchCalendarEvent, in defaults: UserDefaults = PortHost.defaults) {
         guard !event.countdownKey.isEmpty else { return }
         var choices = chosenCountdowns(in: defaults)
         choices[event.countdownKey] = chosen ? event.end : nil
         storeChosenCountdowns(choices, in: defaults)
     }
 
-    static func storeChosenCountdowns(_ choices: [String: Date], in defaults: UserDefaults = .standard) {
+    static func storeChosenCountdowns(_ choices: [String: Date], in defaults: UserDefaults = PortHost.defaults) {
         if choices.isEmpty { defaults.removeObject(forKey: DefaultsKey.notchCalendarChosenCountdowns) }
         else { defaults.set(choices, forKey: DefaultsKey.notchCalendarChosenCountdowns) }
     }
@@ -187,11 +187,11 @@ enum NotchCalendarSupport {
     }
 
     /// Stored as excluded identifiers so a calendar added later starts shown.
-    static func excludedCalendars(in defaults: UserDefaults = .standard) -> Set<String> {
+    static func excludedCalendars(in defaults: UserDefaults = PortHost.defaults) -> Set<String> {
         Set(defaults.stringArray(forKey: DefaultsKey.notchCalendarExcluded) ?? [])
     }
 
-    static func setCalendar(_ identifier: String, shown: Bool, in defaults: UserDefaults = .standard) {
+    static func setCalendar(_ identifier: String, shown: Bool, in defaults: UserDefaults = PortHost.defaults) {
         var excluded = excludedCalendars(in: defaults)
         if shown { excluded.remove(identifier) } else { excluded.insert(identifier) }
         defaults.set(excluded.sorted(), forKey: DefaultsKey.notchCalendarExcluded)

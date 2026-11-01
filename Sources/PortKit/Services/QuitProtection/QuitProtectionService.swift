@@ -60,7 +60,7 @@ final class QuitProtectionService: ObservableObject {
     }
 
     func exceptions(for shortcut: QuitProtectionShortcut) -> [String] {
-        (UserDefaults.standard.array(forKey: exceptionsKey(for: shortcut)) as? [String] ?? [])
+        (PortHost.defaults.array(forKey: exceptionsKey(for: shortcut)) as? [String] ?? [])
             .filter { !$0.isEmpty }
             .sorted()
     }
@@ -69,14 +69,14 @@ final class QuitProtectionService: ObservableObject {
         var values = exceptions(for: shortcut)
         guard !bundleIdentifier.isEmpty, !values.contains(bundleIdentifier) else { return }
         values.append(bundleIdentifier)
-        UserDefaults.standard.set(values.sorted(), forKey: exceptionsKey(for: shortcut))
+        PortHost.defaults.set(values.sorted(), forKey: exceptionsKey(for: shortcut))
         revision += 1
         syncWithPreferences()
     }
 
     func removeException(_ bundleIdentifier: String, for shortcut: QuitProtectionShortcut) {
         let values = exceptions(for: shortcut).filter { $0 != bundleIdentifier }
-        UserDefaults.standard.set(values, forKey: exceptionsKey(for: shortcut))
+        PortHost.defaults.set(values, forKey: exceptionsKey(for: shortcut))
         revision += 1
         syncWithPreferences()
     }
@@ -509,7 +509,7 @@ final class QuitProtectionService: ObservableObject {
     // MARK: Preferences and presentation
 
     private func configuration(for shortcut: QuitProtectionShortcut) -> QuitProtectionConfiguration {
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let enabledKey = shortcut == .quit ? DefaultsKey.quitProtectionQuitEnabled : DefaultsKey.quitProtectionCloseEnabled
         let modeKey = shortcut == .quit ? DefaultsKey.quitProtectionQuitMode : DefaultsKey.quitProtectionCloseMode
         let holdKey = shortcut == .quit ? DefaultsKey.quitProtectionQuitHoldDurationMs : DefaultsKey.quitProtectionCloseHoldDurationMs

@@ -8,10 +8,19 @@ import Testing
     private(set) var stopCount = 0
     private(set) var running = false
     private var tick: (@MainActor () -> Void)?
+    /// The rate and the timer slack of every start, in order.
+    private(set) var intervals: [TimeInterval] = []
+    private(set) var tolerances: [TimeInterval] = []
 
     func start(interval: TimeInterval, tick: @escaping @MainActor () -> Void) {
+        start(interval: interval, tolerance: 0, tick: tick)
+    }
+
+    func start(interval: TimeInterval, tolerance: TimeInterval, tick: @escaping @MainActor () -> Void) {
         startCount += 1
         running = true
+        intervals.append(interval)
+        tolerances.append(tolerance)
         self.tick = tick
     }
     func stop() { stopCount += 1; running = false; tick = nil }

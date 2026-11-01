@@ -57,7 +57,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         }
     }
 
-    func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
+    func isAvailable(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         switch self {
         case .controls, .music: return true
         case .timer: return AppFeature.notchTimer.isAvailable(in: defaults)
@@ -118,7 +118,7 @@ enum NotchDisplay: String, CaseIterable {
 enum NotchSilhouette: String, CaseIterable {
     case capsule, notch
 
-    static func current(in defaults: UserDefaults = .standard) -> NotchSilhouette {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> NotchSilhouette {
         NotchSilhouette(rawValue: defaults.string(forKey: DefaultsKey.notchSilhouette) ?? "") ?? .capsule
     }
 }
@@ -155,7 +155,7 @@ struct NotchCameraFit: Equatable {
         self.height = (NotchSize.clamped(height, to: Self.heightRange, fallback: 0) * 2).rounded() / 2
     }
 
-    static func current(in defaults: UserDefaults = .standard) -> NotchCameraFit {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> NotchCameraFit {
         NotchCameraFit(width: defaults.double(forKey: DefaultsKey.notchCameraFitWidth),
                        height: defaults.double(forKey: DefaultsKey.notchCameraFitHeight))
     }
@@ -184,7 +184,7 @@ struct NotchCapsuleFit: Equatable {
         self.drop = NotchSize.clamped(drop, to: Self.dropRange, fallback: 0).rounded()
     }
 
-    static func current(in defaults: UserDefaults = .standard) -> NotchCapsuleFit {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> NotchCapsuleFit {
         NotchCapsuleFit(width: defaults.double(forKey: DefaultsKey.notchCapsuleFitWidth),
                         height: defaults.double(forKey: DefaultsKey.notchCapsuleFitHeight),
                         drop: defaults.double(forKey: DefaultsKey.notchCapsuleFitDrop))
@@ -1331,7 +1331,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         }
     }
 
-    func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
+    func isAvailable(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         switch self {
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.mixer)
@@ -1387,7 +1387,7 @@ enum NotchQuickAction: Hashable, Identifiable {
             + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
     }
 
-    func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
+    func isAvailable(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         switch self {
         case .module(let module): return NotchSupport.modules(in: defaults).contains(module)
         case .control(let item): return item.isAvailable(in: defaults)
@@ -1458,7 +1458,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
         return (try? encoder.encode(sanitized())) ?? Data()
     }
 
-    static func stored(in defaults: UserDefaults = .standard) -> Self {
+    static func stored(in defaults: UserDefaults = PortHost.defaults) -> Self {
         if let data = defaults.data(forKey: DefaultsKey.notchQuickAccessLayout), !data.isEmpty, data.count <= 32_768,
            let value = try? JSONDecoder().decode(Self.self, from: data), value.version == 1 {
             return value.sanitized()
@@ -1478,7 +1478,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
         return Self(side: side, actions: actions)
     }
 
-    static func current(in defaults: UserDefaults = .standard) -> Self {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> Self {
         var configuration = stored(in: defaults)
         configuration.buttons = configuration.shown(in: defaults)
         return configuration
@@ -1486,7 +1486,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     /// The buttons the island shows. One whose section or feature is off
     /// keeps its place, so it comes back there once that is on again.
-    func shown(in defaults: UserDefaults = .standard) -> [NotchQuickButton] {
+    func shown(in defaults: UserDefaults = PortHost.defaults) -> [NotchQuickButton] {
         buttons.filter { $0.action?.isAvailable(in: defaults) == true }
     }
 
@@ -1675,7 +1675,7 @@ enum NotchSupport {
     }
 
     /// An unset value keeps the old pause rather than reading as zero.
-    static func closeDelay(in defaults: UserDefaults = .standard) -> TimeInterval {
+    static func closeDelay(in defaults: UserDefaults = PortHost.defaults) -> TimeInterval {
         sanitizedCloseDelay(defaults.object(forKey: DefaultsKey.notchCloseDelay) as? Double ?? defaultCloseDelay)
     }
 
@@ -1824,22 +1824,22 @@ enum NotchSupport {
         return (0..<1).contains(now - resolvedAt)
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         PortHost.vorssaintIslandEnabled
             && AppFeature.notch.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchEnabled)
     }
 
-    static func usesHapticFeedback(in defaults: UserDefaults = .standard) -> Bool {
+    static func usesHapticFeedback(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHapticFeedback)
     }
 
     /// Whether the island's own shortcut should hold its key.
-    static func holdsShortcut(in defaults: UserDefaults = .standard) -> Bool {
+    static func holdsShortcut(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShortcutEnabled)
     }
 
-    static func modules(in defaults: UserDefaults = .standard) -> [NotchModule] {
+    static func modules(in defaults: UserDefaults = PortHost.defaults) -> [NotchModule] {
         let hidden = Set((defaults.string(forKey: DefaultsKey.notchHiddenModules) ?? "")
             .split(separator: ",").map(String.init))
         let stored = (defaults.string(forKey: DefaultsKey.notchModuleOrder) ?? "")
@@ -1856,7 +1856,7 @@ enum NotchSupport {
         }
     }
 
-    static func watchesMusicActivity(in defaults: UserDefaults = .standard) -> Bool {
+    static func watchesMusicActivity(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         let choice = idleContent(in: defaults)
         // The companion can occupy an otherwise empty resting island. Keep
         // watching playback in that case so a song can take its place.
@@ -1866,16 +1866,16 @@ enum NotchSupport {
             && (defaults.object(forKey: DefaultsKey.notchShowPlayingMusic) as? Bool ?? true)
     }
 
-    static func showsMusicActivity(isPlaying: Bool, in defaults: UserDefaults = .standard) -> Bool {
+    static func showsMusicActivity(isPlaying: Bool, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isPlaying && watchesMusicActivity(in: defaults)
     }
 
-    static func showsInCaptures(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsInCaptures(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.object(forKey: DefaultsKey.notchShowInCaptures) as? Bool ?? true
     }
 
     /// The closed island may cover the menus instead of giving way to them.
-    static func coversMenus(in defaults: UserDefaults = .standard) -> Bool {
+    static func coversMenus(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
@@ -1913,7 +1913,7 @@ enum NotchSupport {
     }
 
     static func batteryWarning(percent: Int?, externalConnected: Bool,
-                               in defaults: UserDefaults = .standard) -> BatteryWarning {
+                               in defaults: UserDefaults = PortHost.defaults) -> BatteryWarning {
         batteryWarning(percent: percent, externalConnected: externalConnected,
                        tint: defaults.bool(forKey: DefaultsKey.notchLowBatteryTint),
                        threshold: defaults.object(forKey: DefaultsKey.notchLowBatteryThreshold) as? Int
@@ -1926,29 +1926,29 @@ enum NotchSupport {
     /// The menu bar's battery reading follows the same warning unless the
     /// person keeps it to the island.
     static func menuBarBatteryWarning(percent: Int?, externalConnected: Bool,
-                                      in defaults: UserDefaults = .standard) -> BatteryWarning {
+                                      in defaults: UserDefaults = PortHost.defaults) -> BatteryWarning {
         guard defaults.object(forKey: DefaultsKey.notchLowBatteryMenuBar) as? Bool ?? true else { return .none }
         return batteryWarning(percent: percent, externalConnected: externalConnected, in: defaults)
     }
 
     /// The closed island stays out of sight until the pointer reaches it.
     /// Unless set to show activity, it shows no notices while it waits.
-    static func hidesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
+    static func hidesUntilHover(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.bool(forKey: DefaultsKey.notchHideUntilHover) && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
     }
 
     /// Hidden until hover, the island can still come into sight for as long
     /// as an activity runs or a notice shows, and then it takes notices.
-    static func hiddenShowsActivity(in defaults: UserDefaults = .standard) -> Bool {
+    static func hiddenShowsActivity(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         hidesUntilHover(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
     }
 
     /// Hidden until hover and out of sight for everything until then.
-    static func hidesNoticesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
+    static func hidesNoticesUntilHover(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         hidesUntilHover(in: defaults) && !defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
     }
 
-    static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
+    static func idleContent(in defaults: UserDefaults = PortHost.defaults) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
         return canRest(with: choice, in: defaults) ? choice : .none
     }
@@ -1956,7 +1956,7 @@ enum NotchSupport {
     /// Whether the closed island can rest with this content now. A choice it
     /// cannot show waits, still chosen, until its section or feature is back.
     /// The island's own switch stands apart, since it rules out every choice.
-    static func canRest(with content: NotchIdleContent, in defaults: UserDefaults = .standard) -> Bool {
+    static func canRest(with content: NotchIdleContent, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         switch content {
         case .none: return true
         case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
@@ -1965,7 +1965,7 @@ enum NotchSupport {
         }
     }
 
-    static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {
+    static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = PortHost.defaults) -> NotchIdleContent {
         let choice = idleContent(in: defaults)
         // When the companion is the only thing at rest, real playback takes
         // over the island; the companion returns as soon as playback ends.
@@ -1976,7 +1976,7 @@ enum NotchSupport {
         return choice == .music ? .none : choice
     }
 
-    static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {
+    static func controls(in defaults: UserDefaults = PortHost.defaults) -> [NotchControlItem] {
         let hidden = Set((defaults.string(forKey: DefaultsKey.notchHiddenControls) ?? NotchControlItem.defaultHidden)
             .split(separator: ",").map(String.init))
         let stored = (defaults.string(forKey: DefaultsKey.notchControlOrder) ?? "")
@@ -1989,7 +1989,7 @@ enum NotchSupport {
 
     /// Power draw has a card of its own beside the battery; fans join once
     /// the monitor reports one.
-    static func systemCardCount(hasBattery: Bool, fans: Int = 0, in defaults: UserDefaults = .standard) -> Int {
+    static func systemCardCount(hasBattery: Bool, fans: Int = 0, in defaults: UserDefaults = PortHost.defaults) -> Int {
         [.monitorCPU, .monitorGPU, .monitorMemory, .monitorDisk].filter {
             (feature: AppFeature) in feature.isAvailable(in: defaults)
         }.count + (AppFeature.monitorNetwork.isAvailable(in: defaults) ? 1 : 0)
@@ -2014,7 +2014,7 @@ enum NotchSupport {
         !openedByHover || clicked || !pointerInside
     }
 
-    static func routes(_ event: NotchEvent, in defaults: UserDefaults = .standard) -> Bool {
+    static func routes(_ event: NotchEvent, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         guard isEnabled(in: defaults), defaults.bool(forKey: event.preferenceKey) else { return false }
         switch event {
         case .timer: return NotchTimerSupport.isEnabled(in: defaults)
@@ -2044,41 +2044,41 @@ enum NotchSupport {
         }
     }
 
-    static func routesClipboardWindow(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesClipboardWindow(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchClipboardWindow)
             && modules(in: defaults).contains(.clipboard)
     }
 
     /// Whether the island is on and shows its Files module, whichever window
     /// the user chose for the shelf.
-    static func showsFiles(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsFiles(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && modules(in: defaults).contains(.files)
     }
 
-    static func routesShelf(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesShelf(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         showsFiles(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShelf)
     }
 
-    static func revealsShelfDrag(in defaults: UserDefaults = .standard) -> Bool {
+    static func revealsShelfDrag(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         routesShelf(in: defaults) && defaults.bool(forKey: DefaultsKey.notchDragReveal)
     }
 
-    static func routesCaptureControls(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesCaptureControls(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCaptureControls)
             && modules(in: defaults).contains(.captures)
     }
 
-    static func routesQuickPanel(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesQuickPanel(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchQuickPanel)
             && AppFeature.quickLauncher.isAvailable(in: defaults)
             && modules(in: defaults).contains(.tools)
     }
 
-    static func routesAppPanel(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesAppPanel(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAppPanel)
     }
 
-    static func routesScratchpad(in defaults: UserDefaults = .standard) -> Bool {
+    static func routesScratchpad(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchScratchpad) as? Bool ?? true)
             && modules(in: defaults).contains(.scratchpad)
     }

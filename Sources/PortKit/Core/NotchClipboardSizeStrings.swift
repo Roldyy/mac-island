@@ -83,7 +83,7 @@ enum NotchClipboardCardSize: String, CaseIterable, Identifiable {
         return min(maximumOpenImage, max(minimumOpenImage, natural)) + openChrome
     }
 
-    static func current(in defaults: UserDefaults = .standard) -> NotchClipboardCardSize {
+    static func current(in defaults: UserDefaults = PortHost.defaults) -> NotchClipboardCardSize {
         NotchClipboardCardSize(stored: defaults.string(forKey: DefaultsKey.notchClipboardCardSize))
     }
 }

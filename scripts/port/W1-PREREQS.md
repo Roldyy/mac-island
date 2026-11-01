@@ -1,3 +1,15 @@
+## Status after lane W1-0 (the binding foundation)
+
+Done, with tests: items 1, 2, 4 and 5 below, plus the generic binding. Patches 0012 (register split), 0013
+(Permissions from the host), 0014 (availability key and `isAvailable` through the registry), 0015 (every
+`UserDefaults.standard` use -> `PortHost.defaults`), 0016 (Permissions injectable for tests). Hand-written:
+`Bridge/PortHostState.swift`, `PortFeatureIDs.swift` (the one upstream-id -> registry-id table),
+`PortFeatureBinding.swift`, `PortLanes.swift`, `FoundationExample.swift` (the URL cleaner). Item 3 (fans) is
+untouched. A lane binds with `PortFeatureBinding.shared.bind(...)` from its `Bridge/<Lane>.swift` `bind(into:)`.
+Three prompt families outside the three monitored permissions are still reachable from unbound features
+(calendar, camera and microphone requests, notifications, Apple Events consent): the list is pinned by
+`PortPromptScrubTests`, each later lane removes its own entry.
+
 # W1 prerequisites (written down in P0-E, not implemented)
 
 What the first input-wave lanes must do before they bind a ported feature. Each item comes from the two Opus

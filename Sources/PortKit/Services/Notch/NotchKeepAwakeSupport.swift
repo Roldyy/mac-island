@@ -13,7 +13,7 @@ enum NotchKeepAwakeSupport {
     /// Where a timed session shows its time left, one without an end shows this.
     static let openSymbol = "infinity"
 
-    static func showsActivity(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsActivity(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.keepAwake.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchKeepAwakeActivity)
     }

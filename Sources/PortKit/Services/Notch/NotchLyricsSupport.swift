@@ -117,13 +117,13 @@ enum NotchLyricsSupport {
     static let maximumBytes = 128 * 1024
     static let maximumLines = 2000
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
             && NotchSupport.modules(in: defaults).contains(.music)
     }
 
-    static func onlineEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func onlineEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
     }
 

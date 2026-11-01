@@ -1,0 +1,181 @@
+--- a/App/FeatureRuntime.swift
++++ b/App/FeatureRuntime.swift
+@@ -97,14 +97,10 @@
+         return !available || feature.isHardwareSupported
+     }
+ 
+-    /// Mac Island's registry is the only writer of `shell.enabled.<id>`: once a bridge sets
+-    /// `PortHost.setEnabled`, the switch is handed over instead of written here.
++    /// Mac Island's registry is the only writer of `shell.enabled.<id>`: the switch is handed over, by registry
++    /// id, and never written here. Without a host (`PortHost.setEnabled` unset) nothing is written.
+     private static func writeAvailability(_ feature: AppFeature, _ value: Bool) {
+-        if let handOver = PortHost.setEnabled {
+-            handOver(feature.rawValue, value)
+-        } else {
+-            UserDefaults.standard.set(value, forKey: feature.availabilityKey)
+-        }
++        PortHost.setEnabled?(feature.registryID, value)
+     }
+ 
+     /// Flipping availability runs each feature's binding immediately, in the
+@@ -216,8 +212,7 @@
+     }
+ 
+     private func savedPreferences() -> [String: Any] {
+-        guard let domain = Bundle.main.bundleIdentifier else { return [:] }
+-        return UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
++        PortHost.defaults.persistentDomain(forName: PortHost.bundleID) ?? [:]
+     }
+ 
+     /// Launch path: replaces the old unconditional sync block. Only available
+--- a/App/MenuBarRenderer.swift
++++ b/App/MenuBarRenderer.swift
+@@ -118,7 +118,7 @@
+     static func enabled(in defaults: UserDefaults) -> [MenuBarMetric] {
+         order(in: defaults).filter {
+             defaults.bool(forKey: $0.defaultsKey)
+-                && defaults.bool(forKey: $0.feature.availabilityKey)
++                && $0.feature.isAvailable(in: defaults)
+                 && $0.isAvailableOnCurrentHardware
+         }
+     }
+@@ -126,7 +126,7 @@
+     static func anyEnabled(in defaults: UserDefaults) -> Bool {
+         allCases.contains {
+             defaults.bool(forKey: $0.defaultsKey)
+-                && defaults.bool(forKey: $0.feature.availabilityKey)
++                && $0.feature.isAvailable(in: defaults)
+                 && $0.isAvailableOnCurrentHardware
+         }
+     }
+--- a/Core/FeatureCatalog.swift
++++ b/Core/FeatureCatalog.swift
+@@ -213,8 +213,10 @@
+         }
+     }
+ 
+-    /// Mac Island's `FeatureRegistry` and the ported `FeatureRuntime` read the same switch.
+-    var availabilityKey: String { "shell.enabled." + rawValue }
++    /// Mac Island's `FeatureRegistry` and the ported `FeatureRuntime` read the same switch: `shell.enabled.<id>`
++    /// where `<id>` is the registry id (`registryID`: the raw value, except for the features one of our own
++    /// modules already owns, see `PortFeatureIDs`).
++    var availabilityKey: String { "shell.enabled." + registryID }
+ 
+     var isBeta: Bool { self == .fanControl || self == .killProcess }
+ 
+@@ -224,8 +226,12 @@
+         isAvailable(in: .standard)
+     }
+ 
++    /// A feature a bridge lane bound answers with what the registry says (switch, kill switch, safe mode,
++    /// quarantine), so a settings toggle on a ported page can never start a service the registry stopped.
++    /// Any other feature, and any defaults object but the host's own (unit tests inject theirs), reads the key.
+     func isAvailable(in defaults: UserDefaults) -> Bool {
+-        defaults.bool(forKey: availabilityKey)
++        if defaults === PortHost.defaults, let hosted = PortHost.availability?(registryID) { return hosted }
++        return defaults.bool(forKey: availabilityKey)
+     }
+ 
+     /// The feature's own enable keys; any one being true means the feature is
+@@ -605,7 +611,7 @@
+     static func activeFeatures(using permission: AppPermission,
+                                defaults: UserDefaults = .standard) -> [AppFeature] {
+         activeFeatures(using: permission,
+-                       isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
++                       isAvailable: { $0.isAvailable(in: defaults) },
+                        boolFor: { defaults.bool(forKey: $0) },
+                        stringFor: { defaults.string(forKey: $0) },
+                        dataFor: { defaults.data(forKey: $0) })
+--- a/Core/FeaturePresets.swift
++++ b/Core/FeaturePresets.swift
+@@ -23,7 +23,7 @@
+         else { return }
+         let selected = FeaturePreset.essential.features
+         for feature in AppFeature.allCases {
+-            defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
++            PortHost.setEnabled?(feature.registryID, selected.contains(feature))
+         }
+     }
+ 
+--- a/Services/MouseButtons/MouseButtonShortcutSupport.swift
++++ b/Services/MouseButtons/MouseButtonShortcutSupport.swift
+@@ -147,7 +147,7 @@
+     /// service.
+     static func claimsButton(_ button: Int64) -> Bool {
+         let defaults = UserDefaults.standard
+-        guard defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
++        guard AppFeature.mouseButtonShortcuts.isAvailable(in: defaults),
+               !RadialMenuSupport.claimsMouseButton(button) else { return false }
+         // Runs inside a HID tap callback during side-button drags: look up
+         // just this button's entry instead of decoding the whole dictionary.
+@@ -161,7 +161,7 @@
+     /// can ask on the hot path.
+     static func spacesGestureButton(_ defaults: UserDefaults = .standard) -> Int64? {
+         MouseSpacesGestureSupport.boundButton(
+-            isAvailable: defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
++            isAvailable: AppFeature.mouseButtonShortcuts.isAvailable(in: defaults),
+             isEnabled: defaults.bool(forKey: DefaultsKey.mouseSpacesGestureEnabled),
+             button: Int64(defaults.integer(forKey: DefaultsKey.mouseSpacesGestureButton)),
+             hasShortcut: { hasActiveShortcut($0, defaults) },
+--- a/Services/RadialMenu/RadialMenuSupport.swift
++++ b/Services/RadialMenu/RadialMenuSupport.swift
+@@ -472,7 +472,7 @@
+     }
+ 
+     static func claimsMouseButton(_ button: Int64, defaults: UserDefaults) -> Bool {
+-        guard defaults.bool(forKey: AppFeature.radialMenu.availabilityKey),
++        guard AppFeature.radialMenu.isAvailable(in: defaults),
+               defaults.bool(forKey: DefaultsKey.radialMenuEnabled) else { return false }
+         return claimedMouseButtons(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                                    defaults: defaults).contains(button)
+--- a/Services/ScrollWheelSupport.swift
++++ b/Services/ScrollWheelSupport.swift
+@@ -41,7 +41,7 @@
+     }
+ 
+     init(defaults: UserDefaults = .standard) {
+-        self.init(isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
++        self.init(isAvailable: { $0.isAvailable(in: defaults) },
+                   boolFor: { defaults.bool(forKey: $0) },
+                   stringFor: { defaults.string(forKey: $0) })
+     }
+--- a/Services/SystemMonitor/MonitorAlertService.swift
++++ b/Services/SystemMonitor/MonitorAlertService.swift
+@@ -37,7 +37,7 @@
+     static func anyEnabled(in defaults: UserDefaults) -> Bool {
+         AppFeature.anyMonitorAlertEnabled(
+             isAvailable: {
+-                defaults.bool(forKey: $0.availabilityKey)
++                $0.isAvailable(in: defaults)
+                     && ($0 != .monitorPower || PowerSampler.hasInternalBattery)
+             },
+             boolFor: { defaults.bool(forKey: $0) }
+@@ -73,7 +73,7 @@
+ 
+         func alertOn(_ key: String, _ feature: AppFeature) -> Bool {
+             defaults.bool(forKey: key)
+-                && defaults.bool(forKey: feature.availabilityKey)
++                && feature.isAvailable(in: defaults)
+                 && (feature != .monitorPower || PowerSampler.hasInternalBattery)
+         }
+ 
+--- a/Services/SystemMonitor/SystemMonitor.swift
++++ b/Services/SystemMonitor/SystemMonitor.swift
+@@ -586,7 +586,7 @@
+             (panelNeedsPower && defaults.bool(forKey: DefaultsKey.monitorPwrTemperature))
+                 || menuPanelNeeds.batteryTemperature
+                 || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
+-        if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
++        if AppFeature.fanControl.isAvailable(in: defaults),
+            Self.fanTelemetryAvailable {
+             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
+                 || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+@@ -601,7 +601,7 @@
+         // The hub gates whole metric families: an unavailable metric never
+         // samples, no matter what is pinned, shown or alerting.
+         func available(_ feature: AppFeature) -> Bool {
+-            defaults.bool(forKey: feature.availabilityKey)
++            feature.isAvailable(in: defaults)
+         }
+         if !available(.monitorCPU) {
+             plan.needCPU = false

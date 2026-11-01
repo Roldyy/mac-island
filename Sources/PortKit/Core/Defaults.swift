@@ -1058,7 +1058,7 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
 
     static var current: KeepAwakeIconTint {
         Defaults.sanitizedKeepAwakeIconTint(
-            UserDefaults.standard.string(forKey: DefaultsKey.keepAwakeIconTint)
+            PortHost.defaults.string(forKey: DefaultsKey.keepAwakeIconTint)
         )
     }
 
@@ -1081,7 +1081,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
 
     static var current: KeepAwakeActiveIcon {
         Defaults.sanitizedKeepAwakeActiveIcon(
-            UserDefaults.standard.string(forKey: DefaultsKey.keepAwakeActiveIcon)
+            PortHost.defaults.string(forKey: DefaultsKey.keepAwakeActiveIcon)
         )
     }
 
@@ -1134,11 +1134,11 @@ enum PreviewSizing {
     }
 
     static var scale: CGFloat {
-        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
+        scale(for: PortHost.defaults.string(forKey: DefaultsKey.previewSize) ?? "normal")
     }
 
     static var switcherScale: CGFloat {
-        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.switcherPreviewSize) ?? "normal")
+        scale(for: PortHost.defaults.string(forKey: DefaultsKey.switcherPreviewSize) ?? "normal")
     }
 }
 
@@ -1967,8 +1967,23 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 
+    /// Upstream's launch step, in upstream's order, on the defaults the host lends (`PortHost.defaults`).
+    /// Mac Island calls it once, AFTER the Vorssaint migration (v1, v2, runtime-key purge) and after the
+    /// `FeatureRegistry` seed, so a registered default is never read as a migrated or user-chosen value.
+    /// Never from `main.swift`.
     static func register() {
-        let defaults = UserDefaults.standard
+        register(in: PortHost.defaults)
+    }
+
+    static func register(in defaults: UserDefaults) {
+        migrateBeforeRegistration(in: defaults)
+        registerDefaultValues(in: defaults)
+        migrateAfterRegistration(in: defaults)
+    }
+
+    /// The upstream first-launch seeds that must see the saved values only, so they run before the registered
+    /// defaults exist (a registered default is visible through `object(forKey:)`).
+    static func migrateBeforeRegistration(in defaults: UserDefaults) {
         migrateClipboardSensitiveTextOptIn(in: defaults)
         migrateNotchAgentsOptIn(in: defaults)
         migrateExistingNotchDefaults(in: defaults)
@@ -1982,8 +1997,16 @@ enum Defaults {
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
+    }
+
+    /// Registers the upstream default values. The availability switches are NOT registered here: upstream
+    /// registered `featureAvailable.<id>` as "installed by default", but in Mac Island `shell.enabled.<id>`
+    /// belongs to the `FeatureRegistry`, whose descriptors say what is on by default (ported features: off).
+    static func registerDefaultValues(in defaults: UserDefaults) {
         defaults.register(defaults: registeredDefaults)
-        defaults.register(defaults: AppFeature.availabilityDefaults)
+    }
+
+    static func migrateAfterRegistration(in defaults: UserDefaults) {
         activateBetaChannelIfRunningBeta(in: defaults)
         installCompanionForBetaCommandBar(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
@@ -2006,6 +2029,17 @@ enum Defaults {
         defaults.removeObject(forKey: DefaultsKey.mixerUniversalOutputDevice)
     }
 
+    /// The `shell.enabled.<id>` value the registry holds for a feature, nil when the user never chose it (or
+    /// when no registry is attached). Upstream read the key straight from defaults.
+    private static func storedAvailability(_ feature: AppFeature) -> Bool? {
+        PortHost.storedSwitch?(feature.registryID)
+    }
+
+    /// Hands a switch to the registry: it is the only writer of `shell.enabled.<id>`. No registry, no write.
+    private static func setAvailability(_ feature: AppFeature, _ value: Bool) {
+        PortHost.setEnabled?(feature.registryID, value)
+    }
+
     /// Start text filtering off for existing installations as well. A distinct
     /// key keeps older backups from re-enabling the previous on-by-default
     /// heuristic, while preserving choices made after this update.
@@ -2017,7 +2051,7 @@ enum Defaults {
     /// profile leaves the key unsaved so explicitly installing Agents can
     /// enable it; the marker prevents a later launch from changing that choice.
     static func migrateNotchAgentsOptIn(in defaults: UserDefaults,
-                                       domainName: String? = Bundle.main.bundleIdentifier) {
+                                       domainName: String? = PortHost.bundleID) {
         guard let domainName else { return }
         let saved = defaults.persistentDomain(forName: domainName) ?? [:]
         guard saved[DefaultsKey.notchAgentsOptInMigrated] == nil else { return }
@@ -2032,7 +2066,7 @@ enum Defaults {
     /// value is saved once, even when off, so turning on glass for other
     /// windows later never reaches the island on the next launch.
     static func migrateLiquidGlassIsland(in defaults: UserDefaults,
-                                         domainName: String? = Bundle.main.bundleIdentifier) {
+                                         domainName: String? = PortHost.bundleID) {
         guard let domainName else { return }
         let saved = defaults.persistentDomain(forName: domainName) ?? [:]
         guard saved[DefaultsKey.notchLiquidGlassEnabled] == nil else { return }
@@ -2043,7 +2077,7 @@ enum Defaults {
     /// Keep the previous implicit choices for people who already configured
     /// the island. A fresh setup gets the new profile instead.
     static func migrateExistingNotchDefaults(in defaults: UserDefaults,
-                                             domainName: String? = Bundle.main.bundleIdentifier) {
+                                             domainName: String? = PortHost.bundleID) {
         guard let domainName else { return }
         let saved = defaults.persistentDomain(forName: domainName) ?? [:]
         guard saved[DefaultsKey.notchDefaultProfileInitialized] == nil else {
@@ -2200,7 +2234,7 @@ enum Defaults {
     static func installCompanionForBetaCommandBar(in defaults: UserDefaults, isBeta: Bool = AppInfo.isBeta) {
         guard installsCompanionForBeta(in: defaults, isBeta: isBeta) else { return }
         defaults.set(true, forKey: DefaultsKey.notchMascotBetaInstalled)
-        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
+        setAvailability(.notchMascot, true)
         defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
     }
 
@@ -2234,19 +2268,19 @@ enum Defaults {
     /// left the island out keeps it out: an extension installed on its own
     /// would bring the Dynamic Island page back to Settings after an update.
     static func migrateNotchWatchAvailability(in defaults: UserDefaults) {
-        guard defaults.object(forKey: AppFeature.notchWatch.availabilityKey) == nil,
-              defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
+        guard storedAvailability(.notchWatch) == nil,
+              storedAvailability(.notch) == false
         else { return }
-        defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+        setAvailability(.notchWatch, false)
     }
 
     /// Linear scrolling reached development builds installed, before new
     /// features became opt-in. Whoever switched it on keeps it installed.
     static func migrateLinearScrollAvailability(in defaults: UserDefaults) {
-        guard defaults.object(forKey: AppFeature.linearScroll.availabilityKey) == nil,
+        guard storedAvailability(.linearScroll) == nil,
               defaults.object(forKey: DefaultsKey.linearScrollEnabled) as? Bool == true
         else { return }
-        defaults.set(true, forKey: AppFeature.linearScroll.availabilityKey)
+        setAvailability(.linearScroll, true)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {
@@ -2254,9 +2288,8 @@ enum Defaults {
             if defaults.object(forKey: DefaultsKey.panelShowFanControl) == nil {
                 defaults.set(oldValue, forKey: DefaultsKey.panelShowFanControl)
             }
-            if oldValue,
-               defaults.object(forKey: AppFeature.fanControl.availabilityKey) == nil {
-                defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
+            if oldValue, storedAvailability(.fanControl) == nil {
+                setAvailability(.fanControl, true)
             }
         }
         defaults.removeObject(forKey: DefaultsKey.monitorShowFanControlBeta)
@@ -2361,7 +2394,7 @@ enum Defaults {
             defaults.set(true, forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
         }
         guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
-              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey)
+              !AppFeature.screenshot.isAvailable(in: defaults)
         else { return }
         let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
             ?? GlobalShortcut.screenshotDefault.storageValue
@@ -2379,7 +2412,7 @@ enum Defaults {
              GlobalShortcut.colorPickerDefault.storageValue),
         ]
         guard let target = candidates.first(where: {
-            defaults.bool(forKey: $0.feature.availabilityKey)
+            $0.feature.isAvailable(in: defaults)
                 && !defaults.bool(forKey: $0.enabled)
                 && (defaults.string(forKey: $0.shortcut) ?? $0.unset) == $0.unset
         }) else { return }
@@ -2564,7 +2597,7 @@ enum Defaults {
     }
 
     private static func migrateLegacyMenuBarTemperatureMetric(in defaults: UserDefaults) {
-        guard let domainName = Bundle.main.bundleIdentifier,
+        guard let domainName = Optional(PortHost.bundleID),
               let domain = defaults.persistentDomain(forName: domainName),
               let legacyEnabled = domain[DefaultsKey.menuBarTemperature] as? Bool
         else { return }

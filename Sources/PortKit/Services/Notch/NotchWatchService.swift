@@ -193,7 +193,7 @@ final class NotchWatchService: ObservableObject {
     func setCondition(_ condition: NotchWatchCondition) {
         guard condition != self.condition else { return }
         self.condition = condition
-        UserDefaults.standard.set(condition.rawValue, forKey: DefaultsKey.notchWatchCondition)
+        PortHost.defaults.set(condition.rawValue, forKey: DefaultsKey.notchWatchCondition)
         resetTracker()
     }
 
@@ -363,7 +363,7 @@ final class NotchWatchService: ObservableObject {
         state = .finished(outcome)
         let strings = FeatureStrings.notchWatch(L10n.shared.language)
         let title = strings.outcome(outcome)
-        if UserDefaults.standard.bool(forKey: DefaultsKey.notchWatchSound) {
+        if PortHost.defaults.bool(forKey: DefaultsKey.notchWatchSound) {
             if let tone { tone.stop(); tone.play() } else { NSSound.beep() }
         }
         let notch = NotchService.shared

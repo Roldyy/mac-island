@@ -51,7 +51,7 @@ final class MouseNavigationService: ObservableObject {
 
     func syncWithPreferences() {
         let wanted = AppFeature.mouseNavigation.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.mouseNavigationEnabled)
         if SessionActivitySupport.tapShouldRun(
             featureWanted: wanted,
             accessibilityGranted: AXIsProcessTrusted(),
@@ -183,7 +183,7 @@ final class MouseNavigationService: ObservableObject {
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let wanted = AppFeature.mouseNavigation.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationEnabled)
+                && PortHost.defaults.bool(forKey: DefaultsKey.mouseNavigationEnabled)
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: wanted,
                 accessibilityGranted: AXIsProcessTrusted(),

@@ -7,8 +7,13 @@ final class TimerPollScheduler: PermissionPollScheduler {
     private var timer: Timer?
 
     func start(interval: TimeInterval, tick: @escaping @MainActor () -> Void) {
+        start(interval: interval, tolerance: 0, tick: tick)
+    }
+
+    func start(interval: TimeInterval, tolerance: TimeInterval, tick: @escaping @MainActor () -> Void) {
         stop()
         let timer = Timer(timeInterval: interval, repeats: true) { _ in MainActor.assumeIsolated { tick() } }
+        timer.tolerance = tolerance
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }

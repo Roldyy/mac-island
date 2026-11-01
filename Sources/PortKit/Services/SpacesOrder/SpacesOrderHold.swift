@@ -209,7 +209,7 @@ extension SpacesOrderSystem {
 /// System Settings turns the feature off, noticed at the next Space change or
 /// when the app comes forward.
 final class SpacesOrderHold {
-    static let shared = SpacesOrderHold(defaults: .standard, system: .live)
+    static let shared = SpacesOrderHold(defaults: PortHost.defaults, system: .live)
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "spaces-order")
@@ -269,7 +269,7 @@ final class SpacesOrderHold {
     /// True while the feature holds the setting, whether or not anything is
     /// owed back to the user, or the Dock still owes the restart that reads a
     /// written one.
-    static var hasPendingRestore: Bool { isOwed(in: .standard) }
+    static var hasPendingRestore: Bool { isOwed(in: PortHost.defaults) }
 
     private static func isOwed(in defaults: UserDefaults) -> Bool {
         defaults.string(forKey: DefaultsKey.spacesOrderRestore) != nil

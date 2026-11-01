@@ -73,18 +73,18 @@ enum NotchAgentSupport {
     /// A turn silent for this long is not shown as working.
     static let idleTurn: TimeInterval = 10 * 60
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && sectionShows(in: defaults)
     }
 
     /// The AI section is installed, switched on and shown, whether or not the
     /// island itself is.
-    static func sectionShows(in defaults: UserDefaults = .standard) -> Bool {
+    static func sectionShows(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         AppFeature.notchAgents.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
             && NotchSupport.modules(in: defaults).contains(.agents)
     }
 
-    static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
+    static func providers(in defaults: UserDefaults = PortHost.defaults) -> [AgentProvider] {
         AgentProvider.allCases.filter {
             defaults.object(forKey: key(for: $0)) as? Bool ?? true
         }
@@ -100,37 +100,37 @@ enum NotchAgentSupport {
     }
 
     /// Every card in the saved order; cards added later join at the end.
-    static func orderedCards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
+    static func orderedCards(in defaults: UserDefaults = PortHost.defaults) -> [NotchAgentCard] {
         let stored = (defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "")
             .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
         var seen = Set<NotchAgentCard>()
         return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
     }
 
-    static func hiddenCards(in defaults: UserDefaults = .standard) -> Set<NotchAgentCard> {
+    static func hiddenCards(in defaults: UserDefaults = PortHost.defaults) -> Set<NotchAgentCard> {
         Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? "")
             .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) })
     }
 
-    static func cards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
+    static func cards(in defaults: UserDefaults = PortHost.defaults) -> [NotchAgentCard] {
         let hidden = hiddenCards(in: defaults)
         return orderedCards(in: defaults).filter { !hidden.contains($0) }
     }
 
     /// Added Codex accounts have cards only in the Limits card's place.
-    static func showsCodexAccounts(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsCodexAccounts(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         providers(in: defaults).contains(.codex) && !hiddenCards(in: defaults).contains(.limits)
     }
 
-    static func period(in defaults: UserDefaults = .standard) -> AgentPeriod {
+    static func period(in defaults: UserDefaults = PortHost.defaults) -> AgentPeriod {
         AgentPeriod(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsPeriod) ?? "") ?? .today
     }
 
-    static func limitDisplay(in defaults: UserDefaults = .standard) -> NotchAgentLimitDisplay {
+    static func limitDisplay(in defaults: UserDefaults = PortHost.defaults) -> NotchAgentLimitDisplay {
         NotchAgentLimitDisplay(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitDisplay) ?? "") ?? .remaining
     }
 
-    static func limitFocus(in defaults: UserDefaults = .standard) -> NotchAgentLimitFocus {
+    static func limitFocus(in defaults: UserDefaults = PortHost.defaults) -> NotchAgentLimitFocus {
         NotchAgentLimitFocus(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? "") ?? .mostUsed
     }
 
@@ -168,42 +168,42 @@ enum NotchAgentSupport {
             ?? mostSpent { AgentLimitSupport.binding($0, now: now) }
     }
 
-    static func showsLiveActivity(in defaults: UserDefaults = .standard) -> Bool {
+    static func showsLiveActivity(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchAgentsLiveActivity) as? Bool ?? true)
     }
 
-    static func readout(in defaults: UserDefaults = .standard) -> NotchAgentReadout {
+    static func readout(in defaults: UserDefaults = PortHost.defaults) -> NotchAgentReadout {
         NotchAgentReadout(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsReadout) ?? "") ?? .elapsed
     }
 
     /// The shortest turn worth a notice when it ends; nil while those are off.
-    static func finishMinimum(in defaults: UserDefaults = .standard) -> TimeInterval? {
+    static func finishMinimum(in defaults: UserDefaults = PortHost.defaults) -> TimeInterval? {
         guard defaults.object(forKey: DefaultsKey.notchAgentsFinishAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsFinishMinimum) as? Double ?? defaultFinishMinimum
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
     }
 
     /// Percent used that earns a warning; nil while warnings are off.
-    static func limitThreshold(in defaults: UserDefaults = .standard) -> Double? {
+    static func limitThreshold(in defaults: UserDefaults = PortHost.defaults) -> Double? {
         guard defaults.object(forKey: DefaultsKey.notchAgentsLimitAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsLimitThreshold) as? Double ?? defaultLimitThreshold
         return value.isFinite ? min(100, max(1, value)) : defaultLimitThreshold
     }
 
-    static func dailyBudget(in defaults: UserDefaults = .standard) -> Double? {
+    static func dailyBudget(in defaults: UserDefaults = PortHost.defaults) -> Double? {
         let value = defaults.double(forKey: DefaultsKey.notchAgentsDailyBudget)
         return value.isFinite && value > 0 ? value : nil
     }
 
     /// Whether the public price list may be downloaded once a day.
-    static func updatesPrices(in defaults: UserDefaults = .standard) -> Bool {
+    static func updatesPrices(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
     }
 
     /// Whether anything shows or alerts on the plan limits: their alerts, the
     /// live reading when it shows a limit, the resting island's allowance or,
     /// while the AI page shows, its Limits card. Nothing asks for them otherwise.
-    static func limitsInUse(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
+    static func limitsInUse(pageShown: Bool, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         limitThreshold(in: defaults) != nil
             || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
             || NotchSupport.idleContent(in: defaults) == .agents

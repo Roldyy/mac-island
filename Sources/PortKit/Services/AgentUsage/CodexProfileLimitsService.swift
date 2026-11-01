@@ -62,7 +62,7 @@ final class CodexProfileLimitsService: ObservableObject {
     /// card: that runs their shell's startup files.
     private var shellPath: String?
 
-    init(defaults: UserDefaults = .standard, reader: Reader? = nil,
+    init(defaults: UserDefaults = PortHost.defaults, reader: Reader? = nil,
          loginShellPath: @escaping () -> String? = AgentCodexServer.loginShellPath) {
         self.defaults = defaults
         self.reader = reader

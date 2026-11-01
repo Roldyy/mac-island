@@ -1,0 +1,95 @@
+--- a/Core/Permissions.swift
++++ b/Core/Permissions.swift
+@@ -61,19 +61,29 @@
+     }
+ 
+     private var hostObserver: AnyCancellable?
++    private let hostState: CurrentValueSubject<PortPermissionState, Never>
++    /// How a System Settings pane is opened (true when it opened), and how the guide card is floated. Swapped
++    /// by tests, which must open no window.
++    var openURL: (URL) -> Bool = { NSWorkspace.shared.open($0) }
++    var showGuide: (PermissionKind) -> Void = { PermissionGuideOverlay.shared.show(for: $0) }
+ 
+-    private init() {
+-        apply(PortHost.permissionState.value)
+-        refresh()
++    private convenience init() {
++        self.init(hostState: PortHost.permissionState, refreshOnInit: true)
++    }
++
++    /// `hostState` is where the host publishes its reading; `refreshOnInit` is false in tests, because
++    /// `refresh()` probes Full Disk Access and the notification centre.
++    init(hostState: CurrentValueSubject<PortPermissionState, Never>, refreshOnInit: Bool) {
++        self.hostState = hostState
++        apply(hostState.value)
++        if refreshOnInit { refresh() }
+         // The host pushes every reading of its `PermissionMonitor` (activation, the Accessibility notification
+         // and its own poll), so a grant shows here without a timer or an observer of our own.
+         // Full Disk Access is deliberately NOT polled here: it can only change
+         // across a relaunch (a running process never gains or is meant to lose
+         // it mid-session), and probing it touches protected paths, so polling it
+         // would just be repeated denied accesses for no gain.
+-        hostObserver = PortHost.permissionState
+-            .receive(on: DispatchQueue.main)
+-            .sink { [weak self] state in self?.apply(state) }
++        hostObserver = hostState.sink { [weak self] state in self?.apply(state) }
+     }
+ 
+     /// Visible permission UI used to demand a faster poll; the host's monitor decides the cadence now, so
+@@ -153,7 +163,7 @@
+ 
+     /// Accessibility, Input Monitoring and Screen Recording: the host's latest reading, no system call.
+     private func refreshActivePermissions() {
+-        apply(PortHost.permissionState.value)
++        apply(hostState.value)
+     }
+ 
+     private func apply(_ state: PortPermissionState) {
+@@ -208,7 +218,7 @@
+         openAccessibilitySettings()
+         refreshActivePermissions()
+         if !accessibility {
+-            PermissionGuideOverlay.shared.show(for: .accessibility)
++            showGuide(.accessibility)
+         }
+     }
+ 
+@@ -218,7 +228,7 @@
+         openScreenRecordingSettings()
+         refreshActivePermissions()
+         if !screenRecording {
+-            PermissionGuideOverlay.shared.show(for: .screenRecording)
++            showGuide(.screenRecording)
+         }
+     }
+ 
+@@ -352,7 +362,7 @@
+ 
+     func openNotificationSettings() {
+         let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
+-        NSWorkspace.shared.open(url)
++        _ = openURL(url)
+     }
+ 
+     func openAutomationSettings() {
+@@ -366,17 +376,17 @@
+     func openAppManagementSettings() {
+         let pane = URL(string:
+             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
+-        if NSWorkspace.shared.open(pane) { return }
++        if openURL(pane) { return }
+ 
+         // A general Privacy & Security page is still useful if a future macOS
+         // version stops accepting the pane identifier.
+         let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
+-        NSWorkspace.shared.open(fallback)
++        _ = openURL(fallback)
+     }
+ 
+     private func open(pane: String) {
+         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
+-        NSWorkspace.shared.open(url)
++        _ = openURL(url)
+     }
+ 
+     // MARK: - Automation (Apple Events)

@@ -30,6 +30,48 @@ public enum PortBridge {
     private static var pageBodies: [String: () -> AnyView] = [:]
     private static var actionOverrides: [String: () -> Void] = [:]
 
+    // MARK: Foundation (called by the app delegate, in this order, before `FeatureRegistry.launch`)
+
+    /// 1. The defaults object of the port: the one the registry and the migrator use (`AppDefaults.make()`).
+    ///    Call before any ported service is touched.
+    public static func configure(defaults: UserDefaults) {
+        PortHost.defaults = defaults
+    }
+
+    /// 2. Lets every lane bind its features into `PortFeatureBinding.shared`. Once. Registry-independent:
+    ///    the descriptors it yields go into the registry's init.
+    public static func bindLanes() {
+        guard !didBindLanes else { return }
+        didBindLanes = true
+        PortLanes.bindAll(into: PortFeatureBinding.shared)
+        PortFeatureBinding.shared.connectAvailability()
+    }
+
+    /// 3. The two doors to `FeatureRegistry` (PortKit cannot see ShellKit): flip a switch, read what is stored.
+    ///    The registry stays the only writer of `shell.enabled.<id>`.
+    public static func connectRegistry(setEnabled: @escaping @Sendable (_ id: String, _ enabled: Bool) -> Void,
+                                       storedSwitch: @escaping @Sendable (_ id: String) -> Bool?) {
+        PortHost.setEnabled = setEnabled
+        PortHost.storedSwitch = storedSwitch
+    }
+
+    /// 4. Every reading of the `PermissionMonitor`, so `Permissions.shared` and the binding's start gate follow it.
+    ///    Call before the registry starts anything, then on each change.
+    public static func updatePermissions(_ state: PortPermissionState) {
+        if PortHost.permissionState.value != state { PortHost.permissionState.send(state) }
+    }
+
+    /// 5. Upstream's registered defaults and first-launch seeds. AFTER the Vorssaint migration (v1, v2, purge)
+    ///    and the registry seed, BEFORE the registry starts any ported feature. Once. Never from `main.swift`.
+    public static func registerDefaults() {
+        guard !didRegisterDefaults else { return }
+        didRegisterDefaults = true
+        Defaults.register(in: PortHost.defaults)
+    }
+
+    private static var didBindLanes = false
+    private static var didRegisterDefaults = false
+
     /// Connects the ported code to the host. Idempotent.
     public static func install(host: Host) {
         let facade = AppDelegate()
@@ -75,7 +117,7 @@ public enum PortBridge {
     /// Gives back what an earlier run of the ported services left applied (upstream ran these in `main.swift`
     /// and `applicationDidFinishLaunching`; the port had dropped them). Once per launch, only for a marker
     /// that is actually set. Nothing is started: the features stay unbound until a lane binds them.
-    static func recoverAtLaunch(defaults: UserDefaults = .standard) {
+    static func recoverAtLaunch(defaults: UserDefaults = PortHost.defaults) {
         guard !didRecoverAtLaunch else { return }
         didRecoverAtLaunch = true
         let plan = RecoveryPlan(defaults: defaults)

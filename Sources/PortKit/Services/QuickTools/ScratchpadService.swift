@@ -50,7 +50,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     private var pendingSave: DispatchWorkItem?
     private var document: ScratchpadDocument?
     private var store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL,
-                                        defaults: .standard)
+                                        defaults: PortHost.defaults)
     private var hasLoaded = false
     private var isReplacingText = false
     private(set) var modalInteractionActive = false
@@ -63,7 +63,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     func syncWithPreferences() {
         let available = AppFeature.scratchpad.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadShortcutEnabled)
+            && PortHost.defaults.bool(forKey: DefaultsKey.scratchpadShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.scratchpadShortcut,
                                             fallback: .scratchpadDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -174,7 +174,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             flushSave()
             return true
         }
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         let retention = ScratchpadRetention.sanitized(
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
@@ -267,7 +267,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         pendingSave = nil
         hasLoaded = false
         document = nil
-        store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL, defaults: .standard)
+        store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL, defaults: PortHost.defaults)
     }
 
     // MARK: - Actions
@@ -518,7 +518,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// apps. The choice is read at click time, so flipping it in Settings
     /// takes effect on an open pad.
     private var closesOnClickOutside: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadCloseOnClickOutside)
+        PortHost.defaults.bool(forKey: DefaultsKey.scratchpadCloseOnClickOutside)
     }
 
     /// The export dialog is a click outside the pad by geometry, so saving to

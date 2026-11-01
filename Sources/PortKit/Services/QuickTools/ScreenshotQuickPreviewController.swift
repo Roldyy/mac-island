@@ -89,7 +89,7 @@ final class ScreenshotQuickPreviewController {
             && NotchService.shared.acceptsSystemFeedback
         let presentationPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
             dismissInterval: baseDismissDuration,
-            defaults: .standard)
+            defaults: PortHost.defaults)
         let content = ScreenshotQuickPreviewView(
             image: Self.thumbnail(for: capture.image),
             strings: strings,
@@ -320,7 +320,7 @@ final class ScreenshotQuickPreviewController {
         share(duration) { [weak self] record in
             guard let self, !self.closed,
                   AppFeature.screenshot.isAvailable,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+                  PortHost.defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
                 if let self, !self.closed {
                     self.model.sharing = false
                     self.scheduleAutoDismiss()
@@ -411,7 +411,7 @@ final class ScreenshotQuickPreviewController {
             pointer: pointer,
             screens: screens,
             fallback: NSScreen.pointerVisibleFrame)
-        let storedPosition = UserDefaults.standard.string(
+        let storedPosition = PortHost.defaults.string(
             forKey: DefaultsKey.screenshotPreviewPosition) ?? ""
         let position = ScreenshotSupport.QuickPreviewPosition(rawValue: storedPosition)
             ?? .automatic

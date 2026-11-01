@@ -1036,7 +1036,7 @@ struct UtilitiesSection: View {
     /// combo that does nothing.
     private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
         guard role.isAvailable(using: { $0.isAvailable }),
-              role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
+              role.requiredEnableKeys.allSatisfy({ PortHost.defaults.bool(forKey: $0) })
         else { return nil }
         return role.savedShortcut.displayString
     }
@@ -1745,7 +1745,7 @@ struct QuickControlsSection: View {
             // Only wheels that press keys for the user (shortcut or media
             // slices) or watch a side button involve Accessibility.
             let needsAccessibility = RadialMenuSupport.needsAccessibility(
-                RadialMenuSupport.decodeProfiles(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles)))
+                RadialMenuSupport.decodeProfiles(PortHost.defaults.data(forKey: DefaultsKey.radialMenuProfiles)))
             PanelToggleRow(title: radialStrings.pageTitle,
                            caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
                                ? missingPermission(l10n.s.permissionAccessibility)

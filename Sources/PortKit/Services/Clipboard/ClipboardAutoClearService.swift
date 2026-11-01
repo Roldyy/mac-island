@@ -46,7 +46,7 @@ final class ClipboardAutoClearService {
         configurationLock.lock()
         configurationGeneration &+= 1
         configurationLock.unlock()
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         let isAvailable = AppFeature.clipboardHistory.isAvailable
         if isAvailable, defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnDelay) {
             startTimer()
@@ -119,7 +119,7 @@ final class ClipboardAutoClearService {
 
     private func tick() {
         let delay = Defaults.sanitizedClipboardAutoClearDelay(
-            UserDefaults.standard.integer(forKey: DefaultsKey.clipboardAutoClearDelay))
+            PortHost.defaults.integer(forKey: DefaultsKey.clipboardAutoClearDelay))
         readChangeCount { [weak self] count in
             guard let self else { return }
             switch ClipboardAutoClearSupport.decide(changeCount: count,
@@ -185,7 +185,7 @@ final class ClipboardAutoClearService {
                 enqueuedGeneration: generation,
                 currentGeneration: currentGeneration,
                 featureIsAvailable: AppFeature.clipboardHistory.isAvailable,
-                triggerIsEnabled: UserDefaults.standard.bool(forKey: triggerPreferenceKey)) else {
+                triggerIsEnabled: PortHost.defaults.bool(forKey: triggerPreferenceKey)) else {
                 return
             }
             let pasteboard = NSPasteboard.general

@@ -90,7 +90,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private init() {}
 
-    static func destinationURL(defaults: UserDefaults = .standard,
+    static func destinationURL(defaults: UserDefaults = PortHost.defaults,
                                downloadsURL: URL? = nil) -> URL? {
         let root = downloadsURL
             ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
@@ -114,8 +114,8 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         stopMonitoring()
         guard AppFeature.cleaner.isAvailable,
               WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
+              PortHost.defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
+              PortHost.defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
               let root = downloadsURL else {
             phase = .idle
             return
@@ -139,10 +139,10 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: destination.path, isDirectory: &isDirectory),
                   isDirectory.boolValue else { return false }
-            UserDefaults.standard.set(destination.path,
+            PortHost.defaults.set(destination.path,
                                       forKey: DefaultsKey.whatsAppOrganizerDestinationPath)
         } else {
-            UserDefaults.standard.set("", forKey: DefaultsKey.whatsAppOrganizerDestinationPath)
+            PortHost.defaults.set("", forKey: DefaultsKey.whatsAppOrganizerDestinationPath)
         }
         syncWithPreferences()
         return true
@@ -212,7 +212,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private func schedule(after delay: TimeInterval) {
         guard WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
+              PortHost.defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
         let date = Date().addingTimeInterval(max(1, delay))
         if let nextCheck, nextCheck <= date { return }
         timer?.invalidate()
@@ -250,7 +250,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         }
         guard AppFeature.cleaner.isAvailable,
               WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
+              PortHost.defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
               let root = downloadsURL,
               let settings = settings(root: root) else {
             phase = .idle
@@ -276,7 +276,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                     transactions.append(undo)
                     Self.saveUndoTransactions(Array(transactions.suffix(20)))
                 }
-                let defaults = UserDefaults.standard
+                let defaults = PortHost.defaults
                 defaults.set(Date().timeIntervalSince1970,
                              forKey: DefaultsKey.whatsAppOrganizerLastRun)
                 defaults.set(result.moved, forKey: DefaultsKey.whatsAppOrganizerLastMoved)
@@ -307,7 +307,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private func settings(root: URL) -> Settings? {
         guard let destination = Self.destinationURL(downloadsURL: root) else { return nil }
-        let defaults = UserDefaults.standard
+        let defaults = PortHost.defaults
         return Settings(
             destination: destination,
             delayMinutes: WhatsAppDownloadSupport.sanitizedOrganizerDelayMinutes(
@@ -614,18 +614,18 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     }
 
     private static func loadRecords() -> [Record] {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.whatsAppOrganizerRecords),
+        guard let data = PortHost.defaults.data(forKey: DefaultsKey.whatsAppOrganizerRecords),
               !data.isEmpty else { return [] }
         return (try? JSONDecoder().decode([Record].self, from: data)) ?? []
     }
 
     private static func saveRecords(_ records: [Record]) {
         let data = (try? JSONEncoder().encode(records)) ?? Data()
-        UserDefaults.standard.set(data, forKey: DefaultsKey.whatsAppOrganizerRecords)
+        PortHost.defaults.set(data, forKey: DefaultsKey.whatsAppOrganizerRecords)
     }
 
     private static func loadUndoTransactions() -> [UndoTransaction] {
-        guard let data = UserDefaults.standard.data(
+        guard let data = PortHost.defaults.data(
             forKey: DefaultsKey.whatsAppOrganizerUndoTransaction),
               !data.isEmpty else { return [] }
         return (try? JSONDecoder().decode([UndoTransaction].self, from: data)) ?? []
@@ -640,7 +640,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private static func saveUndoTransactions(_ transactions: [UndoTransaction]) {
         let data = (try? JSONEncoder().encode(transactions)) ?? Data()
-        UserDefaults.standard.set(data,
+        PortHost.defaults.set(data,
                                   forKey: DefaultsKey.whatsAppOrganizerUndoTransaction)
     }
 

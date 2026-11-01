@@ -14,14 +14,14 @@ final class CameraPreviewRequest: @unchecked Sendable {
 }
 
 enum NotchCameraSupport {
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
+    static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.cameraPreview.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchCameraEnabled)
             && NotchSupport.modules(in: defaults).contains(.camera)
     }
 
     static func canPresent(expanded: Bool, selected: NotchModule, appPanel: Bool,
-                           captureControls: Bool, in defaults: UserDefaults = .standard) -> Bool {
+                           captureControls: Bool, in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && expanded && selected == .camera && !appPanel && !captureControls
     }
 }

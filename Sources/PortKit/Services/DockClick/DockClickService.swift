@@ -66,9 +66,9 @@ final class DockClickService {
     }
 
     func syncWithPreferences() {
-        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
-        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
-        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        let minimizeEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickMinimize)
+        let hideEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickHide)
+        let cycleEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickCycleWindows)
         if SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.dockClick.isAvailable
                 && (minimizeEnabled || hideEnabled || cycleEnabled),
@@ -215,9 +215,9 @@ final class DockClickService {
                                                        elapsed: record.map { now - $0.time })
         if decision == .swallow { return nil }
 
-        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
-        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
-        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
+        let cycleEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        let minimizeEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickMinimize)
+        let hideEnabled = PortHost.defaults.bool(forKey: DefaultsKey.dockClickHide)
         // Launcher-style apps can misreport isActive; the workspace's idea of
         // the frontmost app is the tiebreaker.
         let frontmost = !app.isHidden && (app.isActive

@@ -100,7 +100,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     func start() {
-        let includeOtherPlayers = UserDefaults.standard.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
+        let includeOtherPlayers = PortHost.defaults.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
         if wantsPlayback {
             guard self.includeOtherPlayers != includeOtherPlayers else { return }
             stop()
