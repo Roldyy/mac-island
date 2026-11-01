@@ -42,24 +42,54 @@ public enum SettingsLive {
         // both pages whole, under the `dock` feature card their catalog rows carry.
         // "quitonclose" has no live entry any more: the ported auto-quit page (PortKit, W3D lane) draws the whole
         // page, last-window quit, the inactivity delay and simulation, the never-quit list.
+        // Every row of both pages is live: the Clipboard module (`Sources/Features/Clipboard`) reads these keys, the
+        // app delegate registers the actions and counts (`SettingsActions`). Nothing on them reads "Bientôt" any more.
         "clipboard": Page(
             bound: [
                 "Garder l’historique du presse-papiers": flag("clipboardHistoryEnabled", true),
+                "Raccourci de l’historique": flag(
+                    "clipboardHistoryShortcutEnabled", true,
+                    hint: "Ouvre l’île sur le presse-papiers. Sans effet quand l’historique est éteint."),
+                "Raccourci": C("clipboardHistoryShortcut", .shortcut(defaultValue: "control+option+command:9")),
+                // The label of this row is empty in the noted page: the caption before it names it.
+                "": C("clipboardHistoryLayout", .stringChoice(options: [
+                    .init("Liste", "list"), .init("Cartes", "cards"),
+                ], defaultValue: "list")),
+                "Ouvrir l’historique": C("clipboard.openHistory", .action(title: "Ouvrir", confirm: nil)),
+                "Afficher la dernière copie dans la barre des menus": flag(
+                    "clipboardHistoryMenuBarPreview", false,
+                    hint: "Un aperçu court de la dernière copie à côté de l’icône. Un clic dessus ouvre l’historique."),
+                "Longueur de l’aperçu": C("clipboardHistoryMenuBarPreviewLength",
+                                          .stepper(range: 5...50, defaultValue: 20, unit: "caractères")),
+                // The migrated key our Clipboard module reads (`ClipboardSettings.includeImagesAndFilesKey`): off keeps text only.
+                "Enregistrer aussi les images et fichiers copiés": flag("clipboardHistoryIncludeImagesFiles", true),
+                "Ignorer le texte qui semble sensible": flag(
+                    "clipboardHistoryFilterSensitiveText", false,
+                    hint: "Peut écarter du texte ordinaire qui ressemble à un mot de passe ou à un jeton. "
+                        + "Le contenu que l’app source marque confidentiel est toujours écarté."),
                 "Limite": C("clipboardHistoryLimit", .choice(options: [
                     .init("10", 10), .init("25", 25), .init("50", 50), .init("100", 100), .init("200", 200), .init("500", 500),
                 ], defaultValue: 50)),
+                "Conserver les éléments": C("clipboardHistoryRetentionDays", .choice(options: [
+                    .init("Toujours", 0), .init("1 jour", 1), .init("7 jours", 7), .init("30 jours", 30),
+                    .init("90 jours", 90), .init("1 an", 365),
+                ], defaultValue: 0), hint: "Les éléments plus anciens sont supprimés, même sous la limite. Les épinglés restent."),
+                "Afficher dans le panneau": flag("panelUtilityClipboard", true),
                 "Vider le presse-papiers automatiquement après": flag("clipboardAutoClearOnDelay", false),
+                "Délai avant effacement": C("clipboardAutoClearDelaySeconds", .stepper(range: 5...3600, defaultValue: 20, unit: "s")),
+                "Vider le presse-papiers à la mise en veille du Mac": flag("clipboardAutoClearOnSleep", false),
+                "Vider le presse-papiers à l’extinction de l’écran": flag("clipboardAutoClearOnDisplaySleep", false),
+                "Vider le presse-papiers au verrouillage de l’écran": flag(
+                    "clipboardAutoClearOnScreenLock", false,
+                    hint: "Seul le presse-papiers du système est vidé. L’historique enregistré reste."),
                 "Coller les images copiées comme fichiers": flag("finderPasteImageAsFile", true),
-                // The migrated key our Clipboard module reads (`ClipboardSettings.includeImagesAndFilesKey`): off keeps text only.
-                "Enregistrer aussi les images et fichiers copiés": flag("clipboardHistoryIncludeImagesFiles", true),
-            ],
-            extras: [
-                C("clipboardAutoClearDelaySeconds", .stepper(range: 1...3600, defaultValue: 20, unit: "s"),
-                  title: "Délai avant effacement", hint: "Compte seulement si l’effacement automatique est activé."),
             ]),
         "pasteplain": Page(bound: [
             "Coller en texte brut": flag("pastePlainEnabled", true),
             "Raccourci": C("pastePlainShortcut", .shortcut(defaultValue: "option+command:9")),
+            "Épinglés": C("clipboard.pinnedCount", .readout),
+            "Récents": C("clipboard.recentCount", .readout),
+            "Effacer non épinglés": C("clipboard.clearUnpinned", .action(title: "Effacer", confirm: "Confirmer l’effacement")),
         ]),
         // "cutpaste" and "renameshortcut" have no live entry any more: the ported Finder page (PortKit, W7-A lane) draws
         // both pages whole, under the `finder` feature card their catalog rows carry.

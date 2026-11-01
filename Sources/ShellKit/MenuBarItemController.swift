@@ -16,6 +16,7 @@ public final class MenuBarItemController: NSObject {
     private let onQuit: @MainActor () -> Void
     private let onRelaunch: (@MainActor () -> Void)?
     private let onTogglePanel: (@MainActor (NSStatusBarButton) -> Void)?
+    private let onOpenHistory: (@MainActor () -> Void)?
     private let menu: NSMenu
     private var observer: NSObjectProtocol?
 
@@ -24,11 +25,13 @@ public final class MenuBarItemController: NSObject {
     public init(onOpenSettings: @escaping @MainActor () -> Void, onQuit: @escaping @MainActor () -> Void,
                 onRelaunch: (@MainActor () -> Void)? = nil,
                 onTogglePanel: (@MainActor (NSStatusBarButton) -> Void)? = nil,
+                onOpenHistory: (@MainActor () -> Void)? = nil,
                 defaults: UserDefaults = .standard) {
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
         self.onRelaunch = onRelaunch
         self.onTogglePanel = onTogglePanel
+        self.onOpenHistory = onOpenHistory
         self.defaults = defaults
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         menu = NSMenu()
@@ -86,9 +89,56 @@ public final class MenuBarItemController: NSObject {
             item.menu = menu
             item.button?.performClick(nil)
             item.menu = nil
+        } else if let event, Self.opensHistory(previewShown: preview != nil, clickX: clickX(of: event, in: sender),
+                                               iconTrailingEdge: iconTrailingEdge(of: sender)),
+                  let onOpenHistory {
+            onOpenHistory()
         } else {
             onTogglePanel?(sender)
         }
+    }
+
+    // MARK: - Last copy preview
+
+    /// The text shown next to the icon (nil: only the icon). Set by the Clipboard history's "Afficher la dernière
+    /// copie dans la barre des menus"; the caller has already cut it to the length the person chose.
+    public private(set) var preview: String?
+
+    public func setPreview(_ text: String?) {
+        let clean = text.flatMap { $0.isEmpty ? nil : $0 }
+        guard clean != preview else { return }
+        preview = clean
+        applyPreview()
+    }
+
+    private func applyPreview() {
+        guard let button = item.button else { return }
+        if let preview {
+            item.length = NSStatusItem.variableLength
+            button.imagePosition = .imageLeading
+            button.font = NSFont.menuBarFont(ofSize: 0)
+            button.title = preview
+            button.setAccessibilityLabel("Mac Island, dernière copie : \(preview)")
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+            item.length = NSStatusItem.squareLength
+            button.setAccessibilityLabel("Mac Island")
+        }
+    }
+
+    /// A click on the text (to the right of the icon) opens the history; a click on the icon keeps opening the quick
+    /// panel. Pure, so the split is testable without a status bar.
+    static func opensHistory(previewShown: Bool, clickX: CGFloat, iconTrailingEdge: CGFloat) -> Bool {
+        previewShown && clickX > iconTrailingEdge
+    }
+
+    private func clickX(of event: NSEvent, in button: NSStatusBarButton) -> CGFloat {
+        button.convert(event.locationInWindow, from: nil).x
+    }
+
+    private func iconTrailingEdge(of button: NSStatusBarButton) -> CGFloat {
+        button.cell?.imageRect(forBounds: button.bounds).maxX ?? 0
     }
 
     /// Shows or hides the icon. Only the ported menu bar metrics ask (their "hide the app icon" option), and only

@@ -28,6 +28,29 @@ public enum ClipboardFeature {
     /// feature is bound and running. It writes the same `Scratchpad.json`, so the Bloc-notes pane is then read-only.
     @MainActor public static var portedScratchpadRunning: @MainActor () -> Bool = { false }
 
+    /// Lent by the app delegate (this target cannot see the island or the navigation): opens the island on the
+    /// Presse-papiers tab. The history shortcut and a click on the menu bar preview both end here.
+    @MainActor public static var openHistory: @MainActor () -> Void = {}
+
+    /// The text the menu bar item shows next to its icon (nil: none). The model publishes it; the app delegate lends
+    /// the menu bar item through `onMenuBarPreviewChange`, which is called at once with the current value, so a
+    /// preview published before the item existed is not lost.
+    @MainActor public private(set) static var menuBarPreview: String?
+    @MainActor public static var onMenuBarPreviewChange: @MainActor (String?) -> Void = { _ in } {
+        didSet { onMenuBarPreviewChange(menuBarPreview) }
+    }
+    @MainActor static func publishMenuBarPreview(_ text: String?) {
+        guard text != menuBarPreview else { return }
+        menuBarPreview = text
+        onMenuBarPreviewChange(text)
+    }
+
+    /// The Settings rows of the history and plain-paste pages (the app delegate registers them in `SettingsActions`).
+    @MainActor public static var pinnedCount: Int { shared.pinnedCount }
+    @MainActor public static var recentCount: Int { shared.recentCount }
+    /// "Effacer non épinglés": the pinned items stay. The page asks for the confirmation.
+    @MainActor public static func clearUnpinned() { shared.clearUnpinned() }
+
     /// Start the pasteboard watcher and the plain-paste hotkey. Idempotent.
     @MainActor public static func start() { shared.start() }
 

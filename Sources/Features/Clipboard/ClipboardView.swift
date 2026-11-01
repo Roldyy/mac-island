@@ -25,6 +25,13 @@ struct ClipboardView: View {
                 .foregroundStyle(.white.opacity(0.55))
                 .lineLimit(1)
                 .accessibilityLabel(model.plainPasteStatus)
+
+            if !model.historyShortcutStatus.isEmpty {
+                Text(model.historyShortcutStatus)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -32,6 +39,7 @@ struct ClipboardView: View {
         .environment(\.colorScheme, .dark)
         .task {
             model.start()
+            model.purgeExpired()
             model.refreshAccessibility()
         }
     }

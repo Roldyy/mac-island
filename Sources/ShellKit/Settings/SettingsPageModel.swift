@@ -94,6 +94,9 @@ public enum SettingsPageModel {
         case .stepper: return SettingsItem(kind: .stepper, label: label)
         case .slider: return SettingsItem(kind: .slider, label: label)
         case .shortcut: return SettingsItem(kind: .field, label: label)
+        case .stringChoice: return SettingsItem(kind: .menu, label: label)
+        case .action: return SettingsItem(kind: .button, label: label)
+        case .readout: return SettingsItem(kind: .field, label: label)
         }
     }
 

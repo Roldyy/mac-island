@@ -65,7 +65,8 @@ final class PasteboardWatcher {
         let source = frontmostBundleID()
         let s = settings()
         let allowed = PasteboardFilter.shouldRecord(types: types, frontmostBundleID: source, excluded: s.excludedBundleIDs)
-        var result = allowed && s.historyEnabled ? capture(includeImagesAndFiles: s.includeImagesAndFiles) : nil
+        var result = allowed && s.historyEnabled
+            ? capture(includeImagesAndFiles: s.includeImagesAndFiles, skipSensitiveText: s.filterSensitiveText) : nil
         afterCaptureRead()
         // The pasteboard may have changed while we read it (or the item gained a concealed
         // marker): never record what is no longer what we looked at.
@@ -84,14 +85,17 @@ final class PasteboardWatcher {
         return all
     }
 
-    private func capture(includeImagesAndFiles: Bool) -> PasteboardCapture? {
+    private func capture(includeImagesAndFiles: Bool, skipSensitiveText: Bool) -> PasteboardCapture? {
         if includeImagesAndFiles,
            let urls = pasteboard.readObjects(forClasses: [NSURL.self],
                                              options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             return .files(urls.map(\.path))
         }
         if let text = pasteboard.string(forType: .string) {
-            return PasteboardFilter.textAllowed(byteCount: text.utf8.count) ? .text(text) : nil
+            guard PasteboardFilter.textAllowed(byteCount: text.utf8.count) else { return nil }
+            // The opt-in guess: reported as a change with no capture, like a concealed copy (auto-clear still runs).
+            if skipSensitiveText, SensitiveTextFilter.looksSensitive(text) { return nil }
+            return .text(text)
         }
         return includeImagesAndFiles ? imageCapture() : nil
     }

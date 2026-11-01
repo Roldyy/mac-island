@@ -12,6 +12,22 @@ public struct LiveControl: Equatable, Sendable {
         case slider(range: ClosedRange<Double>, defaultValue: Double, unit: String)
         /// A global shortcut in the stored form "option+command:9".
         case shortcut(defaultValue: String)
+        /// A choice stored as one of several strings (a layout, a mode).
+        case stringChoice(options: [StringOption], defaultValue: String)
+        /// A button. `key` is the action id the host registered in `SettingsActions`, not a preference key.
+        /// `confirm`, when set, asks once more (inline) before the action runs.
+        case action(title: String, confirm: String?)
+        /// A value the host reports (a count). `key` is the readout id registered in `SettingsActions`.
+        case readout
+    }
+
+    public struct StringOption: Equatable, Sendable {
+        public let title: String
+        public let value: String
+        public init(_ title: String, _ value: String) {
+            self.title = title
+            self.value = value
+        }
     }
 
     public struct Option: Equatable, Sendable {
@@ -105,4 +121,18 @@ public struct LiveStore {
     }
 
     public func setShortcut(_ value: String, _ control: LiveControl) { defaults.set(value, forKey: control.key) }
+
+    /// The stored string when it is one of the options; anything else (absent, garbage) reads as the default.
+    public func string(_ control: LiveControl) -> String {
+        guard case let .stringChoice(options, fallback) = control.kind else { return "" }
+        guard let stored = defaults.string(forKey: control.key), options.contains(where: { $0.value == stored }) else {
+            return fallback
+        }
+        return stored
+    }
+
+    public func setString(_ value: String, _ control: LiveControl) {
+        guard case let .stringChoice(options, _) = control.kind, options.contains(where: { $0.value == value }) else { return }
+        defaults.set(value, forKey: control.key)
+    }
 }

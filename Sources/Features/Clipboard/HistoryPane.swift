@@ -55,9 +55,18 @@ struct HistoryPane: View {
                 .frame(maxWidth: .infinity, alignment: .center).padding(.top, 16)
         } else {
             ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(items) { entry in
-                        ClipboardRow(entry: entry, model: model)
+                switch model.layout {
+                case .list:
+                    LazyVStack(spacing: 2) {
+                        ForEach(items) { entry in
+                            ClipboardRow(entry: entry, model: model)
+                        }
+                    }
+                case .cards:
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6, alignment: .top)], spacing: 6) {
+                        ForEach(items) { entry in
+                            ClipboardCard(entry: entry, model: model)
+                        }
                     }
                 }
             }

@@ -37,7 +37,14 @@ final class ClipboardHistoryStore {
     /// Where the file as found is kept when loading it would lose something (see `keepOriginalBeforeRepair`).
     static let repairBackupName = "ClipboardHistory.before-repair.json"
 
+    /// True once `load()` has run: a write before that would replace the file with an empty list.
+    private(set) var isLoaded = false
+
+    /// Reads the file on the first ask only (a later one keeps what is in memory).
+    func ensureLoaded() { if !isLoaded { load() } }
+
     func load() {
+        isLoaded = true
         guard let data = try? Data(contentsOf: fileURL) else { entries = []; return }
         let decoder = JSONDecoder()
         let lossy = (try? decoder.decode([Lossy].self, from: data))
@@ -127,6 +134,24 @@ final class ClipboardHistoryStore {
         entries.removeAll { e in doomed.contains { $0.id == e.id } }
         save()
     }
+
+    /// Retention: drops every UNPINNED entry copied more than `days` days ago (images included), saves when
+    /// something went. 0 or less keeps everything. Returns whether anything was removed.
+    @discardableResult
+    func purge(olderThanDays days: Int) -> Bool {
+        guard days > 0 else { return false }
+        let cutoff = now().addingTimeInterval(-Double(days) * 86_400)
+        let doomed = entries.filter { !$0.pinned && $0.copiedAt < cutoff }
+        guard !doomed.isEmpty else { return false }
+        doomed.forEach(deleteImage(of:))
+        let ids = Set(doomed.map(\.id))
+        entries.removeAll { ids.contains($0.id) }
+        save()
+        return true
+    }
+
+    var pinnedCount: Int { entries.filter(\.pinned).count }
+    var recentCount: Int { entries.count - pinnedCount }
 
     /// Put an item back on top with a fresh date (after the user clicked it).
     func moveToFront(id: String) {

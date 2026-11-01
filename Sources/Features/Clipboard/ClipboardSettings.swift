@@ -46,4 +46,37 @@ struct ClipboardSettings {
     }
     /// False records text only: a Finder copy then keeps its file names as text, like the old app.
     var includeImagesAndFiles: Bool { (defaults.object(forKey: Self.includeImagesAndFilesKey) as? Bool) ?? true }
+
+    // MARK: Migrated Vorssaint keys of the history page (names and meanings are the reference app's)
+
+    /// Where the history window shows its entries.
+    enum Layout: String { case list, cards }
+
+    static let menuBarPreviewLengthRange = 5...50
+    static let defaultMenuBarPreviewLength = 20
+    /// Same default as the reference app's recorder: ⌃⌥⌘V.
+    static let defaultHistoryShortcut = HotkeyShortcut(modifiers: [.control, .option, .command], key: "v", keyCode: 9)
+
+    /// "Raccourci de l'historique" switch. Absent means on (the reference default).
+    var historyShortcutEnabled: Bool { (defaults.object(forKey: "clipboardHistoryShortcutEnabled") as? Bool) ?? true }
+    var historyShortcut: HotkeyShortcut {
+        defaults.string(forKey: "clipboardHistoryShortcut").flatMap(HotkeyShortcut.parse) ?? Self.defaultHistoryShortcut
+    }
+    /// Anything but "cards" reads as the list.
+    var layout: Layout { defaults.string(forKey: "clipboardHistoryLayout").flatMap(Layout.init(rawValue:)) ?? .list }
+    var menuBarPreviewEnabled: Bool { (defaults.object(forKey: "clipboardHistoryMenuBarPreview") as? Bool) ?? false }
+    var menuBarPreviewLength: Int {
+        guard let n = number("clipboardHistoryMenuBarPreviewLength") else { return Self.defaultMenuBarPreviewLength }
+        return min(Self.menuBarPreviewLengthRange.upperBound, max(Self.menuBarPreviewLengthRange.lowerBound, Int(n)))
+    }
+    /// Opt-in guess on top of the concealed markers (which are always honoured).
+    var filterSensitiveText: Bool { (defaults.object(forKey: "clipboardHistoryFilterSensitiveText") as? Bool) ?? false }
+    /// Days an unpinned item is kept. 0 (or absent) keeps it until the limit drops it.
+    var retentionDays: Int {
+        guard let n = number("clipboardHistoryRetentionDays") else { return 0 }
+        return max(0, min(3650, Int(n)))
+    }
+    var autoClearOnSleep: Bool { (defaults.object(forKey: "clipboardAutoClearOnSleep") as? Bool) ?? false }
+    var autoClearOnDisplaySleep: Bool { (defaults.object(forKey: "clipboardAutoClearOnDisplaySleep") as? Bool) ?? false }
+    var autoClearOnScreenLock: Bool { (defaults.object(forKey: "clipboardAutoClearOnScreenLock") as? Bool) ?? false }
 }

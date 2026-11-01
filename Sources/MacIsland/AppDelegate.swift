@@ -151,7 +151,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onQuit: { NSApp.terminate(nil) },
             onRelaunch: Self.relaunchAction,
             onTogglePanel: { button in PortQuickPanel.shared.toggle(from: button) },
+            onOpenHistory: { ClipboardFeature.openHistory() },
             defaults: defaults)
+        // The clipboard history's "last copy in the menu bar": the model publishes the text, already cut to the
+        // chosen length. Called at once with the current value, so a preview published before this line is not lost.
+        ClipboardFeature.onMenuBarPreviewChange = { [weak self] text in self?.menuBar?.setPreview(text) }
         // The ported menu bar metrics may hide the app's icon (their option), only while one of their items shows.
         PortMenuBar.installAppIconVisibility { [weak self] visible in self?.menuBar?.setIconVisible(visible) }
 
@@ -191,6 +195,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() },
                                          extras: { AnyView(PortIslandExtrasSettings()) }))
         }
+        // The clipboard history shortcut, and a click on the menu bar preview, open the island on its tab.
+        ClipboardFeature.openHistory = { [weak island] in
+            navigation.open(tabID: "clipboard")
+            island?.open()
+        }
+        // The Settings rows of the history and plain-paste pages: counts and buttons.
+        SettingsActions.register(action: "clipboard.openHistory") { ClipboardFeature.openHistory() }
+        SettingsActions.register(action: "clipboard.clearUnpinned") { ClipboardFeature.clearUnpinned() }
+        SettingsActions.register(readout: "clipboard.pinnedCount") { String(ClipboardFeature.pinnedCount) }
+        SettingsActions.register(readout: "clipboard.recentCount") { String(ClipboardFeature.recentCount) }
         installGestures(island: island, navigation: navigation, home: home)
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         startAmbientSources(live: live)
