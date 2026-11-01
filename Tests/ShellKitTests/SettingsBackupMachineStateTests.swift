@@ -70,6 +70,61 @@ import Testing
         #expect(b.defaults.bool(forKey: "macIslandClosedLidConfirmed"), "a live consent is not deleted")
     }
 
+    /// The keys the security audit found missing: safety switches and breakers, and an identity-bound bookmark.
+    private static let safetyState: [String: Any] = [
+        "macIslandOverlaySpaceCrashed": true, "macIslandOverlaySpaceKill": false,
+        "macisland.musicAdapter.disabled": false, "shell.killSwitch": true, "shell.safeMode": true,
+        "shell.crashCount.finder": 2, "shell.hubSeeded": true, "notchDownloadsFolderBookmark": Data([1, 2, 3]),
+    ]
+
+    @Test func safetyKeysNeverTravelAndAreNeverRestored() throws {
+        let b = try bench(); defer { b.cleanup() }
+        for (key, value) in Self.safetyState { b.defaults.set(value, forKey: key) }
+        b.defaults.set(true, forKey: "shell.enabled.finder")
+        let backup = SettingsBackup(defaults: b.defaults, domain: b.domain, directory: b.dir)
+        let exported = try plist(try backup.export())
+        for key in Self.safetyState.keys { #expect(exported[key] == nil, "\(key) was exported") }
+        #expect(exported["shell.enabled.finder"] as? Bool == true, "a feature switch still travels")
+
+        // A hostile or old file carrying them: a live Mac keeps its own values.
+        try FileManager.default.createDirectory(at: b.dir, withIntermediateDirectories: true)
+        let file = b.dir.appendingPathComponent("settings-20260101-000001.plist")
+        var all = Self.safetyState
+        all["shell.enabled.finder"] = false
+        try PropertyListSerialization.data(fromPropertyList: all, format: .xml, options: 0).write(to: file)
+        b.defaults.set(false, forKey: "shell.killSwitch")
+        try backup.restore(from: file)
+        #expect(b.defaults.bool(forKey: "shell.killSwitch") == false, "a restore never arms the kill switch")
+        #expect(b.defaults.object(forKey: "shell.crashCount.finder") as? Int == 2, "a live counter is left alone")
+        #expect(b.defaults.object(forKey: "shell.safeMode") as? Bool == true, "a live key is neither overwritten nor deleted")
+        #expect(b.defaults.object(forKey: "notchDownloadsFolderBookmark") as? Data == Data([1, 2, 3]))
+        #expect(b.defaults.object(forKey: "shell.enabled.finder") as? Bool == false, "the feature switch is restored")
+    }
+
+    @Test func aRestoreKeepsOnlyPropertyListValuesAndRefusesUnknownShellKeys() throws {
+        #expect(SettingsBackup.isRestorable("x") && SettingsBackup.isRestorable(true) && SettingsBackup.isRestorable(3.5))
+        #expect(SettingsBackup.isRestorable(Date()) && SettingsBackup.isRestorable(Data([1])))
+        #expect(SettingsBackup.isRestorable(["a", 1, ["b": [true, Data()]]] as [Any]))
+        #expect(SettingsBackup.isRestorable(["k": ["n": 1]] as [String: Any]))
+        #expect(!SettingsBackup.isRestorable(NSNull()))
+        #expect(!SettingsBackup.isRestorable(URL(fileURLWithPath: "/x")))
+        #expect(!SettingsBackup.isRestorable(["k": NSNull()] as [String: Any]))
+        #expect(!SettingsBackup.isRestorable([[URL(fileURLWithPath: "/x")]] as [Any]))
+        var deep: Any = "leaf"
+        for _ in 0..<(SettingsBackup.maxDepth + 2) { deep = [deep] }
+        #expect(!SettingsBackup.isRestorable(deep), "a value nested beyond the cap is refused")
+
+        let b = try bench(); defer { b.cleanup() }
+        try FileManager.default.createDirectory(at: b.dir, withIntermediateDirectories: true)
+        let file = b.dir.appendingPathComponent("settings-20260101-000002.plist")
+        try PropertyListSerialization.data(fromPropertyList: ["shell.somethingNew": true, "shell.enabled.dock": true, "batteryLimitPercent": 30],
+                                           format: .xml, options: 0).write(to: file)
+        try SettingsBackup(defaults: b.defaults, domain: b.domain, directory: b.dir).restore(from: file)
+        #expect(b.defaults.object(forKey: "shell.somethingNew") == nil)
+        #expect(b.defaults.bool(forKey: "shell.enabled.dock"))
+        #expect(b.defaults.integer(forKey: "batteryLimitPercent") == 30)
+    }
+
     @Test func theBackupAndTheMigratorShareOneList() {
         for key in SettingsMachineState.runtimeMarkers {
             #expect(SettingsBackup.isLeftOut(key), "\(key) is a runtime marker the backup would carry")

@@ -75,6 +75,24 @@ public struct SettingsBackup {
         guard let dict = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             throw SettingsBackupError.notASettingsFile
         }
-        for (key, value) in dict where !Self.isLeftOut(key) { defaults.set(value, forKey: key) }
+        for (key, value) in dict where !Self.isLeftOut(key) && Self.isRestorable(value) { defaults.set(value, forKey: key) }
+    }
+
+    /// A restore writes property-list values only: a string, number, boolean, date or data, or an array or dictionary
+    /// (string keys) of those, at most `maxDepth` levels deep. Anything else is skipped, key by key.
+    static let maxDepth = 8
+
+    static func isRestorable(_ value: Any, depth: Int = 0) -> Bool {
+        guard depth <= maxDepth else { return false }
+        switch value {
+        case is String, is NSNumber, is Date, is Data:
+            return true
+        case let array as [Any]:
+            return array.allSatisfy { isRestorable($0, depth: depth + 1) }
+        case let dict as [String: Any]:
+            return dict.values.allSatisfy { isRestorable($0, depth: depth + 1) }
+        default:
+            return false
+        }
     }
 }

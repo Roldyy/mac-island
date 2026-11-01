@@ -1,0 +1,32 @@
+--- a/Services/Notch/NotchMusicService.swift
++++ b/Services/Notch/NotchMusicService.swift
+@@ -121,7 +121,11 @@
+         let requested = UUID()
+         generation = requested
+         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+-        process.arguments = arguments + [includeOtherPlayers ? "watch_all" : "watch"]
++        // Mac Island: perl runs in taint mode (it then ignores PERL5OPT and PERL5LIB and keeps "." out of @INC) with a
++        // minimal environment, never the app's own: nothing the app inherited (DYLD_*, PERL*, tokens) reaches the child.
++        process.arguments = MediaRemoteAdapterLocator.perlArguments(adapter: arguments,
++                                                                    mode: includeOtherPlayers ? "watch_all" : "watch")
++        process.environment = MediaRemoteAdapterLocator.childEnvironment()
+         process.standardOutput = output
+         process.standardError = FileHandle.nullDevice
+         process.standardInput = input
+--- a/Services/RadialMenu/RadialNowPlayingService.swift
++++ b/Services/RadialMenu/RadialNowPlayingService.swift
+@@ -343,9 +343,12 @@
+             return
+         }
+         queue.async {
+-            let result = BoundedProcessRunner.run("/usr/bin/perl", [script.path, library.path],
++            // Mac Island: taint mode and a minimal environment, same as the music service's child.
++            let result = BoundedProcessRunner.run("/usr/bin/perl",
++                                                  MediaRemoteAdapterLocator.perlArguments(adapter: [script.path, library.path], mode: "get"),
+                                                   timeout: Self.replyTimeout,
+-                                                  maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes)
++                                                  maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes,
++                                                  environment: MediaRemoteAdapterLocator.childEnvironment())
+             guard result.status == 0, !result.timedOut,
+                   let reply = RadialNowPlayingSupport.adapterReply(from: result.output) else {
+                 completion(nil)

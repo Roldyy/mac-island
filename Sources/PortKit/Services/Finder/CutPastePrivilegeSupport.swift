@@ -26,6 +26,12 @@ enum CutPastePrivilegeSupport {
                 canceled ? remaining : [])
     }
 
+    /// Mac Island: items the file system refused for lack of permission are never handed to Finder (which would ask
+    /// for an administrator password). They count as failed, nothing moves, and the cut mark is dropped.
+    static func leaveInPlace(_ refused: [URL]) -> (moved: Int, failed: Int, stillCut: [URL]) {
+        (0, refused.count, [])
+    }
+
     static func needsPrivileges(_ error: Error) -> Bool {
         let error = error as NSError
         var candidates = [error]

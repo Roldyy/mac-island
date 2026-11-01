@@ -121,7 +121,11 @@ final class NotchMusicService: ObservableObject {
         let requested = UUID()
         generation = requested
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = arguments + [includeOtherPlayers ? "watch_all" : "watch"]
+        // Mac Island: perl runs in taint mode (it then ignores PERL5OPT and PERL5LIB and keeps "." out of @INC) with a
+        // minimal environment, never the app's own: nothing the app inherited (DYLD_*, PERL*, tokens) reaches the child.
+        process.arguments = MediaRemoteAdapterLocator.perlArguments(adapter: arguments,
+                                                                    mode: includeOtherPlayers ? "watch_all" : "watch")
+        process.environment = MediaRemoteAdapterLocator.childEnvironment()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.standardInput = input

@@ -68,16 +68,26 @@ public enum SettingsMachineState {
         "macIslandDisplayGammaDimActive", "quickToggles.finderJournal.macisland",
         "quickToggles.temporaryFinderFlags.macisland", "macisland.media.stagingDirectories",
         "macisland.wallpaper.restorePoint",
+        // Safety state: crash breakers and kill switches (a restored file must never arm or clear one), and a
+        // security-scoped bookmark bound to this install's identity.
+        "macIslandOverlaySpaceCrashed", "macIslandOverlaySpaceKill", "macisland.musicAdapter.disabled",
+        "shell.killSwitch", "shell.safeMode", "notchDownloadsFolderBookmark",
     ]
 
     /// The old app's own runtime state is named `vorss*` (`vorssDisabledSleep`, `vorssDimmedDisplaySavedBrightness`).
-    public static let prefixes: [String] = ["vorss"]
+    /// `shell.crashCount.<id>` is the per-feature crash counter of the registry.
+    public static let prefixes: [String] = ["vorss", "shell.crashCount."]
 
     /// Everything a backup leaves out, whichever way it goes.
     public static let excludedKeys: Set<String> = runtimeMarkers.union(ownStateKeys)
 
+    /// The registry's own keys: only the feature switches (`shell.enabled.<id>`) are settings. Every other `shell.`
+    /// key (kill switch, safe mode, crash counters, the hub seed marker) is this Mac's state.
+    public static let shellSettingPrefix = "shell.enabled."
+
     public static func isExcluded(_ key: String) -> Bool {
         excludedKeys.contains(key) || prefixes.contains(where: key.hasPrefix)
+            || (key.hasPrefix("shell.") && !key.hasPrefix(shellSettingPrefix))
     }
 }
 

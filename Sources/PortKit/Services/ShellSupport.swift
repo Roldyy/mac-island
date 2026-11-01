@@ -290,6 +290,19 @@ enum AppleScriptRunner {
         return (true, nil, "", result.stringValue ?? "")
     }
 
+    /// Mac Island: runs a script that returns a LIST of text values and gives back one string per element, read from the
+    /// result descriptor (no delimiter, so a value holding a line break stays one value). A result that is not a list
+    /// is a failure; an element that is not text comes back as "".
+    static func runList(_ source: String) -> (ok: Bool, items: [String]) {
+        guard let script = NSAppleScript(source: source) else { return (false, []) }
+        var error: NSDictionary?
+        let result = script.executeAndReturnError(&error)
+        guard error == nil, result.descriptorType == typeAEList else { return (false, []) }
+        guard result.numberOfItems > 0 else { return (true, []) }
+        let items = (1...result.numberOfItems).map { result.atIndex($0)?.stringValue ?? "" }
+        return (true, items)
+    }
+
     /// Escapes a value for embedding inside an AppleScript double-quoted string.
     static func literal(_ value: String) -> String {
         let escaped = value

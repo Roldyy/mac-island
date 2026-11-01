@@ -85,6 +85,27 @@ struct MediaRemoteAdapterLocator: MediaRemoteAdapterProviding {
         return .available(script: script, library: library)
     }
 
+    /// The command line of the perl child: `-T` first (taint mode: PERL5OPT and PERL5LIB are ignored, "." is not in
+    /// @INC), no `-I`, then the script, the library and the mode.
+    static func perlArguments(adapter: [String], mode: String) -> [String] {
+        ["-T"] + adapter + [mode]
+    }
+
+    /// The environment of the perl child, built from scratch: a fixed PATH, and HOME, TMPDIR and LANG taken from `base`
+    /// (with a safe fallback). Everything else the app inherited (PERL5OPT, PERL5LIB, DYLD_*, tokens) stops here.
+    static func childEnvironment(from base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        func value(_ key: String, fallback: String) -> String {
+            guard let v = base[key], !v.isEmpty, !v.contains("\0") else { return fallback }
+            return v
+        }
+        return [
+            "PATH": "/usr/bin:/bin",
+            "HOME": value("HOME", fallback: NSHomeDirectory()),
+            "TMPDIR": value("TMPDIR", fallback: NSTemporaryDirectory()),
+            "LANG": value("LANG", fallback: "en_US.UTF-8")
+        ]
+    }
+
     static var live: MediaRemoteAdapterLocator {
         MediaRemoteAdapterLocator(
             isKilled: { PortHost.defaults.bool(forKey: killSwitchKey) },

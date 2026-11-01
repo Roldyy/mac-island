@@ -1,0 +1,18 @@
+--- a/Services/KillProcess/KillProcessSupport.swift
++++ b/Services/KillProcess/KillProcessSupport.swift
+@@ -67,10 +67,13 @@
+         let lowerPath = path.trimmingCharacters(in: .whitespaces).lowercased()
+         let protectedNames: Set<String> = [
+             "kernel_task", "launchd", "windowserver", "loginwindow",
+-            "vorssaint", "vorssaint (developer)", "vorssaintdeveloper"
++            "vorssaint", "vorssaint (developer)", "vorssaintdeveloper",
++            // Mac Island: its own process and the privileged fan helper (the pid check above cannot see the helper).
++            "macisland", "mac island", "be.roldy.macisland.fanhelper"
+         ]
+         if protectedNames.contains(lowerName) { return true }
+-        if lowerPath.hasSuffix("/windowserver") || lowerPath.hasSuffix("/loginwindow") || lowerPath.hasSuffix("/launchd") {
++        if lowerPath.hasSuffix("/windowserver") || lowerPath.hasSuffix("/loginwindow") || lowerPath.hasSuffix("/launchd")
++            || lowerPath.hasSuffix("/macisland") || lowerPath.hasSuffix("/be.roldy.macisland.fanhelper") {
+             return true
+         }
+         return false

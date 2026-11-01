@@ -19,6 +19,25 @@ import Testing
         }
     }
 
+    @Test func safetyKeysAndTheBookmarkAreExcludedButNotPurged() {
+        for key in ["macIslandOverlaySpaceCrashed", "macIslandOverlaySpaceKill", "macisland.musicAdapter.disabled",
+                    "shell.killSwitch", "shell.safeMode", "notchDownloadsFolderBookmark",
+                    "shell.crashCount.finder", "shell.crashCount.", "shell.hubSeeded"] {
+            #expect(SettingsMachineState.isExcluded(key), "\(key) would travel in a backup")
+        }
+        for key in ["macIslandOverlaySpaceCrashed", "macIslandOverlaySpaceKill", "macisland.musicAdapter.disabled",
+                    "shell.killSwitch", "shell.safeMode"] {
+            #expect(!VorssaintMigrator.runtimeMarkerKeysV2.contains(key), "\(key) is this app's own state, never purged")
+        }
+    }
+
+    @Test func onlyFeatureSwitchesOfTheShellNamespaceAreSettings() {
+        #expect(!SettingsMachineState.isExcluded("shell.enabled.finder"))
+        #expect(SettingsMachineState.isExcluded("shell.anythingElse"))
+        #expect(SettingsMachineState.isExcluded("shell.enabledX"), "the prefix is `shell.enabled.` with its dot")
+        #expect(!SettingsMachineState.isExcluded("shellfish"))
+    }
+
     @Test func theOldAppsRuntimeStateIsExcludedByPrefix() {
         #expect(SettingsMachineState.isExcluded("vorssDisabledSleep"))
         #expect(SettingsMachineState.isExcluded("vorssDimmedDisplaySavedBrightness"))

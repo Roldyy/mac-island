@@ -537,9 +537,9 @@ final class FinderCutPaste: ObservableObject {
             }
             var stillCut: [URL] = []
             if !refused.isEmpty {
-                let canceled = FinderBridge.move(refused, into: dir).canceled
-                let result = CutPastePrivilegeSupport.reconcile(
-                    refused, into: dir, canceled: canceled, fm: fm)
+                // Mac Island: no hand-over to Finder with an administrator prompt (same policy as the uninstaller and
+                // the cleaner): the refused items are reported as failed and stay where they are.
+                let result = CutPastePrivilegeSupport.leaveInPlace(refused)
                 moved += result.moved
                 failed += result.failed
                 stillCut = result.stillCut
@@ -799,39 +799,32 @@ enum FinderBridge {
 
     static func selectionURLs(requestPermission: Bool = true) -> [URL] {
         guard finderAutomationGranted else { return [] }
+        // Mac Island: the selection comes back as an AppleScript LIST of POSIX paths, one element per item. A file name
+        // may hold a line break (APFS allows LF, CR, U+0085, U+2028, U+2029), so a joined string cannot be split safely.
         let script = """
         tell application "Finder"
-            set out to ""
+            set out to {}
             repeat with f in (get selection)
-                set out to out & (POSIX path of (f as alias)) & linefeed
+                set end of out to (POSIX path of (f as alias))
             end repeat
             return out
         end tell
         """
-        let result = AppleScriptRunner.run(script)
+        let result = AppleScriptRunner.runList(script)
         guard result.ok else { return [] }
-        return result.output.split(whereSeparator: \.isNewline)
-            .map { URL(fileURLWithPath: String($0)) }
+        return selectionURLs(fromPaths: result.items)
     }
 
-    static func move(_ urls: [URL], into dir: URL) -> (ok: Bool, canceled: Bool) {
-        guard finderAutomationGranted else {
-            return (false, false)
-        }
-        let targets = urls
-            .map { "set end of targets to (POSIX file \(AppleScriptRunner.literal($0.path)) as alias)" }
-            .joined(separator: "\n")
-        let script = """
-        with timeout of 600 seconds
-            tell application "Finder"
-                set targets to {}
-                \(targets)
-                move targets to folder (POSIX file \(AppleScriptRunner.literal(dir.path)) as alias) without replacing
-            end tell
-        end timeout
-        """
-        let result = AppleScriptRunner.runDetailed(script)
-        return (result.ok, result.errorNumber == -128)
+    /// Mac Island: turns the paths of a Finder selection into URLs. A path that is not absolute, or that holds a
+    /// NUL or a newline-class character (LF, VT, FF, CR, U+0085, U+2028, U+2029), is rejected on its own: it never
+    /// becomes two items and never reaches a move.
+    static func selectionURLs(fromPaths paths: [String]) -> [URL] {
+        paths.filter(isSafeSelectionPath).map { URL(fileURLWithPath: $0) }
+    }
+
+    static func isSafeSelectionPath(_ path: String) -> Bool {
+        guard path.hasPrefix("/") else { return false }
+        return !path.unicodeScalars.contains { $0.value == 0 || CharacterSet.newlines.contains($0) }
     }
 
     static func insertionLocationPath() -> String? {

@@ -342,9 +342,12 @@ private final class MediaRemoteNowPlayingBridge {
             return
         }
         queue.async {
-            let result = BoundedProcessRunner.run("/usr/bin/perl", adapter,
+            // Mac Island: taint mode and a minimal environment, same as the music service's child.
+            let result = BoundedProcessRunner.run("/usr/bin/perl",
+                                                  MediaRemoteAdapterLocator.perlArguments(adapter: adapter, mode: "get"),
                                                   timeout: Self.replyTimeout,
-                                                  maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes)
+                                                  maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes,
+                                                  environment: MediaRemoteAdapterLocator.childEnvironment())
             guard result.status == 0, !result.timedOut,
                   let reply = RadialNowPlayingSupport.adapterReply(from: result.output) else {
                 completion(nil)
