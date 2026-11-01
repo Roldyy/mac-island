@@ -42,6 +42,10 @@ public struct ShellContext {
     public var relaunch: (@MainActor () -> Void)?
     /// Which switch opens a ported panel, and which panels exist only while it is on.
     public var tabGate: ShellTabGate
+    /// Commands the app registered for the extra dock (the ported capture, recorder, OCR...).
+    public var dockExtras: DockCommandRegistry
+    /// Opens the Settings window on one page; nil falls back to `openSettings`.
+    public var openSettingsPage: (@MainActor (String) -> Void)?
 
     public init(tabs: [IslandTab], registry: FeatureRegistry, navigation: ShellNavigation,
                 quickAccess: QuickAccessModel,
@@ -57,7 +61,11 @@ public struct ShellContext {
                 onOpenSize: @escaping @MainActor (CGSize) -> Void = { _ in },
                 quit: @escaping @MainActor () -> Void = {},
                 relaunch: (@MainActor () -> Void)? = nil,
-                tabGate: ShellTabGate = .none) {
+                tabGate: ShellTabGate = .none,
+                dockExtras: DockCommandRegistry? = nil,
+                openSettingsPage: (@MainActor (String) -> Void)? = nil) {
+        self.dockExtras = dockExtras ?? DockCommandRegistry()
+        self.openSettingsPage = openSettingsPage
         self.tabGate = tabGate
         self.tabs = tabs
         self.registry = registry

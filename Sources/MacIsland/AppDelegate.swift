@@ -177,7 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             quit: { NSApp.terminate(nil) },
             relaunch: Self.relaunchAction,
-            tabGate: .ported)
+            tabGate: .ported,
+            openSettingsPage: { settings.show(page: $0) })
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }
@@ -193,7 +194,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The island page's editors (size, look, notch fit, round buttons) drive this very model.
         SettingsPageBodies.registerComposed(pageID: "island") {
             AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() },
-                                         extras: { AnyView(PortIslandExtrasSettings()) }))
+                                         extras: { AnyView(PortIslandExtrasSettings()) },
+                                         dockCatalog: { context.dockCatalog() }))
         }
         // The clipboard history shortcut, and a click on the menu bar preview, open the island on its tab.
         ClipboardFeature.openHistory = { [weak island] in
@@ -221,6 +223,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         table.register("keepawake") { actions.toggleKeepAwake() }
         table.registerState("keepawake") { KeepAwakeFeature.isActive }
         table.register("settings") { settings.show() }
+        // The extra dock's ported commands (capture, recorder, OCR, colour, paste, mic, launcher, radial, timer...).
+        ExtraDockWiring.install(into: context.dockExtras) { [weak island] in island?.close() }
 
         // The command bar can jump to any tab of the island.
         CommandBarFeature.register(commands: tabs.map { tab in

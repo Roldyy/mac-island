@@ -18,11 +18,16 @@ public struct IslandLayoutSettings: View {
     /// does not see the ported code, so the app hands the view in.
     var extras: (@MainActor () -> AnyView)?
 
+    /// Every command the extra dock can hold (`ShellContext.dockCatalog`). Nil leaves the editor without names.
+    var dockCatalog: (@MainActor () -> [DockCommand])?
+
     public init(home: HomeModel, openIsland: (@MainActor () -> Void)? = nil,
-                extras: (@MainActor () -> AnyView)? = nil) {
+                extras: (@MainActor () -> AnyView)? = nil,
+                dockCatalog: (@MainActor () -> [DockCommand])? = nil) {
         self.home = home
         self.openIsland = openIsland
         self.extras = extras
+        self.dockCatalog = dockCatalog
     }
 
     public var body: some View {
@@ -42,6 +47,7 @@ public struct IslandLayoutSettings: View {
             lookCard
             fitCard
             buttonsCard
+            extraDockCard
             tilesCard
             if let extras { extras() }
         }
@@ -197,6 +203,71 @@ public struct IslandLayoutSettings: View {
             }
             .menuStyle(.borderlessButton).fixedSize()
             Button("Retirer", systemImage: "minus.circle") { home.buttons.remove(id: button.id) }
+                .labelStyle(.iconOnly).buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Extra dock
+
+    private var extraDockCard: some View {
+        let catalog = dockCatalog?() ?? []
+        let byID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let ids = home.extraDock.ids
+        return VStack(alignment: .leading, spacing: IslandSpacing.xs) {
+            IslandHeader("Extra-dock",
+                         subtitle: "Une rangée de raccourcis sur l’accueil : ajoute, retire et réordonne n’importe quelle commande de l’app.")
+            SettingsCard {
+                VStack(alignment: .leading, spacing: IslandSpacing.s) {
+                    Toggle("Afficher l’extra-dock sur l’accueil", isOn: $home.showsExtraDock).toggleStyle(IslandToggleStyle())
+                    Divider()
+                    HStack {
+                        Text("\(ids.count) sur \(ExtraDockLayout.maxItems) commandes").font(.islandBodyEmphasis)
+                        Spacer()
+                        dockAddMenu(catalog)
+                    }
+                    if ids.isEmpty { caption("L’extra-dock est vide.") }
+                    ForEach(ids, id: \.self) { id in dockRow(id, command: byID[id], count: ids.count) }
+                    Divider()
+                    Button("Rétablir l’extra-dock d’origine") { home.extraDock = .initial }
+                        .buttonStyle(IslandButtonStyle())
+                        .disabled(home.extraDock == .initial)
+                }
+            }
+        }
+    }
+
+    private func dockAddMenu(_ catalog: [DockCommand]) -> some View {
+        let free = catalog.filter { !home.extraDock.contains($0.id) }
+        return Menu("Ajouter une commande") {
+            ForEach(ExtraDockCatalog.grouped(free), id: \.category) { group in
+                Menu(group.category.title) {
+                    ForEach(group.commands) { command in
+                        Button(command.title, systemImage: command.systemImage) { home.extraDock.add(command.id) }
+                    }
+                }
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(free.isEmpty || home.extraDock.isFull)
+    }
+
+    private func dockRow(_ id: String, command: DockCommand?, count: Int) -> some View {
+        let index = home.extraDock.ids.firstIndex(of: id) ?? 0
+        return HStack(spacing: IslandSpacing.s) {
+            Image(systemName: command?.systemImage ?? "questionmark.circle").frame(width: 20).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(command?.title ?? "Commande introuvable").font(.islandBody)
+                if command == nil {
+                    Text(id).font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
+                }
+            }
+            Spacer()
+            Button("Monter", systemImage: "chevron.up") { home.extraDock.reorder(id, by: -1) }
+                .labelStyle(.iconOnly).buttonStyle(.plain).disabled(index == 0)
+            Button("Descendre", systemImage: "chevron.down") { home.extraDock.reorder(id, by: 1) }
+                .labelStyle(.iconOnly).buttonStyle(.plain).disabled(index >= count - 1)
+            Button("Retirer", systemImage: "minus.circle") { home.extraDock.remove(id) }
                 .labelStyle(.iconOnly).buttonStyle(.plain)
         }
     }

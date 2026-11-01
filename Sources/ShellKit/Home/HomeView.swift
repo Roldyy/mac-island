@@ -21,6 +21,8 @@ struct HomeView: View {
             .help(home.unavailableLevelsHelp ?? "")
             HomeNowPlayingCard(track: home.track, idle: home.lastTrack, notice: home.nowPlayingNotice,
                                authorize: { home.nowPlaying.authorize() }) { home.transport($0) }
+            // The extra dock sits between the card and the grid; its height is part of `HomeGeometry.fixedHeight`.
+            if home.showsExtraDock { ExtraDockView(context: context) }
             HomeTileGrid(items: items, columns: home.tileColumns, visibleRows: home.tileRows(tileCount: items.count),
                          context: context)
             Spacer(minLength: 0)

@@ -10,6 +10,10 @@ public enum HomeGeometry {
     /// One tile row of the home grid and of the Explorer (same component, same height).
     static let tileRow: CGFloat = 64
     static let gap: CGFloat = 8
+    /// The extra dock: one pinned row between the now-playing card and the grid (buttons 34 pt + breathing room).
+    /// Its height and the gap above it are `extraDockSpace`; the bottom row of the round buttons is untouched.
+    public static let extraDockRow: CGFloat = 40
+    public static let extraDockSpace: CGFloat = extraDockRow + gap
     static let bottomPadding: CGFloat = 12
     /// Gap between the notch band and the sliders.
     static let bandGap: CGFloat = 6
@@ -49,12 +53,12 @@ public enum HomeGeometry {
     }
 
     /// The most tile rows a mode shows. Custom fills the height the user allows.
-    public static func tileRows(for mode: IslandSizeMode, customHeight: Double, band: CGFloat) -> Int {
+    public static func tileRows(for mode: IslandSizeMode, customHeight: Double, band: CGFloat, dock: CGFloat = 0) -> Int {
         switch mode {
         case .compact: return compactTileRows
         case .spacious: return spaciousTileRows
         case .custom:
-            let rows = Int(((CGFloat(customHeight) - fixedHeight(band: band)) / tileRow).rounded(.down))
+            let rows = Int(((CGFloat(customHeight) - fixedHeight(band: band, dock: dock)) / tileRow).rounded(.down))
             return min(max(rows, 1), maxTileRows)
         }
     }
@@ -67,21 +71,23 @@ public enum HomeGeometry {
 
     /// Rows the home really shows: the mode's cap, but no empty rows when there are few tiles.
     public static func visibleTileRows(for mode: IslandSizeMode, customWidth: Double, customHeight: Double,
-                                       band: CGFloat, tileCount: Int) -> Int {
-        let cap = tileRows(for: mode, customHeight: customHeight, band: band)
+                                       band: CGFloat, tileCount: Int, dock: CGFloat = 0) -> Int {
+        let cap = tileRows(for: mode, customHeight: customHeight, band: band, dock: dock)
         let needed = rowsNeeded(count: tileCount, columns: tileColumns(for: mode, width: customWidth))
         return min(cap, max(needed, 1))
     }
 
     /// Everything but the tile rows.
-    static func fixedHeight(band: CGFloat) -> CGFloat {
-        band + bandGap + slidersRow + gap + nowPlayingCard + gap + bottomPadding
+    /// `dock` is `extraDockSpace` while the extra dock shows, otherwise 0.
+    static func fixedHeight(band: CGFloat, dock: CGFloat = 0) -> CGFloat {
+        band + bandGap + slidersRow + gap + nowPlayingCard + dock + gap + bottomPadding
     }
 
     public static func homeBody(mode: IslandSizeMode, customWidth: Double, customHeight: Double, band: CGFloat,
-                                tileCount: Int = .max) -> CGSize {
-        let rows = visibleTileRows(for: mode, customWidth: customWidth, customHeight: customHeight, band: band, tileCount: tileCount)
-        let height = fixedHeight(band: band) + CGFloat(rows) * tileRow
+                                tileCount: Int = .max, dock: CGFloat = 0) -> CGSize {
+        let rows = visibleTileRows(for: mode, customWidth: customWidth, customHeight: customHeight, band: band,
+                                   tileCount: tileCount, dock: dock)
+        let height = fixedHeight(band: band, dock: dock) + CGFloat(rows) * tileRow
         switch mode {
         case .compact: return CGSize(width: compactWidth, height: height)
         case .spacious: return CGSize(width: spaciousWidth, height: height)

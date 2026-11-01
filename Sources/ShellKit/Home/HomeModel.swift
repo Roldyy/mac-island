@@ -22,6 +22,10 @@ public final class HomeModel {
         static let explorerReplaced = "notchExplorerButtonReplaced"
         /// JSON array of the tile ids the user hid from the home grid.
         static let hiddenTiles = "notchHomeHiddenTiles"
+        /// Versioned JSON of the extra dock's commands (`ExtraDockLayout`).
+        static let extraDock = "notchExtraDockLayout"
+        /// Whether the extra dock row shows on the home; absent means on.
+        static let showsExtraDock = "notchExtraDockShown"
         /// "Activer Dynamic Island" (the migrated key); absent means on, the island is the app.
         static let enabled = "notchEnabled"
     }
@@ -82,6 +86,18 @@ public final class HomeModel {
     public var buttons: HomeButtonLayout {
         didSet { if let data = buttons.encoded() { defaults.set(data, forKey: Keys.layout) } }
     }
+
+    /// The extra dock: commands the user picked, in order. Written back in the versioned form on every change.
+    public var extraDock: ExtraDockLayout {
+        didSet { if extraDock != oldValue, let data = extraDock.encoded() { defaults.set(data, forKey: Keys.extraDock) } }
+    }
+    /// "Afficher l'extra-dock": off removes the row (and its height) from the home.
+    public var showsExtraDock: Bool {
+        didSet { if showsExtraDock != oldValue { defaults.set(showsExtraDock, forKey: Keys.showsExtraDock) } }
+    }
+
+    /// Height the extra dock adds to the home body (0 while it is hidden).
+    var dockSpace: CGFloat { showsExtraDock ? HomeGeometry.extraDockSpace : 0 }
 
     /// Tile ids the user hid from the home grid (right-click "Masquer ce raccourci"). The Explorer still lists them.
     public private(set) var hiddenTiles: Set<String> {
@@ -169,6 +185,12 @@ public final class HomeModel {
         }
         buttons = layout
         hiddenTiles = HomeHiddenTiles.decode(defaults.object(forKey: Keys.hiddenTiles))
+        let storedDock = defaults.data(forKey: Keys.extraDock)
+        let dock = ExtraDockLayout.decode(storedDock)
+        extraDock = dock
+        showsExtraDock = (defaults.object(forKey: Keys.showsExtraDock) as? Bool) ?? true
+        // A version-0 blob is rewritten once in the current form; nothing else changes.
+        if storedDock != nil, let data = dock.encoded(), data != storedDock { defaults.set(data, forKey: Keys.extraDock) }
         self.volume = HomeLevel(title: "Volume", systemImage: "speaker.wave.2.fill", backend: volume)
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
         self.keyboardLight = HomeLevel(title: "Rétroéclairage du clavier", systemImage: "light.max", backend: keyboardLight)
@@ -218,7 +240,7 @@ public final class HomeModel {
     /// Body of the home for `tileCount` tiles: the cap of the mode, without empty rows when there are few tiles.
     public func homeBody(tileCount: Int) -> CGSize {
         HomeGeometry.homeBody(mode: sizeMode, customWidth: customWidth, customHeight: customHeight, band: bandHeight,
-                              tileCount: tileCount)
+                              tileCount: tileCount, dock: dockSpace)
     }
 
     /// Columns of the tile grid (and of the Explorer, which shows the same tiles): 4 when narrow, otherwise 5.
@@ -227,7 +249,7 @@ public final class HomeModel {
     /// Rows of the tile grid shown at once for `tileCount` tiles; the grid scrolls beyond them.
     public func tileRows(tileCount: Int) -> Int {
         HomeGeometry.visibleTileRows(for: sizeMode, customWidth: customWidth, customHeight: customHeight,
-                                     band: bandHeight, tileCount: tileCount)
+                                     band: bandHeight, tileCount: tileCount, dock: dockSpace)
     }
 
     // MARK: - Hidden tiles

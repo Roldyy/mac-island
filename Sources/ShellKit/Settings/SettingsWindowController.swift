@@ -27,7 +27,8 @@ public final class SettingsWindowController {
         AppearancePreference.load(from: defaults).apply()  // the whole app follows the choice from launch
     }
 
-    public func show() {
+    /// Opens the window, on `page` when given (an unknown id keeps the page that was open).
+    public func show(page: String? = nil) {
         if window == nil {
             let outside = Set(ShellLayout.tabsOutsideGroups(tabs.map(\.id)))
             let sheetTabs = Dictionary(uniqueKeysWithValues: tabs.filter { outside.contains($0.id) }.map { ($0.id, $0) })
@@ -62,6 +63,7 @@ public final class SettingsWindowController {
                 },
             ]
         }
+        if let page { router?.open(page) }
         startPolling()
         let checkerDefaults = defaults
         Task { await UpdateChecker.shared.checkIfStale(defaults: checkerDefaults) }  // "automatiquement": a day apart at most

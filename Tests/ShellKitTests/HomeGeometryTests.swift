@@ -71,7 +71,11 @@ private final class LevelBox: @unchecked Sendable {
         let bench = TestDefaults.make()
         defer { bench.cleanup() }
         let m = model(bench.defaults)
-        #expect(m.sizeMode == IslandSizeMode.spacious && m.homeBody.height == 354)
+        // The extra dock is on by default and adds its row; the sizes below are the home without it.
+        #expect(m.showsExtraDock)
+        #expect(m.sizeMode == IslandSizeMode.spacious && m.homeBody.height == 354 + HomeGeometry.extraDockSpace)
+        m.showsExtraDock = false
+        #expect(m.homeBody.height == 354)
         m.sizeMode = IslandSizeMode.compact
         #expect(m.homeBody.height == 290)
         m.sizeMode = IslandSizeMode.custom
