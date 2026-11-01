@@ -9,8 +9,8 @@ protocol KeyValueReading {
 
 extension UserDefaults: KeyValueReading {}
 
-/// Preferences in the app's defaults suite. `shelfEnabled` and `shelfItems` keep the old names;
-/// the Downloads keys are new.
+/// Preferences in the app's defaults suite for the part of the tab that is still ours (the Downloads pane).
+/// The shelf's own options (`shelfEnabled`, shortcut, shake...) are the ported service's.
 struct ShelfSettings {
     static let suiteName = "be.roldy.macisland"
     static let defaultLimit = 8
@@ -29,15 +29,5 @@ struct ShelfSettings {
             return Self.defaultLimit
         }
         return min(Self.maxLimit, max(1, n))
-    }
-
-    /// Own file wins. Only when it does not exist yet, the old `shelfItems` value is imported once
-    /// and written to the own file, so an emptied shelf never refills.
-    func loadItems(store: ShelfStore) -> [ShelfItem] {
-        if store.fileExists { return store.load() }
-        guard let legacy = defaults.object(forKey: "shelfItems") as? Data else { return [] }
-        let items = LegacyShelfImporter.parse(legacy)
-        try? store.save(items)
-        return items
     }
 }

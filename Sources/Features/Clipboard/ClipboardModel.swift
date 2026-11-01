@@ -33,6 +33,10 @@ final class ClipboardModel {
     @ObservationIgnored private let hotkey: any PlainPasteHotkeyRegistering
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
     @ObservationIgnored private var started = false
+    /// The files are read once, by the first start: a stop and a start never reload (and never drop) what is in memory.
+    @ObservationIgnored private var loaded = false
+    @ObservationIgnored private let stopCenter: NotificationCenter
+    @ObservationIgnored private var stopObserver: NSObjectProtocol?
     @ObservationIgnored private var padSaveTask: Task<Void, Never>?
     @ObservationIgnored private var thumbnails: [String: NSImage] = [:]
 
@@ -42,7 +46,9 @@ final class ClipboardModel {
          postAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
          sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
          notify: @escaping @MainActor (PlainPasteNotice) -> Void = { PlainPasteNotice.post($0) },
-         hotkey: (any PlainPasteHotkeyRegistering)? = nil) {
+         hotkey: (any PlainPasteHotkeyRegistering)? = nil,
+         stopCenter: NotificationCenter = .default) {
+        self.stopCenter = stopCenter
         self.hotkey = hotkey ?? PlainPasteHotkeyService()
         self.accessibilityCheck = accessibilityTrusted
         self.accessibilityTrusted = accessibilityTrusted()
@@ -64,10 +70,20 @@ final class ClipboardModel {
         hotkeyWanted = true
         guard !started else { reconcileHotkey(); return }
         started = true
-        store.load()
-        scratch.load()
-        syncHistory()
-        syncPads()
+        if !loaded {
+            loaded = true
+            store.load()
+            scratch.load()
+            syncHistory()
+            syncPads()
+        }
+        if stopObserver == nil {
+            // The registry's stopper (kill switch, switch off, safe mode, quarantine) reaches this model by name.
+            stopObserver = stopCenter.addObserver(forName: ClipboardFeature.stopRequested, object: nil,
+                                                  queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.stop() }
+            }
+        }
 
         watcher.settings = settings
         watcher.onChange = { [weak self] count, capture, source in self?.handleChange(count, capture, source) }
@@ -83,11 +99,25 @@ final class ClipboardModel {
         }
     }
 
-    /// Releases the hotkey (the watcher keeps running: it is the history). `start()` re-arms it.
+    /// True while the pasteboard watcher runs (it is what records the history).
+    var isMonitoring: Bool { watcher.isRunning }
+
+    /// Stops monitoring: the watcher (nothing copied from now on is recorded), a pending auto-clear and the
+    /// plain-paste hotkey. The history already recorded stays in memory and on disk. `start()` arms everything
+    /// again; the watcher then takes the pasteboard as it is, so what was copied while stopped is never recorded.
     func stop() {
         hotkeyWanted = false
         hotkey.unregister()
         hotkeyRegistered = false
+        if started {
+            started = false
+            watcher.stop()
+            autoClear.cancel()
+            if let defaultsObserver {
+                NotificationCenter.default.removeObserver(defaultsObserver)
+                self.defaultsObserver = nil
+            }
+        }
         updatePlainPasteStatus()
     }
 

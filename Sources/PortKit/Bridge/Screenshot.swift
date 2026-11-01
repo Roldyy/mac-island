@@ -310,12 +310,12 @@ enum ScreenshotSaveFallback {
 // MARK: - The shelf
 
 /// The Shelf as the capture tool sees it. "Ajouter à l'étagère" (the editor's menu entry and the automatic option)
-/// writes into the ported `ShelfService`; Mac Island's own Shelf module owns the shelf the person sees until lane W5B
-/// binds the ported one, so a capture sent there would land in a store nobody looks at. The entries stay hidden
-/// and off until `isHosted` turns true, and the page says why.
+/// writes into the ported `ShelfService`, which lane W5B bound: the shelf the person sees (the island's Étagère tab
+/// and the floating shelf) is that same service, so a capture sent there lands where they look. The entries also
+/// need the shelf feature on (`shelfAvailable`), which the editor and the page check.
 enum ScreenshotShelfBridge {
-    /// False until the ported shelf is bound (W5B flips it in the same change).
-    static let isHosted = false
+    /// True now that the ported shelf is bound (W5B flipped it).
+    static let isHosted = true
 
     static let unavailableReason =
         "L’étagère de Mac Island n’accepte pas encore les captures : cette option est désactivée pour l’instant."

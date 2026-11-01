@@ -1,0 +1,40 @@
+--- a/Services/Clipboard/ClipboardHistoryService.swift
++++ b/Services/Clipboard/ClipboardHistoryService.swift
+@@ -648,6 +648,9 @@
+     }
+ 
+     private func start() {
++        // Mac Island: our Features/Clipboard module is the recorder (`PortClipboard`). A second watcher would record
++        // every copy twice and race it for the history file.
++        guard PortClipboard.portedStoreOwnsHistory else { return }
+         guard timer == nil else {
+             isRunning = true
+             return
+@@ -1043,7 +1046,7 @@
+               ClipboardHistoryEditing.canLoadEncodedHistory(byteCount: data.count),
+               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
+         else { return }
+-        if fileData != nil,
++        if PortClipboard.portedStoreOwnsHistory, fileData != nil,
+            PortHost.defaults.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
+             // The file decoded and is the durable source. A legacy blob still
+             // around (a kill inside the migration window, or a downgrade
+@@ -1086,6 +1089,8 @@
+     }
+ 
+     private func persist() {
++        // Mac Island: never writes the history file (or retires the legacy blob) while our module is the store.
++        guard PortClipboard.portedStoreOwnsHistory else { return }
+         let snapshot = entries
+         let generation = persistenceGeneration
+         let retireLegacyBlob = migrateLegacyBlob
+@@ -1822,6 +1827,9 @@
+             fileIcons.removeObject(forKey: path as NSString)
+         }
+         fileIconPaths.formIntersection(filePaths)
++        // Mac Island: the sweep deletes every PNG the caller's entry list does not name. While our module owns the
++        // history, the folder holds ITS images, which this list knows nothing about.
++        guard PortClipboard.portedStoreOwnsHistory else { return }
+         guard let directory,
+               let files = try? FileManager.default.contentsOfDirectory(at: directory,
+                                                                        includingPropertiesForKeys: nil)

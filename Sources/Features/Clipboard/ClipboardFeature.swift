@@ -19,9 +19,16 @@ public enum ClipboardFeature {
         }
     }
 
+    /// Posted by the registry's stopper (PortKit `ClipboardLane`, which cannot import this target): switch off, kill
+    /// switch, safe mode or quarantine. A started model stops monitoring. The same string is in
+    /// `Sources/PortKit/Bridge/Clipboard.swift`; a PortKit test reads both files and fails when they differ.
+    public static let stopRequested = Notification.Name("be.roldy.macisland.clipboard.stop")
+
     /// Start the pasteboard watcher and the plain-paste hotkey. Idempotent.
     @MainActor public static func start() { shared.start() }
 
-    /// Releases the plain-paste hotkey (the next `start()` registers it again).
+    /// Stops monitoring: the pasteboard watcher, a pending auto-clear and the plain-paste hotkey. What is already
+    /// in the history stays on disk and in the tab. The next `start()` arms everything again and records only what is
+    /// copied from then on.
     @MainActor public static func stop() { shared.stop() }
 }

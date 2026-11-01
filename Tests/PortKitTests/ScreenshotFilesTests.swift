@@ -282,15 +282,20 @@ import Testing
         #expect(settings.contains("Les liens temporaires ne sont pas disponibles dans Mac Island"), "the page says why, in French")
     }
 
-    @Test func theShelfEntriesStayOffUntilTheShelfIsHosted() throws {
-        #expect(ScreenshotShelfBridge.isHosted == false)
+    @Test func theShelfEntriesFollowTheShelfNowThatItIsHosted() throws {
+        #expect(ScreenshotShelfBridge.isHosted == true, "lane W5B bound the ported shelf: it is the one the person sees")
         #expect(ScreenshotShelfBridge.unavailableReason.contains("étagère"), "the page says why, in French")
         PortHostFixture.isolated { defaults in
             defaults.set(true, forKey: DefaultsKey.screenshotAddToShelf)
             defaults.set(true, forKey: DefaultsKey.shelfEnabled)
             PortHost.availability = { _ in true }
+            #expect(ScreenshotSupport.addsCapturesToShelf(in: defaults) == true)
+            PortHost.availability = { _ in false }
             #expect(ScreenshotSupport.addsCapturesToShelf(in: defaults) == false,
-                    "a migrated key can never send a capture to a store nobody looks at")
+                    "a switched-off shelf never fills up unseen")
+            PortHost.availability = { _ in true }
+            defaults.set(false, forKey: DefaultsKey.shelfEnabled)
+            #expect(ScreenshotSupport.addsCapturesToShelf(in: defaults) == false)
         }
         let editorView = try source("UI/Screenshot/ScreenshotEditorView.swift")
         #expect(editorView.contains("if ScreenshotShelfBridge.isHosted, shelfEnabled, shelfAvailable {"))

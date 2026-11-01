@@ -34,6 +34,9 @@ final class ClipboardHistoryStore {
     }
     private struct Wrapped: Decodable { let entries: [Lossy] }
 
+    /// Where the file as found is kept when loading it would lose something (see `keepOriginalBeforeRepair`).
+    static let repairBackupName = "ClipboardHistory.before-repair.json"
+
     func load() {
         guard let data = try? Data(contentsOf: fileURL) else { entries = []; return }
         let decoder = JSONDecoder()
@@ -42,7 +45,20 @@ final class ClipboardHistoryStore {
         var seen = Set<String>()
         // Duplicate ids would break list identity: keep the first.
         entries = (lossy ?? []).compactMap(\.entry).filter { seen.insert($0.id).inserted }
+        // The next save rewrites the file from `entries`: whatever did not decode would be gone for good.
+        let lostSomething = lossy.map { entries.count != $0.count } ?? !data.isEmpty
+        if lostSomething { keepOriginalBeforeRepair(data) }
         if trim() { save() }
+    }
+
+    /// The history file is the user's data. When it holds something this store cannot read (an unknown kind, a
+    /// damaged entry, a file that is not JSON at all), the first save would overwrite it with the readable part.
+    /// So the original bytes go to a sibling file first, owner-only, and an existing backup is never replaced: the
+    /// first copy is the closest to what the user had. Nothing is ever deleted here.
+    private func keepOriginalBeforeRepair(_ data: Data) {
+        let backup = directory.appendingPathComponent(Self.repairBackupName)
+        guard !FileManager.default.fileExists(atPath: backup.path) else { return }
+        try? PrivateFiles.writeAtomic(data, to: backup)
     }
 
     // MARK: - Adding

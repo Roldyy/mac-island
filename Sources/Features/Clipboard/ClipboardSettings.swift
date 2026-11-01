@@ -33,5 +33,17 @@ struct ClipboardSettings {
     var pastePlainShortcut: HotkeyShortcut {
         (defaults.string(forKey: "pastePlainShortcut")).flatMap(HotkeyShortcut.parse) ?? .default
     }
-    var excludedBundleIDs: Set<String> { Set(defaults.stringArray(forKey: Self.excludedKey) ?? []) }
+    /// Migrated Vorssaint key: "Apps à ignorer" of the old history page (bundle ids). Honoured next to ours, so a
+    /// list the user already made keeps its effect.
+    static let migratedIgnoredAppsKey = "clipboardHistoryIgnoredApps"
+    /// Migrated Vorssaint key: "Enregistrer aussi les images et fichiers copiés". Absent means on (the old default,
+    /// and what this module always did).
+    static let includeImagesAndFilesKey = "clipboardHistoryIncludeImagesFiles"
+
+    var excludedBundleIDs: Set<String> {
+        Set(defaults.stringArray(forKey: Self.excludedKey) ?? [])
+            .union(defaults.stringArray(forKey: Self.migratedIgnoredAppsKey) ?? [])
+    }
+    /// False records text only: a Finder copy then keeps its file names as text, like the old app.
+    var includeImagesAndFiles: Bool { (defaults.object(forKey: Self.includeImagesAndFilesKey) as? Bool) ?? true }
 }

@@ -1,7 +1,8 @@
+import PortKit
 import SwiftUI
 
 /// The tab: shelf and downloads segments. Black island, system font, no hover side effects
-/// (nothing here ever asks for the keyboard).
+/// (nothing here ever asks for the keyboard). The Étagère segment is the ported shelf's strip.
 struct ShelfView: View {
     @Bindable var model: ShelfModel
 
@@ -15,7 +16,7 @@ struct ShelfView: View {
             .accessibilityLabel("Section de l'étagère")
 
             switch model.segment {
-            case .shelf: ShelfPane(model: model)
+            case .shelf: PortShelf.strip()
             case .downloads: DownloadsPane(model: model)
             }
         }

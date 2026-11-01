@@ -28,7 +28,7 @@ import Testing
     }
 
     @Test func realFeaturePagesHaveLiveControls() {
-        for id in ["clipboard", "commandbar", "monitor", "shelf", "cutpaste"] {
+        for id in ["clipboard", "commandbar", "monitor", "cutpaste"] {  // "shelf" is a ported body page now
             let page = SettingsPageCatalog.page(id)!
             #expect(SettingsPageModel.blocks(for: page).flatMap(\.rows).contains { $0.isLive }, "\(id)")
         }

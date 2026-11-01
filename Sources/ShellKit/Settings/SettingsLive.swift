@@ -90,13 +90,8 @@ public enum SettingsLive {
             "Raccourci": C("pastePlainShortcut", .shortcut(defaultValue: "option+command:9")),
         ]),
         "cutpaste": Page(bound: ["Couper-coller dans le Finder": flag("finderCutPasteEnabled", false)]),
-        "shelf": Page(
-            bound: ["Activer l’étagère": flag("shelfEnabled", true)],
-            extras: [
-                flag("shelfDownloadsEnabled", true, title: "Montrer les téléchargements récents",
-                     hint: "Les derniers fichiers téléchargés apparaissent sur l’étagère."),
-                C("shelfDownloadsLimit", .stepper(range: 1...50, defaultValue: 8, unit: ""), title: "Nombre de téléchargements affichés"),
-            ]),
+        // "shelf" has no live entry any more: the ported shelf page (PortKit, Shelf lane) draws the whole page. The two
+        // Downloads switches (shelfDownloads*) return with the island downloads pane in wave 8.
         "island": Page(
             extras: [
                 flag("notchIdleShowLimits", true, title: "Limites Claude", hint: AmbientChannel.hint("limits")),

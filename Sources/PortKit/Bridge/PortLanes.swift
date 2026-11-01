@@ -24,6 +24,8 @@ enum PortLanes {
         CaptureToolsLane.bind(into:),
         ScreenshotLane.bind(into:),
         MediaToolsLane.bind(into:),
+        ClipboardLane.bind(into:),
+        ShelfLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

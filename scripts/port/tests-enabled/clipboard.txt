@@ -1,0 +1,18 @@
+# Lane W5-A (clipboard history, plain paste, URL cleaner): the upstream harness tests this lane turns on (names as in
+# Tests/ of the pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been
+# run here. The lane KEEPS our history store (see Bridge/Clipboard.swift), so only the checks about code that stays in
+# use are listed; the history service, the auto-clear service and the plain-paste service are compiled but not started.
+#
+# ClipboardFeatureTests.swift (347 checks) is the one: it holds the URL cleaning rules and the pure history helpers
+# (`ClipboardHistoryEditing`, `ClipboardHistorySensitiveText`, the text preference). The URL cleaner is live (bound by
+# the foundation lane, `urlCleaner`). Checks of it that read `ClipboardHistoryService.shared` describe the upstream
+# store, which patch 1100 leaves inert on purpose: a harness run must skip or stub those.
+ClipboardFeatureTests.swift
+#
+# NOT enabled, on purpose (they test services this lane does not start):
+#   ClipboardHistoryAccessTests.swift, ClipboardHistoryWriteTests.swift, ClipboardHistoryImageEditorTests.swift,
+#   ClipboardSensitiveTextPreferenceTests.swift  the upstream store (ours is the store)
+#   PastePlainTests.swift, TransientPasteTests.swift  the upstream plain paste (the Features/Clipboard sequencer is the
+#                                                     plain paste: PasteKeySequencerTests, PlainPaste*Tests there)
+# The lane's own checks: Tests/PortKitTests/ClipboardLaneTests.swift (`swift test --filter ClipboardLane`) and
+# Tests/ClipboardTests (`swift test --filter ClipboardFeatureTests`).

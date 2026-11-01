@@ -1,0 +1,16 @@
+# Upstream test files lane W5-B (shelf, scratchpad, plain text editor) turns on in the port harness
+# (scripts/port/test.sh, one name per line). Port plan section 4, lane 5B. Plain-Swift check scripts the harness
+# rewrites against stub singletons: none of them runs under `swift test`; the lane's own checks are
+# Tests/PortKitTests/Shelf*Tests.swift.
+#
+# 7 files, 423 `expect` calls upstream (the plan said 407). The harness (scripts/port/test.sh) is not in this tree yet:
+# this list was NOT run. ShelfFeatureTests.swift and ShelfDropRoutingTests.swift also read the upstream sources by path
+# (Sources/Vorssaint/...): the harness prefix rewrite must cover them, and any check on the Notch routing of the shelf
+# (`NotchSupport.routesShelf`) belongs to wave 8.
+PlainTextLineMoverTests.swift
+ScratchpadMarkTests.swift
+ScratchpadStoreContractTests.swift
+ShelfDragCompletionTests.swift
+ShelfDropRoutingTests.swift
+ShelfFeatureTests.swift
+ShelfFilePromiseTests.swift

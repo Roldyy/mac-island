@@ -60,7 +60,7 @@ final class PasteboardWatcher {
         let source = frontmostBundleID()
         let s = settings()
         let allowed = PasteboardFilter.shouldRecord(types: types, frontmostBundleID: source, excluded: s.excludedBundleIDs)
-        var result = allowed && s.historyEnabled ? capture() : nil
+        var result = allowed && s.historyEnabled ? capture(includeImagesAndFiles: s.includeImagesAndFiles) : nil
         afterCaptureRead()
         // The pasteboard may have changed while we read it (or the item gained a concealed
         // marker): never record what is no longer what we looked at.
@@ -79,15 +79,16 @@ final class PasteboardWatcher {
         return all
     }
 
-    private func capture() -> PasteboardCapture? {
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self],
+    private func capture(includeImagesAndFiles: Bool) -> PasteboardCapture? {
+        if includeImagesAndFiles,
+           let urls = pasteboard.readObjects(forClasses: [NSURL.self],
                                              options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             return .files(urls.map(\.path))
         }
         if let text = pasteboard.string(forType: .string) {
             return PasteboardFilter.textAllowed(byteCount: text.utf8.count) ? .text(text) : nil
         }
-        return imageCapture()
+        return includeImagesAndFiles ? imageCapture() : nil
     }
 
     private func imageCapture() -> PasteboardCapture? {
