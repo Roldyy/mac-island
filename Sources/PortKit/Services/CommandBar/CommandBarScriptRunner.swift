@@ -20,6 +20,11 @@ final class CommandBarScriptRunner {
     /// How long the query has to sit still before a script actually runs.
     static let debounce: TimeInterval = 0.25
 
+    /// Mac Island: a saved script runs only when the person selects it (Return on its row, or the shortcut they gave
+    /// that very script), never because typing paused. Upstream ran it from the debounce below; here `schedule`
+    /// does nothing, so no process starts from what is typed.
+    static let runsWhileTyping = false
+
     /// Called on the main thread whenever a result becomes ready, so the
     /// caller can refresh what is on screen.
     var onResult: (() -> Void)?
@@ -66,6 +71,7 @@ final class CommandBarScriptRunner {
     /// nothing when a result is already cached for this exact link and
     /// argument, or when that same run is still going.
     func schedule(link: CommandBarLink, argument: String) {
+        guard Self.runsWhileTyping else { return }
         guard cachedResult(linkID: link.id, argument: argument) == nil,
               !inFlight.contains(key(link.id, argument)) else { return }
         pendingWorkItem?.cancel()
@@ -97,10 +103,18 @@ final class CommandBarScriptRunner {
         pendingWorkItem = nil
         let cacheKey = key(link.id, argument)
         let runGeneration = generation
-        let path = (link.destination as NSString).expandingTildeInPath
+        // Mac Island: only the person's own executable file, named by an absolute path with no placeholder in it,
+        // run directly with the typed words as its one argument. No shell and no interpreter is involved.
+        guard let path = PortCommandBarScripts.executablePath(for: link.destination) else {
+            answerHandlers.removeValue(forKey: cacheKey)
+            cache[cacheKey] = Result(text: failureText)
+            onResult?()
+            return
+        }
+        let arguments = PortCommandBarScripts.arguments(forTyped: argument)
         inFlight.insert(cacheKey)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let (status, output) = Shell.run(path, [argument], maxOutputBytes: 64 * 1024)
+            let (status, output) = Shell.run(path, arguments, maxOutputBytes: 64 * 1024)
             let text = CommandBarLinks.resultText(output)
             // The hop back happens whatever the script printed: a run that
             // ends with nothing to show still has to stop counting as one in

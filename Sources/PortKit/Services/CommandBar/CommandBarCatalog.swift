@@ -1457,7 +1457,11 @@ enum CommandBarCatalog {
     /// screen — not the bar, not a result to copy. A failure beeps, the way
     /// an app shortcut that would not open does.
     static func runScriptDirectly(_ link: CommandBarLink) {
-        let path = (link.destination as NSString).expandingTildeInPath
+        // Mac Island: only the person's own executable file (absolute path, no placeholder), run directly.
+        guard let path = PortCommandBarScripts.executablePath(for: link.destination) else {
+            NSSound.beep()
+            return
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
             if status != 0 { DispatchQueue.main.async { NSSound.beep() } }

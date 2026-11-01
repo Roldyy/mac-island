@@ -1,0 +1,14 @@
+Mac Island W5-C: commands the host registers (open an island tab...) join the command bar's own actions.
+
+--- a/Services/CommandBar/CommandBarService.swift
++++ b/Services/CommandBar/CommandBarService.swift
+@@ -1339,7 +1339,9 @@
+     private var builtEmojiInputs: EmojiInputs?
+ 
+     private func rebuildCatalog(index: Bool = true) {
++        // Mac Island: the commands the app hands to the bar (open an island tab...) join the app's own actions.
+         catalog = CommandBarCatalog.build(automationDenied: finderAutomationDenied)
++            + PortCommandBarHost.entries()
+         // The emoji rows are most of the pool and depend on nothing the
+         // catalog's other rebuild triggers touch, so they are kept until one
+         // of their own inputs moves. Assigning them again would also drop

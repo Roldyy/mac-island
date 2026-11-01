@@ -30,12 +30,6 @@ public enum SettingsLive {
         C(key, .toggle(defaultValue: fallback, inverted: inverted), title: title, hint: hint)
     }
 
-    private static func source(_ id: String) -> C { flag(CommandBarKeys.source(id), true) }
-
-    enum CommandBarKeys {
-        static func source(_ id: String) -> String { "commandBarSource" + id.prefix(1).uppercased() + id.dropFirst() }
-    }
-
     static let table: [String: Page] = [
         "monitor": Page(
             bound: [
@@ -54,18 +48,8 @@ public enum SettingsLive {
                 flag("monitorSystemNotificationsEnabled", false, title: "Notifications système",
                      hint: "Affiche aussi l’alerte dans le centre de notifications."),
             ]),
-        "commandbar": Page(
-            bound: [
-                "Apps": source("apps"), "Fichiers": source("files"), "Calculs et conversions": source("calculator"),
-                "Actions Mac Island": source("commands"),
-                "Raccourci": C("commandBarHotkey", .shortcut(defaultValue: "option:space")),
-            ],
-            extras: [
-                flag("commandBarEnabled", true, title: "Activer la barre de commande"),
-                flag("commandBarHabitsEnabled", true, title: "Retenir ce que j’utilise le plus",
-                     hint: "Remonte vos choix habituels dans les résultats."),
-                source("web").withTitle("Recherche sur le web"),
-            ]),
+        // "commandbar" has no live entry any more: the ported command bar page (PortKit, W5-C lane) draws the whole
+        // page, under the `commandbar` feature card its catalog row carries.
         // "keepawake" has no live entry any more: the ported Keep Awake page (PortKit, Energy lane) draws the whole
         // page, its default duration, automation, jiggle, display sleep, battery limit, island hold and closed lid.
         // "dockpreview" and "dockclicks" have no live entry any more: the ported Dock pages (PortKit, Dock lane) draw

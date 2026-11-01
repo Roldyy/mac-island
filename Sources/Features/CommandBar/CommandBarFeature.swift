@@ -1,47 +1,24 @@
-import Foundation
 import IslandKit
-import SwiftUI
+import PortKit
 
+/// The command bar is the ported Vorssaint one now (`PortKit/Bridge/CommandBar.swift`): this target only keeps what
+/// the shell already calls by name. The tab id `commandbar` (the Home tile, the Settings page and the migrated switch
+/// all point at it), the commands the shell hands to the bar, and the button that opens it. The registry starts and
+/// stops the bar through `PortFeatureBinding`, not through this type, and the global shortcut belongs to the ported
+/// service alone.
 public enum CommandBarFeature {
-    /// `~/Library/Application Support/be.roldy.macisland/Data`, shared with the other features.
-    static var dataDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("be.roldy.macisland", isDirectory: true)
-            .appendingPathComponent("Data", isDirectory: true)
-    }
-
-    @MainActor static let registry = CommandRegistry()
-
-    /// Created on first use, so building the tab list touches nothing on disk.
-    @MainActor static let shared: CommandBarController = {
-        let habits = HabitStore(directory: dataDirectory)
-        let reg = registry
-        let sources: [any ResultSource] = [
-            CalculatorSource(), AppSource(), FileSource(), CommandSource(registry: reg), WebSearchSource(),
-        ]
-        var actions = BarActions.live
-        actions.runCommand = { reg.run(id: $0) }
-        let model = CommandBarModel(sources: sources, habits: habits, actions: actions)
-        return CommandBarController(settings: CommandBarSettings(), registrar: CommandBarHotkeyService(),
-                                    presenter: CommandBarPanelPresenter(model: model), habits: habits)
-    }()
-
-    @MainActor public static func tab() -> IslandTab {
-        IslandTab(id: "commandbar", title: "Commandes", systemImage: "command") {
-            AnyView(CommandBarSettingsView(controller: shared))
-        }
-    }
+    @MainActor public static func tab() -> IslandTab { PortCommandBar.tab() }
 
     /// Extension point: the shell hands commands from other features to the bar.
     /// A command with an id already registered replaces the earlier one.
-    @MainActor public static func register(commands: [BarCommand]) { registry.register(commands) }
+    @MainActor public static func register(commands: [BarCommand]) {
+        PortCommandBar.registerHostCommands(commands.map { command in
+            PortCommandBar.HostCommand(id: command.id, title: command.title, keywords: command.keywords,
+                                       run: command.run)
+        })
+    }
 
-    /// Register the global hotkey (when enabled in the settings). Idempotent.
-    @MainActor public static func start() { shared.start() }
-
-    /// Opens the bar now, whatever the hotkey state. The caller closes the island first.
-    @MainActor public static func show() { shared.show() }
-
-    /// Unregister the hotkey and close the panel. Idempotent.
-    @MainActor public static func stop() { shared.stop() }
+    /// Opens the bar now (Home tile, round button). False when the feature is off, killed or in safe mode:
+    /// nothing opened. The caller closes the island first.
+    @MainActor @discardableResult public static func show() -> Bool { PortCommandBar.show() }
 }

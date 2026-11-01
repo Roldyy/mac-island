@@ -1,0 +1,76 @@
+--- a/UI/Settings/QuickToolsSettings.swift
++++ b/UI/Settings/QuickToolsSettings.swift
+@@ -25,9 +25,18 @@
+     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
+     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+ 
++    /// Mac Island: the sections one Settings page shows (the quick panel page and the quick actions page are two
++    /// pages of ours, upstream has one). The default is every section, as upstream draws it.
++    enum Part: CaseIterable { case launcher, toggles, micMute, cameraPreview, wallpaper, scratchpad, cleaningMode }
++    let parts: Set<Part>
++
++    init(parts: Set<Part> = Set(Part.allCases)) {
++        self.parts = parts
++    }
++
+     var body: some View {
+         Form {
+-            if AppFeature.quickLauncher.isAvailable {
++            if parts.contains(.launcher), AppFeature.quickLauncher.isAvailable {
+                 Section {
+                     Button {
+                         QuickLauncherService.shared.show()
+@@ -59,7 +68,7 @@
+                 .settingsFormSectionAnchor(.quickLauncher)
+             }
+ 
+-            if AppFeature.quickToggles.isAvailable {
++            if parts.contains(.toggles), AppFeature.quickToggles.isAvailable {
+                 Section {
+                     Button {
+                         QuickTogglesService.shared.toggleDarkMode()
+@@ -101,7 +110,7 @@
+                 .onAppear { brightness.refreshKeyboardLight() }
+             }
+ 
+-            if AppFeature.micMute.isAvailable {
++            if parts.contains(.micMute), AppFeature.micMute.isAvailable {
+                 Section {
+                     Button {
+                         MicMuteService.shared.toggle()
+@@ -140,7 +149,7 @@
+                 .settingsFormSectionAnchor(.micMute)
+             }
+ 
+-            if AppFeature.cameraPreview.isAvailable {
++            if parts.contains(.cameraPreview), AppFeature.cameraPreview.isAvailable {
+                 Section {
+                     Button {
+                         CameraPreviewService.shared.show()
+@@ -173,7 +182,7 @@
+                 .settingsFormSectionAnchor(.cameraPreview)
+             }
+ 
+-            if AppFeature.wallpaper.isAvailable {
++            if parts.contains(.wallpaper), AppFeature.wallpaper.isAvailable {
+                 Section {
+                     Toggle(FeatureStrings.wallpaper(l10n.language).applyAllDisplays,
+                            isOn: Binding(
+@@ -192,7 +201,7 @@
+                 .settingsFormSectionAnchor(.wallpaper)
+             }
+ 
+-            if AppFeature.scratchpad.isAvailable {
++            if parts.contains(.scratchpad), AppFeature.scratchpad.isAvailable {
+                 Section {
+                     Button {
+                         ScratchpadService.shared.show()
+@@ -266,7 +275,7 @@
+                 .settingsFormSectionAnchor(.scratchpad)
+             }
+ 
+-            if AppFeature.cleaningMode.isAvailable {
++            if parts.contains(.cleaningMode), AppFeature.cleaningMode.isAvailable {
+                 Section {
+                     Button {
+                         CleaningModeManager.shared.activate()

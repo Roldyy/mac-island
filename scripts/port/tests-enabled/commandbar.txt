@@ -1,0 +1,17 @@
+# Lane W5-C (command bar): the upstream harness tests this lane turns on (names as in Tests/ of the pinned Vorssaint tree).
+# scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here; the Swift Testing suites
+# CommandBar*Tests in Tests/PortKitTests cover the same rules against our patched sources and DID run.
+#
+# 591 upstream checks in three files (port plan section 4, lane 5C): CommandBarFeatureTests 562, CommandBarEmojiTests 21,
+# CommandBarSelectionTests 8. Source contracts read these production files by path, so patches 1200-1249 only touch the
+# four listed below:
+#   1200 Services/CommandBar/CommandBarScriptRunner.swift, CommandBarCatalog.swift (runScriptDirectly)
+#   1201, 1202, 1203 Services/CommandBar/CommandBarService.swift (rebuildCatalog, last statement of searchRows, recordUsage)
+# EXPECTED DIFFERENCE (patch 1200, on purpose): upstream runs a saved script from a typing pause. The harness block that
+# drives `CommandBarScriptRunner.schedule` through its `ScriptRunHost` copy (CommandBarFeatureTests, "issue #3094": the
+# scripts that note each run in a `.runs` file) asserts that behaviour and must be regenerated to assert the opposite
+# (`schedule` starts nothing; `runNow` from Return still runs and answers) before it is switched on. Everything else
+# in the three files is expected green.
+CommandBarEmojiTests.swift
+CommandBarFeatureTests.swift
+CommandBarSelectionTests.swift

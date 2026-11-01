@@ -1339,7 +1339,9 @@ final class CommandBarService: ObservableObject {
     private var builtEmojiInputs: EmojiInputs?
 
     private func rebuildCatalog(index: Bool = true) {
+        // Mac Island: the commands the app hands to the bar (open an island tab...) join the app's own actions.
         catalog = CommandBarCatalog.build(automationDenied: finderAutomationDenied)
+            + PortCommandBarHost.entries()
         // The emoji rows are most of the pool and depend on nothing the
         // catalog's other rebuild triggers touch, so they are kept until one
         // of their own inputs moves. Assigning them again would also drop
@@ -2006,6 +2008,8 @@ final class CommandBarService: ObservableObject {
                 rowTitles: result.map(\.title), query: trimmed))
             if result.count > 12 { result.removeLast() }
         }
+        // Mac Island: the last row sends the typed words to a web search. It only opens the browser, on Return.
+        if openURL == nil, let web = PortCommandBarWebSearch.entry(for: trimmed) { result.append(web) }
         return result
     }
 
@@ -2831,6 +2835,8 @@ final class CommandBarService: ObservableObject {
             queryMemoryStep &+= 1
             queryMemory.record(query: learningQuery, id: entry.id, step: queryMemoryStep)
         }
+        // Mac Island: "keep what I use most" off means nothing about this choice is written to disk.
+        guard PortCommandBarLearning.isEnabled() else { return }
         if entry.countsUsage {
             let stored = PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage)
             let next = CommandBarUsage.recording(CommandBarUsage.decode(stored),

@@ -1,0 +1,60 @@
+Mac Island W5-C: a saved command bar script runs only when the person selects it (never from a typing pause), only as their own executable file named by an absolute path with no placeholder, run directly with the typed words as one argument (no shell, no interpreter).
+
+--- a/Services/CommandBar/CommandBarScriptRunner.swift
++++ b/Services/CommandBar/CommandBarScriptRunner.swift
+@@ -20,6 +20,11 @@
+     /// How long the query has to sit still before a script actually runs.
+     static let debounce: TimeInterval = 0.25
+ 
++    /// Mac Island: a saved script runs only when the person selects it (Return on its row, or the shortcut they gave
++    /// that very script), never because typing paused. Upstream ran it from the debounce below; here `schedule`
++    /// does nothing, so no process starts from what is typed.
++    static let runsWhileTyping = false
++
+     /// Called on the main thread whenever a result becomes ready, so the
+     /// caller can refresh what is on screen.
+     var onResult: (() -> Void)?
+@@ -66,6 +71,7 @@
+     /// nothing when a result is already cached for this exact link and
+     /// argument, or when that same run is still going.
+     func schedule(link: CommandBarLink, argument: String) {
++        guard Self.runsWhileTyping else { return }
+         guard cachedResult(linkID: link.id, argument: argument) == nil,
+               !inFlight.contains(key(link.id, argument)) else { return }
+         pendingWorkItem?.cancel()
+@@ -97,10 +103,18 @@
+         pendingWorkItem = nil
+         let cacheKey = key(link.id, argument)
+         let runGeneration = generation
+-        let path = (link.destination as NSString).expandingTildeInPath
++        // Mac Island: only the person's own executable file, named by an absolute path with no placeholder in it,
++        // run directly with the typed words as its one argument. No shell and no interpreter is involved.
++        guard let path = PortCommandBarScripts.executablePath(for: link.destination) else {
++            answerHandlers.removeValue(forKey: cacheKey)
++            cache[cacheKey] = Result(text: failureText)
++            onResult?()
++            return
++        }
++        let arguments = PortCommandBarScripts.arguments(forTyped: argument)
+         inFlight.insert(cacheKey)
+         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+-            let (status, output) = Shell.run(path, [argument], maxOutputBytes: 64 * 1024)
++            let (status, output) = Shell.run(path, arguments, maxOutputBytes: 64 * 1024)
+             let text = CommandBarLinks.resultText(output)
+             // The hop back happens whatever the script printed: a run that
+             // ends with nothing to show still has to stop counting as one in
+--- a/Services/CommandBar/CommandBarCatalog.swift
++++ b/Services/CommandBar/CommandBarCatalog.swift
+@@ -1457,7 +1457,11 @@
+     /// screen — not the bar, not a result to copy. A failure beeps, the way
+     /// an app shortcut that would not open does.
+     static func runScriptDirectly(_ link: CommandBarLink) {
+-        let path = (link.destination as NSString).expandingTildeInPath
++        // Mac Island: only the person's own executable file (absolute path, no placeholder), run directly.
++        guard let path = PortCommandBarScripts.executablePath(for: link.destination) else {
++            NSSound.beep()
++            return
++        }
+         DispatchQueue.global(qos: .userInitiated).async {
+             let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
+             if status != 0 { DispatchQueue.main.async { NSSound.beep() } }

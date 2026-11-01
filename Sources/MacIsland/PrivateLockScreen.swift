@@ -21,6 +21,16 @@ struct LoginFrameworkScreenLock: ScreenLocking {
     }
 }
 
+/// The one lock path of the app: the login framework first, `pmset displaysleepnow` when it is missing or fails.
+/// The island's lock button and the ported quick toggle ("Verrouiller l'écran", `PortQuickToggles`) both end here,
+/// so there is no second private lock call anywhere.
+@MainActor
+enum AppScreenLock {
+    static func lock() -> ScreenLockOutcome {
+        ScreenLockChain.lock(primary: LoginFrameworkScreenLock(), fallback: DisplaySleepScreenLock())
+    }
+}
+
 /// Fallback: `pmset displaysleepnow`, fixed arguments, no shell. It sleeps the display, which locks the
 /// session only when "Require password after screen saver or display sleep" is on (System Settings >
 /// Lock Screen); with that setting off the screen just goes dark and stays unlocked.

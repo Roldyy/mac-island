@@ -27,7 +27,7 @@ let package = Package(
         .executableTarget(name: "FanHelper", dependencies: ["FanShared"], path: "Sources/FanHelper"),
         .target(name: "FansFeature", dependencies: ["IslandKit", "FanShared"], path: "Sources/Features/Fans"),
         .target(name: "MonitorFeature", dependencies: ["IslandKit"], path: "Sources/Features/Monitor"),
-        .target(name: "CommandBarFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/CommandBar"),
+        .target(name: "CommandBarFeature", dependencies: ["IslandKit", "IslandUI", "PortKit"], path: "Sources/Features/CommandBar"),
         .target(name: "TerminalFeature", dependencies: [
             "IslandKit", .product(name: "SwiftTerm", package: "SwiftTerm"),
         ], path: "Sources/Features/Terminal"),

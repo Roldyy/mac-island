@@ -1,0 +1,14 @@
+# Lane W5-D (quick launcher, quick toggles, radial menu): the upstream harness tests this lane turns on (names as in
+# Tests/ of the pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been
+# run here. They are plain-Swift check scripts the upstream harness rewrites (generate_sources.py) against stub
+# singletons; none of them runs under `swift test`. The lane's own checks are Tests/PortKitTests/Launcher*Tests.swift.
+#
+# QuickTogglesAlertTests extracts `func emptyTrash()` and `enum QuickToggleAction:` from QuickTogglesService.swift by
+# declaration (generate_sources.py): patch 1250 touches neither. UtilitiesFeatureTests also reads RadialMenuService.swift
+# as text (the claimed-click block between `if type == .otherMouseDown {` and `private func hotkeyPressed` must hold no
+# `passUnretained`; the `SessionActivity.shared.onChange` block must call `endSession()`), OverlayPanelTests wants
+# `OverlayPanel(contentRect` and no `NSPanel(contentRect`, PointerInputFeatureTests wants the `tapDisabledByTimeout`
+# re-arm clause: patch 1252 keeps all four. UtilitiesFeatureTests is shared with the other W5 lanes.
+QuickLauncherActionTests.swift
+QuickTogglesAlertTests.swift
+UtilitiesFeatureTests.swift

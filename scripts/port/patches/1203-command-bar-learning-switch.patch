@@ -1,0 +1,13 @@
+Mac Island W5-C: the old 'keep what I use most' switch (commandBarHabitsEnabled) still stops the bar from storing usage counts and query digests.
+
+--- a/Services/CommandBar/CommandBarService.swift
++++ b/Services/CommandBar/CommandBarService.swift
+@@ -2835,6 +2835,8 @@
+             queryMemoryStep &+= 1
+             queryMemory.record(query: learningQuery, id: entry.id, step: queryMemoryStep)
+         }
++        // Mac Island: "keep what I use most" off means nothing about this choice is written to disk.
++        guard PortCommandBarLearning.isEnabled() else { return }
+         if entry.countsUsage {
+             let stored = PortHost.defaults.string(forKey: DefaultsKey.commandBarUsage)
+             let next = CommandBarUsage.recording(CommandBarUsage.decode(stored),

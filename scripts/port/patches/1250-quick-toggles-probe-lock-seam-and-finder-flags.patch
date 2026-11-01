@@ -1,0 +1,94 @@
+--- a/Services/QuickTools/QuickTogglesService.swift
++++ b/Services/QuickTools/QuickTogglesService.swift
+@@ -70,7 +70,9 @@
+     /// guarded; without it the row reports the failure instead of crashing.
+     func toggleDarkMode() {
+         guard available, beginRun(.darkMode) else { return }
+-        guard let theme = Self.appearanceTheme else {
++        // Mac Island: the probe names a macOS that dropped the symbols (with a French reason on the page) before the
++        // table is read; either one failing closed leaves the system appearance untouched.
++        guard QuickToggleProbe.live.allows(.appearance), let theme = Self.appearanceTheme else {
+             finishRun(.darkMode, state: .failed)
+             return
+         }
+@@ -159,9 +161,9 @@
+     /// path stands in (with a password required, it locks too).
+     func lockScreen() {
+         guard available else { return }
+-        if let lock = Self.lockScreenFunction {
+-            _ = lock()
+-        } else {
++        // Mac Island: the app's own locker (login framework, then `pmset displaysleepnow`) does it; this file has no
++        // second private path. Without one, or when both of its ways fail, the screen saver stands in.
++        if QuickToggleSeams.performLock() != true {
+             startScreenSaver()
+         }
+     }
+@@ -241,12 +243,13 @@
+ 
+     private func toggleFinderFlag(_ action: QuickToggleAction, key: String, to value: Bool) {
+         guard available, beginRun(action) else { return }
++        // Mac Island: the write goes through `FinderFlags` (a seam over com.apple.finder, a journal when the user
++        // chose the temporary mode). The Finder restarts only here, on the explicit toggle.
++        let defaults = PortHost.defaults
+         workQueue.async {
+-            CFPreferencesSetAppValue(key as CFString,
+-                                     value as CFBoolean,
+-                                     QuickTogglesSupport.finderDomain as CFString)
+-            CFPreferencesAppSynchronize(QuickTogglesSupport.finderDomain as CFString)
+-            self.finishRun(action, state: self.restartFinder() ? nil : .failed)
++            let applied = FinderFlags.apply(key: key, to: value, prefs: QuickToggleSeams.finderPrefs,
++                                            defaults: defaults, restart: { self.restartFinder() })
++            self.finishRun(action, state: applied ? nil : .failed)
+         }
+     }
+ 
+@@ -258,7 +261,7 @@
+     /// the Finder will not quit (an operation in progress), the classic
+     /// killall does it; never prompts either way. Work-queue only: the exit
+     /// poll blocks.
+-    private func restartFinder() -> Bool {
++    func restartFinder() -> Bool {
+         if Permissions.automationStatus(for: .finder) == .granted,
+            AppleScriptRunner.runDetailed(QuickTogglesSupport.quitFinderSource).ok,
+            waitForFinderExit() {
+@@ -315,9 +318,7 @@
+     }
+ 
+     private func finderFlag(_ key: String, default defaultValue: Bool) -> Bool {
+-        let value = CFPreferencesCopyAppValue(key as CFString,
+-                                              QuickTogglesSupport.finderDomain as CFString)
+-        return QuickTogglesSupport.finderFlag(value, default: defaultValue)
++        QuickTogglesSupport.finderFlag(QuickToggleSeams.finderPrefs.read(key), default: defaultValue)
+     }
+ 
+     private static func ejectableVolumeURLs() -> [URL] {
+@@ -364,14 +365,20 @@
+         return urls.contains { $0.path == url.path }
+     }
+ 
+-    /// SACLockScreenImmediate from the login framework, resolved once and
+-    /// guarded: a missing symbol just means the screen saver fallback.
+-    private static let lockScreenFunction: (@convention(c) () -> Int32)? = {
+-        let path = "/System/Library/PrivateFrameworks/login.framework/login"
+-        guard let handle = dlopen(path, RTLD_LAZY),
+-              let symbol = dlsym(handle, "SACLockScreenImmediate") else { return nil }
+-        return unsafeBitCast(symbol, to: (@convention(c) () -> Int32).self)
+-    }()
++    /// Whether a private symbol of this file's table resolves. A lookup only, never a call: it is what
++    /// `QuickToggleProbe` asks. Mac Island: the login framework is not looked up here any more (the app's own locker
++    /// owns that path), so an unknown name is simply absent.
++    static func isPrivateSymbolAvailable(_ name: String) -> Bool {
++        switch name {
++        case "SLSGetAppearanceThemeLegacy", "SLSSetAppearanceThemeLegacy":
++            guard let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY) else {
++                return false
++            }
++            return dlsym(handle, name) != nil
++        default:
++            return false
++        }
++    }
+ 
+     private typealias AppearanceGet = @convention(c) () -> Bool
+     private typealias AppearanceSet = @convention(c) (Bool) -> Void

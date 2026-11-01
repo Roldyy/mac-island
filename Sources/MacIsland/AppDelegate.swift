@@ -92,7 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "finder": { FinderFeature.start() },
                 "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
                 "monitor": { MonitorFeature.start() },
-                "commandbar": { CommandBarFeature.start() },
                 "nowplaying": { NowPlayingFeature.start() },
                 "agents": { live.start() },
             ]) { _, ours in ours },
@@ -100,7 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "finder": { FinderFeature.stop() },
                 "fans": { FansFeature.stop() },
                 "monitor": { MonitorFeature.stop() },
-                "commandbar": { CommandBarFeature.stop() },
                 "agents": { live.stop() },  // withdraws every Claude activity through the sink
             ]) { _, ours in ours },
             activitySources: ["agents": ClaudeActivityMapper.source])

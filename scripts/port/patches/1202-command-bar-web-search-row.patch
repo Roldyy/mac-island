@@ -1,0 +1,13 @@
+Mac Island W5-C: a last row in a typed search opens the words in a web search (the person's engine, https only, browser on Return only).
+
+--- a/Services/CommandBar/CommandBarService.swift
++++ b/Services/CommandBar/CommandBarService.swift
+@@ -2008,6 +2008,8 @@
+                 rowTitles: result.map(\.title), query: trimmed))
+             if result.count > 12 { result.removeLast() }
+         }
++        // Mac Island: the last row sends the typed words to a web search. It only opens the browser, on Return.
++        if openURL == nil, let web = PortCommandBarWebSearch.entry(for: trimmed) { result.append(web) }
+         return result
+     }
+ 

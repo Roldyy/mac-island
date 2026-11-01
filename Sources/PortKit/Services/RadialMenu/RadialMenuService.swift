@@ -75,6 +75,9 @@ final class RadialMenuService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
     private var promptedForAccessibility = false
     private let dismissal = PanelDismissal()
+    /// Mac Island: closes a wheel nobody is driving (no pointer move, key or modifier change for
+    /// `RadialOverlayRules.idleTimeout`). Armed with the session monitors, disarmed with them.
+    private let idle = RadialIdleWatchdog()
 
     private init() {
         // A filter tap owned by a switched-away login session keeps its place
@@ -177,20 +180,26 @@ final class RadialMenuService: ObservableObject {
         // whose answer is a poll up to `PermissionPollingSupport.interval` old.
         // The re-arm hands a tap it declines to put back to this sync to be
         // stopped, and a stale grant here would install it straight back.
-        guard SessionActivitySupport.tapShouldRun(
+        // Mac Island: the decision is `RadialTapPolicy` (pure, tested with a fake tap); the three steps are upstream's.
+        switch RadialTapPolicy.decide(
+            tapHeld: mouseTap != nil,
+            tapEnabled: mouseTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false,
             featureWanted: mouseTapWanted(profiles: profiles),
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
-        ) else {
+        ) {
+        case .teardown:
             tearDownMouseTap()
             return
-        }
-        // A tap the system disabled (Accessibility revoked and regranted)
-        // never revives on its own; rebuild it instead of keeping the corpse.
-        if let mouseTap, !CGEvent.tapIsEnabled(tap: mouseTap) {
+        case .keep:
+            return
+        case .rebuild:
+            // A tap the system disabled (Accessibility revoked and regranted)
+            // never revives on its own; rebuild it instead of keeping the corpse.
             tearDownMouseTap()
+        case .create:
+            break
         }
-        guard mouseTap == nil else { return }
         let mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
@@ -300,7 +309,7 @@ final class RadialMenuService: ObservableObject {
             }
             // A press during a held chord session means nothing and is
             // swallowed with the rest.
-        } else if holdPhase, holdButton == button {
+        } else if RadialOverlayRules.releaseEndsHold(holdPhase: holdPhase, heldButton: holdButton, released: button) {
             endHoldPhase()
         }
         return nil
@@ -539,6 +548,7 @@ final class RadialMenuService: ObservableObject {
 
     func select(_ index: Int) {
         guard sessionActive, currentItems.indices.contains(index) else { return }
+        idle.touch()
         let item = currentItems[index]
         if item.kind == .submenu {
             stack.append(item.children)
@@ -624,13 +634,16 @@ final class RadialMenuService: ObservableObject {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier
+                  RadialOverlayRules.closesOnActivation(activated: app.bundleIdentifier,
+                                                        own: Bundle.main.bundleIdentifier)
             else { return }
             self.endSession()
         }
+        idle.arm { [weak self] in self?.endSession() }
     }
 
     private func removeMonitors() {
+        idle.disarm()
         eventMonitors.forEach { NSEvent.removeMonitor($0) }
         eventMonitors = []
         if let activationObserver {
@@ -645,6 +658,7 @@ final class RadialMenuService: ObservableObject {
 
     private func pointerMoved() {
         guard sessionActive else { return }
+        idle.touch()
         // A chord release can slip past the flags monitor when it lands
         // between the press and the monitor's install; the next pointer move
         // settles it. Button-held sessions end through the tap instead.
@@ -653,6 +667,7 @@ final class RadialMenuService: ObservableObject {
     }
 
     private func handleFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        idle.touch()
         guard sessionActive, holdPhase, let shortcut = sessionShortcut else { return }
         guard !RadialMenuSupport.shortcutIsStillHeld(
             modifiersHeld: shortcut.requiredModifiersHeld(in: flags),
@@ -691,6 +706,7 @@ final class RadialMenuService: ObservableObject {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        idle.touch()
         switch Int(event.keyCode) {
         case kVK_Escape:
             stepBack()
@@ -724,23 +740,10 @@ final class RadialMenuService: ObservableObject {
 
     private func run(_ item: RadialMenuItem) {
         switch item.kind {
-        case .app:
-            let url = URL(fileURLWithPath: (item.payload as NSString).expandingTildeInPath)
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
-                if error != nil { DispatchQueue.main.async { NSSound.beep() } }
-            }
-        case .file:
-            let path = (item.payload as NSString).expandingTildeInPath
-            guard FileManager.default.fileExists(atPath: path) else {
-                NSSound.beep()
-                return
-            }
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-        case .url:
-            if let normalized = RadialMenuSupport.normalizedURL(item.payload),
-               let url = URL(string: normalized) {
-                NSWorkspace.shared.open(url)
-            }
+        case .app, .file, .url:
+            // Mac Island: what the user configured opens through fixed NSWorkspace calls (`RadialItemLauncher`),
+            // never a shell string; the seam is what the tests fake.
+            RadialItemLauncher.launch(item, workspace: LiveRadialWorkspace(), beep: { NSSound.beep() })
         case .shortcut:
             if let shortcut = GlobalShortcut(storageValue: item.payload) {
                 postWhenModifiersReleased(attempt: 0) { Self.postShortcut(shortcut) }

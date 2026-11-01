@@ -18,6 +18,8 @@ final class SystemActions {
 
     init(closeIsland: @escaping @MainActor () -> Void) {
         self.closeIsland = closeIsland
+        // The ported quick toggle locks through the same chain as the island's button (no second private path).
+        PortQuickToggles.installLockScreen { AppScreenLock.lock() != .failed }
     }
 
     // MARK: - Buttons
@@ -25,14 +27,19 @@ final class SystemActions {
     func showCommands() {
         closeIsland()
         // Next turn, so the island has given up the keyboard before the bar asks for it.
-        DispatchQueue.main.async { CommandBarFeature.show() }
+        DispatchQueue.main.async { [weak self] in
+            // The ported bar opens only while the registry lets it run: say so instead of a button that does nothing.
+            if !CommandBarFeature.show() {
+                self?.notice("Barre de commande désactivée : activez-la dans Fonctions", symbol: "command", status: .info)
+            }
+        }
     }
 
     func toggleKeepAwake() { KeepAwakeFeature.toggle() }
 
     func lockScreen() {
         closeIsland()
-        let outcome = ScreenLockChain.lock(primary: LoginFrameworkScreenLock(), fallback: DisplaySleepScreenLock())
+        let outcome = AppScreenLock.lock()
         if outcome == .failed { notice(QuickActionNotice.lockFailed, symbol: "lock.slash", status: .danger) }
     }
 
