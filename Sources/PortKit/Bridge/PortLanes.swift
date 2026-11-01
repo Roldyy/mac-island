@@ -33,6 +33,8 @@ enum PortLanes {
         FansLane.bind(into:),
         FinderLane.bind(into:),
         CleanerLane.bind(into:),
+        MusicLane.bind(into:),
+        TimerLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

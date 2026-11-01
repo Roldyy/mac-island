@@ -1,0 +1,25 @@
+# Upstream test files (Tests/ of the pinned tree) lane W8A (island music: lyrics, queue, live equalizer, MediaRemote adapter)
+# turns on in the harness, one per line. The harness itself (scripts/port/test.sh) is lane P0-D; nothing here runs without
+# it, and it is not in this tree: UNVERIFIED.
+NotchAudioLevelTests.swift
+NotchBrowserArtworkLifecycleTests.swift
+NotchEqualizerTests.swift
+NotchLyricsCorpusTests.swift
+NotchLyricsTimelineTests.swift
+NotchMusicAutomationTests.swift
+NotchMusicExtrasTests.swift
+NotchMusicHardeningTests.swift
+NotchMusicVisibilityTests.swift
+NotchPlaybackRoutingTests.swift
+NowPlayingOpenContract.swift
+#
+# KNOWN, DELIBERATE DIVERGENCES (patches 1600 to 1604 change the ported sources; the harness owner re-points, never skips):
+# - 1600: `NotchLyricsSupport.isEnabled` and `NotchQueueSupport.isEnabled` read `NotchSupport.hostsFeatures` (true while a
+#   lane hosts the feature in OUR island) instead of `NotchSupport.isEnabled`. A check that needs the old island window
+#   turned on to make lyrics or the queue "enabled" must set `PortHost.hostsIslandFeatures` instead.
+# - 1601: `NotchAudioLevelService.syncWithPreferences` also needs `MixerAudioCapture.allowsTaps` (the equalizer never
+#   creates a process tap before the "Autoriser" click). NotchAudioLevelTests that expect a reader after only the switches
+#   must record the grant evidence (`macisland.mixer.audioCaptureProbeStatus` = 0).
+# - 1603: `NotchMusicService.adapter` comes from `MediaRemoteAdapterLocator` (capability probe and kill switch) and the
+#   adapter file is `libMacIslandNowPlaying.dylib`. UtilitiesFeatureTests l.903 (build script text) is not enabled here:
+#   our packaging is `Package.swift` product `MacIslandNowPlaying` plus `scripts/bundle.sh`.

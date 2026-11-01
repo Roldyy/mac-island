@@ -27,7 +27,7 @@ enum NotchQueueSupport {
     static let maximumArtworkBytes = 64 * 1_024
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchQueue.isAvailable(in: defaults)
+        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchQueue.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchQueueEnabled)
             && NotchSupport.modules(in: defaults).contains(.music)
     }

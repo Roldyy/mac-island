@@ -30,7 +30,10 @@ final class NotchAudioLevelService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        enabled = AppFeature.notchLiveEqualizer.isAvailable && NotchSupport.isEnabled()
+        // Mac Island: no process tap, and so no system prompt, until a click on "Autoriser" proved System Audio
+        // Recording (`MixerAudioCapture`, the same permission the mixer uses; Bridge/Mixer.swift).
+        enabled = AppFeature.notchLiveEqualizer.isAvailable && NotchSupport.hostsFeatures()
+            && MixerAudioCapture.allowsTaps
             && NotchAudioLevelSupport.isSupported && NotchAudioLevelSupport.isEnabled()
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if enabled {

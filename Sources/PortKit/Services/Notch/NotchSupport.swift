@@ -1830,6 +1830,13 @@ enum NotchSupport {
             && defaults.bool(forKey: DefaultsKey.notchEnabled)
     }
 
+    /// Mac Island: the ported island features that live in OUR island (timer, calendar, accessories, notifications,
+    /// lyrics, queue) run while a bridge lane hosts them (`PortHost.hostsIslandFeatures`), whatever the Vorssaint
+    /// island is doing. Everything that needs the Vorssaint window itself keeps asking `isEnabled`.
+    static func hostsFeatures(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+        PortHost.hostsIslandFeatures || isEnabled(in: defaults)
+    }
+
     static func usesHapticFeedback(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHapticFeedback)
     }

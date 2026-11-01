@@ -2282,6 +2282,8 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func show(_ incoming: NotchNotice) -> Bool {
+        // Mac Island: this island is asleep, so the notice goes to OUR island (Bridge/IslandOutput.swift).
+        guard PortHost.vorssaintIslandEnabled else { return PortIslandOutput.present(fromAnyThread: incoming) }
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
         noticeWork?.cancel(); noticeWork = nil

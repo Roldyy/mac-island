@@ -282,7 +282,8 @@ final class NotchLyricsService: ObservableObject {
 
     func importLyrics() {
         guard visible, NotchLyricsSupport.isEnabled(), let track, importPanel == nil,
-              let parent = NotchService.shared.presentationWindow,
+              // Mac Island: our island's window when this one is asleep.
+              let parent = NotchService.shared.presentationWindow ?? NSApp.keyWindow,
               canReturnToLyrics(parent, track: track) else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "lrc") ?? .plainText, .plainText]

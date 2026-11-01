@@ -1,0 +1,85 @@
+--- a/Services/Notch/NotchSupport.swift
++++ b/Services/Notch/NotchSupport.swift
+@@ -1830,6 +1830,13 @@
+             && defaults.bool(forKey: DefaultsKey.notchEnabled)
+     }
+ 
++    /// Mac Island: the ported island features that live in OUR island (timer, calendar, accessories, notifications,
++    /// lyrics, queue) run while a bridge lane hosts them (`PortHost.hostsIslandFeatures`), whatever the Vorssaint
++    /// island is doing. Everything that needs the Vorssaint window itself keeps asking `isEnabled`.
++    static func hostsFeatures(in defaults: UserDefaults = PortHost.defaults) -> Bool {
++        PortHost.hostsIslandFeatures || isEnabled(in: defaults)
++    }
++
+     static func usesHapticFeedback(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHapticFeedback)
+     }
+--- a/Services/Notch/NotchTimerSupport.swift
++++ b/Services/Notch/NotchTimerSupport.swift
+@@ -186,7 +186,7 @@
+     }
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
++        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
+             && NotchSupport.modules(in: defaults).contains(.timer)
+     }
+--- a/Services/Notch/NotchCalendarSupport.swift
++++ b/Services/Notch/NotchCalendarSupport.swift
+@@ -107,7 +107,7 @@
+     }
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults)
++        NotchSupport.hostsFeatures(in: defaults)
+             && AppFeature.notchCalendar.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchCalendarEnabled)
+             && NotchSupport.modules(in: defaults).contains(.calendar)
+--- a/Services/Notch/NotchNotificationSupport.swift
++++ b/Services/Notch/NotchNotificationSupport.swift
+@@ -129,7 +129,7 @@
+     }
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults)
++        NotchSupport.hostsFeatures(in: defaults)
+             && AppFeature.notchNotifications.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled)
+             && NotchSupport.modules(in: defaults).contains(.notifications)
+--- a/Services/Notch/NotchAccessorySupport.swift
++++ b/Services/Notch/NotchAccessorySupport.swift
+@@ -8,8 +8,9 @@
+     static let lowThreshold = 20
+     static let recoveryThreshold = 25
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchAccessories.isAvailable(in: defaults)
+-            && AppFeature.monitorPower.isAvailable(in: defaults)
++        // Mac Island: the service starts the peripheral sampler itself (`setNotchAccessoryMonitoring`), so the Power
++        // monitor switch (another lane's feature) is not a prerequisite.
++        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchAccessories.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchAccessoriesEnabled)
+     }
+ 
+--- a/Services/Notch/NotchLyricsSupport.swift
++++ b/Services/Notch/NotchLyricsSupport.swift
+@@ -118,7 +118,7 @@
+     static let maximumLines = 2000
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
++        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
+             && NotchSupport.modules(in: defaults).contains(.music)
+     }
+--- a/Services/Notch/NotchQueueSupport.swift
++++ b/Services/Notch/NotchQueueSupport.swift
+@@ -27,7 +27,7 @@
+     static let maximumArtworkBytes = 64 * 1_024
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchQueue.isAvailable(in: defaults)
++        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchQueue.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchQueueEnabled)
+             && NotchSupport.modules(in: defaults).contains(.music)
+     }

@@ -8,8 +8,9 @@ enum NotchAccessorySupport {
     static let lowThreshold = 20
     static let recoveryThreshold = 25
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchAccessories.isAvailable(in: defaults)
-            && AppFeature.monitorPower.isAvailable(in: defaults)
+        // Mac Island: the service starts the peripheral sampler itself (`setNotchAccessoryMonitoring`), so the Power
+        // monitor switch (another lane's feature) is not a prerequisite.
+        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchAccessories.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchAccessoriesEnabled)
     }
 

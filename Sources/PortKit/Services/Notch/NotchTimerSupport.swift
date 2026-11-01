@@ -186,7 +186,7 @@ enum NotchTimerSupport {
     }
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
+        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
             && NotchSupport.modules(in: defaults).contains(.timer)
     }

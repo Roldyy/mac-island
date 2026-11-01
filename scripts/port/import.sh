@@ -135,6 +135,9 @@ for t in HIDEventSystem VMStatisticsCompat; do
   done
 done
 
+# The Now Playing adapter (lane W8A): its own dynamic library and the perl loader, never part of PortKit.
+bash scripts/port/import-adapter.sh "$tree"
+
 mkdir -p "$dest/Compat"
 {
   printf '%s\n' '// SPDX-License-Identifier: GPL-3.0-or-later' '// Copyright (C) 2026 Vorssaint' "$header"

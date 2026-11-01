@@ -6,6 +6,9 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "SettingsKit", targets: ["SettingsKit"]),
+        // Lane W8A: libMacIslandNowPlaying.dylib. Never linked into the app: now-playing.pl loads it into /usr/bin/perl
+        // (a platform binary, the only process MediaRemote still answers since macOS 15.4). bundle.sh copies and signs it.
+        .library(name: "MacIslandNowPlaying", type: .dynamic, targets: ["NowPlayingAdapter"]),
     ],
     dependencies: [
         // MIT. Pinned exactly: the terminal is the one place a dependency upgrade can break typing.
@@ -43,6 +46,8 @@ let package = Package(
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
         .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),
         .systemLibrary(name: "VMStatisticsCompat", path: "Sources/VMStatisticsCompat"),
+        // The one place that touches MediaRemote's private symbols (lane W8A); AppKit and Foundation only.
+        .target(name: "NowPlayingAdapter", path: "Sources/NowPlayingAdapter"),
         // FansFeature: the Fans bridge drives the helper through its `FanDriving` door (no dependency the other way).
         .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "FansFeature", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
 

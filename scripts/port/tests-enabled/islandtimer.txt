@@ -1,0 +1,15 @@
+# Upstream test files (Tests/ of the pinned tree) lane W8B (island timer, calendar, accessories, mirrored notifications)
+# turns on in the harness, one per line. The harness itself (scripts/port/test.sh) is lane P0-D; nothing here runs without
+# it, and it is not in this tree: UNVERIFIED.
+NotchActivityTests.swift
+NotchNotificationReaderTests.swift
+NotchNotificationTests.swift
+PeripheralBatteryLifecycleTests.swift
+#
+# KNOWN, DELIBERATE DIVERGENCES (patches 1600 and 1602):
+# - 1600: the timer, calendar, accessory and notification `isEnabled` read `NotchSupport.hostsFeatures`; the accessory one
+#   no longer needs the Power monitor switch (`AppFeature.monitorPower`), the service starts the peripheral sampler itself.
+# - 1602: `NotchService.show` hands a notice to `PortIslandOutput` while the old island is asleep. Upstream checks that
+#   observe `NotchService.notice` after a `show` run against an awake island and must set `PortHost.vorssaintIslandEnabled`.
+# NotchActivityTests also covers the island's other activities (downloads, watch, agents): the harness owner picks the
+# timer, calendar, accessory and notification checks for this lane and leaves the rest to W8C and W8D.

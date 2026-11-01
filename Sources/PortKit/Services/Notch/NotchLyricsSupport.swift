@@ -118,7 +118,7 @@ enum NotchLyricsSupport {
     static let maximumLines = 2000
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
+        NotchSupport.hostsFeatures(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
             && NotchSupport.modules(in: defaults).contains(.music)
     }

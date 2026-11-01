@@ -107,7 +107,7 @@ enum NotchCalendarSupport {
     }
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults)
+        NotchSupport.hostsFeatures(in: defaults)
             && AppFeature.notchCalendar.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchCalendarEnabled)
             && NotchSupport.modules(in: defaults).contains(.calendar)

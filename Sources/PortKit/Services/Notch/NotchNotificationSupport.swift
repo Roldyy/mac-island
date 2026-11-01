@@ -129,7 +129,7 @@ enum NotchNotificationSupport {
     }
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults)
+        NotchSupport.hostsFeatures(in: defaults)
             && AppFeature.notchNotifications.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled)
             && NotchSupport.modules(in: defaults).contains(.notifications)

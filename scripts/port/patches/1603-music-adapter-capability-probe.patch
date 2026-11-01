@@ -1,0 +1,18 @@
+--- a/Services/Notch/NotchMusicService.swift
++++ b/Services/Notch/NotchMusicService.swift
+@@ -92,12 +92,9 @@
+ 
+     private init() {}
+ 
+-    private static var adapter: [String]? {
+-        guard let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
+-              let library = Bundle.main.privateFrameworksURL?.appendingPathComponent("libVorssaintNowPlaying.dylib"),
+-              FileManager.default.fileExists(atPath: library.path) else { return nil }
+-        return [script.path, library.path]
+-    }
++    /// Mac Island: nil (the music page says "unavailable") unless the capability probe finds the adapter, and always
++    /// nil once the kill switch is on. See `Bridge/PrivateMediaRemoteAdapter.swift`.
++    private static var adapter: [String]? { MediaRemoteAdapterLocator.live.launchArguments() }
+ 
+     func start() {
+         let includeOtherPlayers = PortHost.defaults.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
