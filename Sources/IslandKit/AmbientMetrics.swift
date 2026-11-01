@@ -12,11 +12,11 @@ public enum AmbientMetrics {
     public static let iconGap: CGFloat = 3
     public static let elementGap: CGFloat = 4
     /// Space kept free at each end of a wing (3 beside the notch, 3 at the outer edge: the wing hugs its content).
-    public static let wingPadding: CGFloat = 3
+    public static let wingPadding: CGFloat = 10
     /// Gap between the two groups of the pill, where the separator sits.
     public static let groupGap: CGFloat = 8
     /// Free space at each end of the pill.
-    public static let pillPadding: CGFloat = 6
+    public static let pillPadding: CGFloat = 10
     /// A title or an alert wider than this scrolls (or is cut under Reduce Motion).
     public static let maxTextWidth: CGFloat = 64
 

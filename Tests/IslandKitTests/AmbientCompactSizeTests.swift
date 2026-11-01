@@ -78,11 +78,11 @@ import Testing
     // MARK: Constants
 
     @Test func theWingsAreShortAndNothingIsReservedBeyondTheContent() {
-        #expect(NotchGeometry.maxWingExtent == 64)
+        #expect(NotchGeometry.maxWingExtent == 76)
         #expect(NotchGeometry.baseWing <= 3)  // a rim, not a minimum width
         #expect(AmbientMetrics.glyphSize == 14)
         #expect(AmbientMetrics.elementGap == 4)
-        #expect(AmbientMetrics.wingPadding >= 3 && AmbientMetrics.wingPadding <= 8)
+        #expect(AmbientMetrics.wingPadding >= 8 && AmbientMetrics.wingPadding <= 12)
     }
 
     // MARK: Heights and widths against the real notch
@@ -100,7 +100,7 @@ import Testing
             let idle = size(.idle, notch: notch)
             // A short wing each side, no more than the 4-item case needs.
             #expect(idle.width > notch)
-            #expect(idle.width <= notch + 2 * 56, "idle \(idle.width) at \(notch)")
+            #expect(idle.width <= notch + 2 * 70, "idle \(idle.width) at \(notch)")
             for scene in [Scene.claudeAtRest, .claudeWorking, .claudeWaiting] {
                 #expect(idle.width <= size(scene, notch: notch).width, "\(scene.name) is not narrower than idle at \(notch)")
             }
@@ -112,7 +112,7 @@ import Testing
         for notch in notches {
             let four = size(.claudeAtRest, notch: notch)
             print("compact-size four items notch \(notch): \(four.width) x \(four.height)")
-            #expect(four.width <= notch + 2 * 63, "\(four.width) at \(notch)")
+            #expect(four.width <= notch + 2 * 78, "\(four.width) at \(notch)")
             #expect(four.width >= notch + 2 * 40)
         }
     }

@@ -11,7 +11,7 @@ public struct NotchGeometry: Equatable {
     /// content's: each wing is exactly as wide as what it shows.
     public static let baseWing: CGFloat = 3
     /// Most a wing may add beyond `baseWing` (64 pt each side), so the island never stretches across the bar.
-    public static let maxWingExtent: CGFloat = 64
+    public static let maxWingExtent: CGFloat = 76
     /// One point of wing in a width stand-in (a figure space), see `AmbientMetrics.measuringItem`.
     public static let measureUnit: Character = "\u{2007}"
     public static let minOpenHeight: CGFloat = 120

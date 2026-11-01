@@ -69,8 +69,8 @@ import Testing
         let frame = notchedFrame(both)
         let idle = notchIdle.frame
         // Each side is its own content (rounded up to a point), the notch is untouched in the middle.
-        #expect(idle.minX - frame.minX >= min(l, 67) && idle.minX - frame.minX <= min(l, 67) + 1)
-        #expect(frame.maxX - idle.maxX >= min(r, 67) && frame.maxX - idle.maxX <= min(r, 67) + 1)
+        #expect(idle.minX - frame.minX >= min(l, 79) && idle.minX - frame.minX <= min(l, 79) + 1)
+        #expect(frame.maxX - idle.maxX >= min(r, 79) && frame.maxX - idle.maxX <= min(r, 79) + 1)
         // A side with nothing has no wing at all.
         let left = notchedFrame(leftOnly)
         #expect(left.maxX == idle.maxX && left.minX == frame.minX)
