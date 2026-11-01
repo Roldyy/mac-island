@@ -102,7 +102,7 @@ import Testing
         #expect(script.contains("with timeout of 4 seconds"))
         // The first Apple Event is outside any `try`, so -1743 / -1744 / -1712 reach the caller.
         let firstTry = script.range(of: "try")!.lowerBound
-        let state = script.range(of: "player state as text")!.lowerBound
+        let state = script.range(of: "(player state) as text")!.lowerBound
         #expect(state < firstTry)
         #expect(script.components(separatedBy: "    try\n").count - 1 >= 6, "one try per track field")
         #expect(script.contains("artwork url of current track"))

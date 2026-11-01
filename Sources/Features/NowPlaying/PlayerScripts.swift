@@ -29,8 +29,8 @@ enum PlayerScripts {
         let body = """
         with timeout of \(timeoutSeconds) seconds
             tell application id "\(bundleID)"
-                set st to player state as text
-                if st is "stopped" or st contains "kPSS" then return "stopped"
+                set stateText to (player state) as text
+                if stateText is "stopped" or stateText contains "kPSS" then return "stopped"
                 set d to \(separator)
                 set vTitle to ""
                 set vArtist to ""
@@ -56,7 +56,7 @@ enum PlayerScripts {
                 try
                     set vArt to (\(artwork)) as text
                 end try
-                return st & d & vTitle & d & vArtist & d & vAlbum & d & vPos & d & vDur & d & vArt
+                return stateText & d & vTitle & d & vArtist & d & vAlbum & d & vPos & d & vDur & d & vArt
             end tell
         end timeout
         """
