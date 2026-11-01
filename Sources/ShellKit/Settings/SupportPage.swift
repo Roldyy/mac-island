@@ -26,7 +26,7 @@ struct SupportPage: View {
             SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.m) {
                     HStack(spacing: IslandSpacing.s) {
-                        Image(systemName: "star.fill").foregroundStyle(.yellow).accessibilityHidden(true)
+                        Image(systemName: "star.fill").foregroundStyle(IslandPalette.textPrimary.color).accessibilityHidden(true)
                         Text("Une étoile, c’est déjà beaucoup").font(.islandBodyEmphasis)
                     }
                     Text("Un soutien financier n’est jamais attendu. Une étoile sur GitHub aide davantage de personnes à découvrir Mac Island et fait une vraie différence pour son développement.")

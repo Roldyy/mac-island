@@ -112,7 +112,7 @@ import Testing
         let b = bench()
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil)
-        #expect(context.tileItems().count == 17)
+        #expect(context.tileItems().count == 18)
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
             try await render("a-all-\(mode.rawValue)", context)
@@ -126,7 +126,7 @@ import Testing
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: ["terminal", "agents", "clipboard"])
         let tiles = context.tileItems()
-        #expect(tiles.count == 17 && tiles.filter(\.isEnabled).count == 7)
+        #expect(tiles.count == 18 && tiles.filter(\.isEnabled).count == 7)
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
             try await render("b-three-\(mode.rawValue)", context)
@@ -137,7 +137,7 @@ import Testing
         let b = bench()
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil, extra: 9)
-        #expect(context.tileItems().count == 26)
+        #expect(context.tileItems().count == 27)
         context.home.customHeight = 640
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
@@ -158,10 +158,10 @@ import Testing
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil)
         context.home.hideTile("capture")
         context.home.hideTile("dock")
-        #expect(context.tileItems().count == 15)
+        #expect(context.tileItems().count == 16)
         try await render("d-hidden-home", context)
         context.navigation.route = .explore
-        #expect(context.tileItems(showHidden: true).count == 17)
+        #expect(context.tileItems(showHidden: true).count == 18)
         try await render("d-hidden-explore", context)
     }
 }

@@ -78,7 +78,7 @@ import Testing
         #expect(on == ["agents", "capture", "lockScreen", "cleaning", "clipboard", "terminal", "settings"])
         #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "awake", "monitor", "fans", "commands", "finder", "dock", "ipscanner"])
         #expect(tiles.map(\.id) == on + off)
-        #expect(tiles.count == 19)
+        #expect(tiles.count == 18)
     }
 
     @Test func aFeatureWithNoTabCountsAsOff() {
@@ -95,7 +95,7 @@ import Testing
         let extra = HomeFeature(id: "switcher", title: "Sélecteur", systemImage: "rectangle.on.rectangle")
         let tiles = merged(features: features + [extra])
         #expect(tiles.last?.id == "switcher" && tiles.last?.source == .feature)
-        #expect(tiles.count == 18)
+        #expect(tiles.count == 19)
     }
 
     // MARK: hidden set
@@ -103,9 +103,9 @@ import Testing
     @Test func hiddenTilesLeaveTheHomeButStayInTheExplorerFlagged() {
         let home = merged(hidden: ["capture", "finder", "ghost"])
         #expect(!home.map(\.id).contains("capture") && !home.map(\.id).contains("finder"))
-        #expect(home.count == 15)
+        #expect(home.count == 16)
         let explorer = merged(hidden: ["capture", "finder"], showHidden: true)
-        #expect(explorer.count == 17)
+        #expect(explorer.count == 18)
         #expect(explorer.filter(\.isHidden).map(\.id) == ["capture", "finder"])
         // Same order either way: hiding never reshuffles the rest.
         #expect(explorer.filter { !$0.isHidden }.map(\.id) == home.map(\.id))

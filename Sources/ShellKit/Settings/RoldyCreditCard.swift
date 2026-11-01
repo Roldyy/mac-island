@@ -31,7 +31,7 @@ struct RoldyCreditCard: View {
         }
         .padding(IslandSpacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(red: 0.07, green: 0.08, blue: 0.11)))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(IslandSurface.notchBlack))
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
     }
