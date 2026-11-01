@@ -68,37 +68,9 @@ enum AlertSoundStrings {
         case .enUS:
             return english
 
-        case .ptBR:
-            return portugueseBrazil
-
-        case .tr:
-            return turkish
-
-        case .ru:
-            return russian
-
-        case .es:
-            return spanish
-
-        case .sk:
-            return slovak
-
-        case .de:
-            return german
-
-        case .fr:
+        default:
             return french
 
-        case .it:
-            return italian
-
-        case .uk:
-            return ukrainian
-
-        // Apple's AlertSounds localization data keeps the English
-        // display names for these locales.
-        case .ja, .ko, .zhHans, .zhTW, .zhHK:
-            return english
         }
     }
 
@@ -121,120 +93,6 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    // MARK: - Portuguese (Brazil)
-
-    private static let portugueseBrazil: [String: String] = [
-        "Basso": "Médio",
-        "Blow": "Brisa",
-        "Bottle": "Seixo",
-        "Frog": "Pulo",
-        "Funk": "Funky",
-        "Glass": "Cristal",
-        "Hero": "Heroína",
-        "Morse": "Morse",
-        "Ping": "Sonar",
-        "Pop": "Balão",
-        "Purr": "Ronrom",
-        "Sosumi": "Sonumi",
-        "Submarine": "Submarino",
-        "Tink": "Tinido",
-    ]
-
-    // MARK: - Turkish
-
-    private static let turkish: [String: String] = [
-        "Basso": "Mezzo",
-        "Blow": "Esinti",
-        "Bottle": "Çakıl Taşı",
-        "Frog": "Zıpla",
-        "Funk": "Funky",
-        "Glass": "Kristal",
-        "Hero": "Heroine",
-        "Morse": "Pong",
-        "Ping": "Sonar",
-        "Pop": "Balon",
-        "Purr": "Pluck",
-        "Sosumi": "Sonumi",
-        "Submarine": "Submerge",
-        "Tink": "Boop",
-    ]
-
-    // MARK: - Russian
-
-    private static let russian: [String: String] = [
-        "Basso": "Меццо",
-        "Blow": "Бриз",
-        "Bottle": "Галька",
-        "Frog": "Пружина",
-        "Funk": "Фанк",
-        "Glass": "Кристалл",
-        "Hero": "Героиня",
-        "Morse": "Понг",
-        "Ping": "Сонар",
-        "Pop": "Пузырьки",
-        "Purr": "Щипок",
-        "Sosumi": "Сонуми",
-        "Submarine": "Погружение",
-        "Tink": "Капля",
-    ]
-
-    // MARK: - Spanish
-
-    private static let spanish: [String: String] = [
-        "Basso": "Mezzo",
-        "Blow": "Brisa",
-        "Bottle": "Piedrecita",
-        "Frog": "Salto",
-        "Funk": "Funky",
-        "Glass": "Cristal",
-        "Hero": "Líder",
-        "Morse": "Pong",
-        "Ping": "Sonda",
-        "Pop": "Burbuja",
-        "Purr": "Punteo",
-        "Sosumi": "Sonumi",
-        "Submarine": "Inmersión",
-        "Tink": "Boop",
-    ]
-
-    // MARK: - Slovak
-
-    private static let slovak: [String: String] = [
-        "Basso": "Mezzo",
-        "Blow": "Vietor",
-        "Bottle": "Štrk",
-        "Frog": "Skok",
-        "Funk": "Funky",
-        "Glass": "Kryštál",
-        "Hero": "Hrdinka",
-        "Morse": "Pong",
-        "Ping": "Sonar",
-        "Pop": "Bublina",
-        "Purr": "Trhnutie",
-        "Sosumi": "Sonumi",
-        "Submarine": "Ponorenie",
-        "Tink": "Pípnutie",
-    ]
-
-    // MARK: - German
-
-    private static let german: [String: String] = [
-        "Basso": "Mezzo",
-        "Blow": "Brise",
-        "Bottle": "Kiesel",
-        "Frog": "Springen",
-        "Funk": "Funky",
-        "Glass": "Kristall",
-        "Hero": "Heldin",
-        "Morse": "Pong",
-        "Ping": "Sonar",
-        "Pop": "Blase",
-        "Purr": "Zupfen",
-        "Sosumi": "Sonumi",
-        "Submarine": "Untertauchen",
-        "Tink": "Buup",
-    ]
-
     // MARK: - French
 
     private static let french: [String: String] = [
@@ -252,43 +110,5 @@ enum AlertSoundStrings {
         "Sosumi": "Sonumi",
         "Submarine": "Submersible",
         "Tink": "Boop",
-    ]
-
-    // MARK: - Italian
-
-    private static let italian: [String: String] = [
-        "Basso": "Mezzo",
-        "Blow": "Brezza",
-        "Bottle": "Ciottolo",
-        "Frog": "Salto",
-        "Funk": "Funky",
-        "Glass": "Cristallo",
-        "Hero": "Eroe",
-        "Morse": "Pong",
-        "Ping": "Sonar",
-        "Pop": "Fumetto",
-        "Purr": "Pizzico",
-        "Sosumi": "Sonumi",
-        "Submarine": "Immersione",
-        "Tink": "Boop",
-    ]
-
-    // MARK: - Ukrainian
-
-    private static let ukrainian: [String: String] = [
-        "Basso": "Мецо",
-        "Blow": "Вітерець",
-        "Bottle": "Галька",
-        "Frog": "Стрибок",
-        "Funk": "Модний",
-        "Glass": "Кришталь",
-        "Hero": "Героїня",
-        "Morse": "Понг",
-        "Ping": "Сонар",
-        "Pop": "Булька",
-        "Purr": "Щипок",
-        "Sosumi": "Повідомлення",
-        "Submarine": "Занурення",
-        "Tink": "Тиць",
     ]
 }

@@ -132,10 +132,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.settings = settings
         installPortBridge(settings: settings)
         KeepAwakeShortcutService.shared.arm(defaults: defaults) { KeepAwakeFeature.toggle() }
+        // A click on the icon opens the quick panel (ported menu panel); a right click keeps the menu. The island
+        // closes first so two surfaces never stack.
+        PortQuickPanel.shared.willShow = { [weak self] in MainActor.assumeIsolated { self?.island?.close() } }
         menuBar = MenuBarItemController(
             onOpenSettings: { settings.show() },
             onQuit: { NSApp.terminate(nil) },
-            onRelaunch: Self.relaunchAction)
+            onRelaunch: Self.relaunchAction,
+            onTogglePanel: { button in PortQuickPanel.shared.toggle(from: button) },
+            defaults: defaults)
         // The ported menu bar metrics may hide the app's icon (their option), only while one of their items shows.
         PortMenuBar.installAppIconVisibility { [weak self] visible in self?.menuBar?.setIconVisible(visible) }
 
@@ -166,6 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // The home's now-playing card reads the players themselves (Now Playing feature), not the closed island.
         home.attachNowPlaying(Self.nowPlayingSource())
+        // The island page's editors (size, look, notch fit, round buttons) drive this very model.
+        SettingsPageBodies.register(pageID: "island") {
+            AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() }))
+        }
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         startAmbientSources(live: live)
         self.island = island
@@ -356,6 +365,7 @@ extension AppDelegate {
         let relaunch = Self.relaunchAction
         PortBridge.install(host: PortBridge.Host(
             openSettings: { MainActor.assumeIsolated { settings.show() } },
+            closePanel: { MainActor.assumeIsolated { PortQuickPanel.shared.close() } },
             relaunch: relaunch.map { action in { MainActor.assumeIsolated { action() } } }))
         for pageID in PortBridge.registeredPageIDs {
             SettingsPageBodies.register(pageID: pageID) {

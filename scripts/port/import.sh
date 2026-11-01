@@ -13,7 +13,8 @@
 #   4. adds the "Derived from Vorssaint" header under the existing GPL header,
 #   5. copies the two system-library targets and extracts BlackHoleGlyph into Compat/,
 #   6. applies scripts/port/patches/*.patch in name order (skipped with --no-patches, which is how the
-#      pristine tree is produced to regenerate a patch).
+#      pristine tree is produced to regenerate a patch),
+#   7. trims the 13 languages other than French and English (scripts/port/trim-languages.py; same skip).
 # Hand-written code (Sources/PortKit/Compat except BlackHoleGlyph.swift, Sources/PortKit/Bridge) is never touched.
 set -euo pipefail
 
@@ -153,6 +154,9 @@ if [ "$apply_patches" = 1 ]; then
     patch -p1 -s --no-backup-if-mismatch -d "$dest" -i "$root/$p" || { echo "patch failed: $p" >&2; exit 1; }
     echo "applied $(basename "$p")"
   done
+  # --- 7. language trim (lane W9D): French UI, English kept as the base table, the 13 other languages cut. After the
+  #        patches, so none of them has to know about the removed tables; skipped with --no-patches (pristine tree).
+  python3 -I scripts/port/trim-languages.py "$dest"
 fi
 find "$dest" \( -name '*.orig' -o -name '*.rej' \) -delete
 echo "done: $dest"

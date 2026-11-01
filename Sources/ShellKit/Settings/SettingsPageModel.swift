@@ -21,11 +21,19 @@ public struct SettingsBlock: Identifiable, Equatable, Sendable {
 /// Builds what a declarative page shows. Pure: no view, no defaults.
 public enum SettingsPageModel {
     public static func blocks(for page: SettingsPage) -> [SettingsBlock] {
-        // A ported body (PortKit) owns the whole page: the noted rows were placeholders for it, so none stays
-        // behind as a greyed "Bientôt" row. A page with live controls keeps its rows.
-        if SettingsPageBodies.hasBody(for: page.id), SettingsLive.controls(for: page.id) == nil { return [] }
-        return blocks(pageID: page.id, pageTitle: page.featureID == nil ? nil : page.title,
-               items: SettingsPageContent.items(for: page.id), live: SettingsLive.controls(for: page.id))
+        let all = blocks(pageID: page.id, pageTitle: page.featureID == nil ? nil : page.title,
+                         items: SettingsPageContent.items(for: page.id), live: SettingsLive.controls(for: page.id))
+        // A registered body owns the whole page: the noted rows were placeholders for it, so none stays behind as
+        // a greyed "Bientôt" row. The rows that really work (a live control) stay above the body.
+        return SettingsPageBodies.hasBody(for: page.id) ? keepingLiveRows(all) : all
+    }
+
+    /// The blocks reduced to their live rows; a block left empty goes away.
+    static func keepingLiveRows(_ blocks: [SettingsBlock]) -> [SettingsBlock] {
+        blocks.compactMap { block in
+            let live = block.rows.filter(\.isLive)
+            return live.isEmpty ? nil : SettingsBlock(id: block.id, title: block.title, rows: live)
+        }
     }
 
     static func blocks(pageID: String, pageTitle: String? = nil, items: [SettingsItem], live: SettingsLive.Page?) -> [SettingsBlock] {

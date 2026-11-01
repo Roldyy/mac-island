@@ -46,6 +46,14 @@ struct AdvancedPage: View {
                         Button("Afficher le dossier", systemImage: "folder") { reveal() }
                             .buttonStyle(IslandButtonStyle())
                     }
+                    HStack(spacing: IslandSpacing.s) {
+                        Button("Exporter vers un fichier…", systemImage: "square.and.arrow.up.on.square") { exportToChosenFile() }
+                            .buttonStyle(IslandButtonStyle())
+                        Button("Importer un fichier…", systemImage: "square.and.arrow.down") { chooseFileToImport() }
+                            .buttonStyle(IslandButtonStyle())
+                    }
+                    Text("Pour emporter vos réglages sur un autre Mac. Le fichier ne contient que des préférences, jamais vos notes, l’historique du presse-papiers ni les autorisations.")
+                        .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
                     if let message {
                         HStack(spacing: IslandSpacing.xs) {
                             Image(systemName: message.status.symbol).accessibilityHidden(true)
@@ -120,6 +128,37 @@ struct AdvancedPage: View {
         } catch {
             message = ("Ce fichier n’est pas une sauvegarde valide.", .danger)
         }
+    }
+
+    /// Writes a backup (same format as the folder ones) where the person chooses, for another Mac.
+    private func exportToChosenFile() {
+        do {
+            let source = try backup.export()
+            backups = backup.list()
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = source.lastPathComponent
+            panel.allowedContentTypes = [.propertyList]
+            panel.canCreateDirectories = true
+            guard panel.runModal() == .OK, let target = panel.url else {
+                message = ("Sauvegarde gardée dans le dossier Sauvegardes : \(source.lastPathComponent)", .info)
+                return
+            }
+            // The panel already asked before replacing a file of that name.
+            if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+            try FileManager.default.copyItem(at: source, to: target)
+            message = ("Réglages exportés : \(target.lastPathComponent)", .success)
+        } catch {
+            message = ("L’export a échoué : \(error.localizedDescription)", .danger)
+        }
+    }
+
+    /// Picks a backup file; the usual confirmation then asks before it replaces today's values.
+    private func chooseFileToImport() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.propertyList]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url { pendingRestore = url }
     }
 
     private func reveal() {

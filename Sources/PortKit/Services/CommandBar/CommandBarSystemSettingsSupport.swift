@@ -98,20 +98,7 @@ enum CommandBarSystemSettingsSupport {
     static func resourceFolder(for language: AppLanguage) -> String {
         switch language {
         case .enUS: return "en"
-        case .ptBR: return "pt_BR"
-        case .tr: return "tr"
-        case .ru: return "ru"
-        case .es: return "es"
-        case .sk: return "sk"
-        case .de: return "de"
-        case .fr: return "fr"
-        case .it: return "it"
-        case .ja: return "ja"
-        case .ko: return "ko"
-        case .zhHans: return "zh_CN"
-        case .zhTW: return "zh_TW"
-        case .zhHK: return "zh_HK"
-        case .uk: return "uk"
+        default: return "fr"
         }
     }
 }

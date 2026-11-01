@@ -45,8 +45,6 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
         switch self {
-        case .ru, .uk: return .byLastDigits
-        case .sk: return .byWholeNumber
         default: return .oneAndMany
         }
     }
@@ -55,20 +53,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .enUS: return "English (US)"
-        case .ptBR: return "Português (Brasil)"
-        case .tr: return "Türkçe"
-        case .ru: return "Русский"
-        case .es: return "Español"
-        case .sk: return "Slovenčina"
-        case .de: return "Deutsch"
-        case .fr: return "Français"
-        case .it: return "Italiano"
-        case .ja: return "日本語"
-        case .ko: return "한국어"
-        case .zhHans: return "简体中文"
-        case .zhHK: return "繁體中文（香港）"
-        case .zhTW: return "繁體中文（台灣）"
-        case .uk: return "Українська"
+        default: return "Français"
         }
     }
 

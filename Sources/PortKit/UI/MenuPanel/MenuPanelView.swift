@@ -3072,38 +3072,14 @@ struct KeepAwakeCard: View {
     private func batteryNote(_ percent: Int) -> String {
         switch l10n.language {
         case .enUS: return "Battery at \(percent)%. Plug in or lower the battery limit to start"
-        case .ptBR: return "Bateria em \(percent)%. Conecte o carregador ou reduza o limite de bateria para iniciar"
-        case .tr: return "Pil %\(percent). Başlatmak için şarja takın veya pil sınırını düşürün"
-        case .ru: return "Заряд \(percent)%. Подключите питание или снизьте порог заряда, чтобы начать"
-        case .es: return "Batería al \(percent) %. Conecta el cargador o baja el límite de batería para empezar"
-        case .sk: return "Batéria na \(percent) %. Pripojte napájanie alebo znížte limit batérie a spustite"
-        case .de: return "Batterie bei \(percent) %. Zum Starten Netzteil anschließen oder Batteriegrenze senken"
-        case .fr: return "Batterie à \(percent)\u{00A0}%. Brancher le chargeur ou baisser la limite de batterie pour démarrer"
-        case .it: return "Batteria al \(percent)%. Collega l’alimentatore o abbassa il limite della batteria per iniziare"
-        case .ja: return "バッテリー残量 \(percent)%。電源に接続するかバッテリーの下限を下げると開始できます"
-        case .ko: return "배터리 \(percent)%. 전원을 연결하거나 배터리 한도를 낮추면 시작할 수 있습니다"
-        case .uk: return "Заряд \(percent)%. Підключіть живлення або знизьте поріг заряду, щоб почати"
-        case .zhHans: return "电量 \(percent)%。接通电源或调低电量下限即可开始"
-        case .zhTW, .zhHK: return "電量 \(percent)%。接上電源或調低電量下限即可開始"
+        default: return "Batterie à \(percent)\u{00A0}%. Brancher le chargeur ou baisser la limite de batterie pour démarrer"
         }
     }
 
     private var chipHint: String {
         switch l10n.language {
         case .enUS: return "Click a chip to start. Click it again to stop"
-        case .ptBR: return "Clique em um chip para iniciar. Clique de novo para parar"
-        case .tr: return "Başlatmak için bir çipe tıklayın. Durdurmak için tekrar tıklayın"
-        case .ru: return "Нажмите на чип, чтобы начать. Нажмите снова, чтобы остановить"
-        case .es: return "Haz clic en un chip para empezar. Vuelve a hacer clic para detener"
-        case .sk: return "Kliknutím na čip spustíte. Ďalším kliknutím zastavíte"
-        case .de: return "Chip anklicken zum Starten. Erneut anklicken zum Beenden"
-        case .fr: return "Cliquer sur une puce pour démarrer. Cliquer à nouveau pour arrêter"
-        case .it: return "Fai clic su un chip per iniziare. Fai di nuovo clic per fermare"
-        case .ja: return "チップをクリックで開始、もう一度クリックで停止"
-        case .ko: return "칩을 클릭하면 시작하고, 다시 클릭하면 멈춥니다"
-        case .uk: return "Натисніть на чип, щоб почати. Натисніть ще раз, щоб зупинити"
-        case .zhHans: return "点按一个标签即可开始，再次点按即可停止"
-        case .zhTW, .zhHK: return "點按一個標籤即可開始，再次點按即可停止"
+        default: return "Cliquer sur une puce pour démarrer. Cliquer à nouveau pour arrêter"
         }
     }
 
