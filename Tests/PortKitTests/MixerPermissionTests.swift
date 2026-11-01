@@ -111,7 +111,10 @@ import Testing
 
     @Test func theProbeTapIsReachableFromTheClickPathOnly() {
         #expect(Self.sites(of: "probeTap") == ["Bridge/Mixer.swift"], "only the bridge names the probe")
-        #expect(Self.sites(of: "requestByClick") == ["Bridge/Mixer.swift", "UI/MenuPanel/MixerSection.swift"])
+        #expect(Self.sites(of: "requestByClick") == [
+            "Bridge/IslandMusic.swift",  // the equalizer's own click, the one that proves the grant (patch 1601)
+            "Bridge/Mixer.swift", "UI/MenuPanel/MixerSection.swift",
+        ])
         let lines = PortSourceScrubTests.files.first { $0.path == "Bridge/Mixer.swift" }?.lines ?? []
         // `probeTap` is the definition's name and the default of `requestByClick`'s `probe` parameter, nothing else.
         let uses = lines.filter { !$0.drop(while: { $0 == " " }).hasPrefix("//") && $0.contains("probeTap") }.count

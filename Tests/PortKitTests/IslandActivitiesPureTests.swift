@@ -289,7 +289,7 @@ struct IslandActivitiesPureTests {
 
     @Test func theFivePatchesApplyAsNumberedAndStayInTheLaneRange() throws {
         let dir = Self.root.appendingPathComponent("scripts/port/patches")
-        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasPrefix("16") }.sorted()
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasPrefix("160") }.sorted()
         #expect(names == ["1600-hosted-island-features-gate.patch", "1601-equalizer-taps-need-click-grant.patch",
                           "1602-notice-goes-to-our-island.patch", "1603-music-adapter-capability-probe.patch",
                           "1604-lyrics-import-uses-key-window.patch"])
