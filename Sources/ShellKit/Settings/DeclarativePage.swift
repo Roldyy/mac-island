@@ -40,7 +40,7 @@ struct DeclarativePage: View {
                     }
                 }
             }
-            if blocks.isEmpty && featureIDs.isEmpty {
+            if blocks.isEmpty && featureIDs.isEmpty && !SettingsPageBodies.hasBody(for: page.id) {
                 IslandEmptyState(symbol: "hourglass", message: "Cette page arrive bientôt.")
             }
         }

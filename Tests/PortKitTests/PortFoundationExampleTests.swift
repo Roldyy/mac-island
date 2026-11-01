@@ -30,10 +30,10 @@ import Testing
         return Rig(binding: binding, registry: registry)
     }
 
-    @Test func theLaneBindsTheUrlCleanerAndNothingElse() {
+    @Test func theFoundationLaneBindsTheUrlCleanerFirst() {
         let binding = PortFeatureBinding(permissions: { PortPermissionState() })
-        PortLanes.bindAll(into: binding)
-        #expect(binding.descriptors.map(\.id) == ["urlCleaner"], "the four input lanes bind nothing yet")
+        FoundationExampleLane.bind(into: binding)
+        #expect(binding.descriptors.map(\.id) == ["urlCleaner"], "the foundation lane binds the cleaner and nothing else")
         #expect(binding.pages.map(\.pageID) == ["urlcleaner"])
         #expect(binding.pages.first?.featureID == "urlCleaner")
         #expect(SettingsPageCatalog.page("urlcleaner") != nil, "the page id is one of the catalog's")

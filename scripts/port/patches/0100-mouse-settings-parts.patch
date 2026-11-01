@@ -1,0 +1,221 @@
+--- a/UI/Settings/MouseSettings.swift
++++ b/UI/Settings/MouseSettings.swift
+@@ -4,9 +4,29 @@
+
+ import SwiftUI
+
++/// One card (or group of rows) of the Mouse & Trackpad page. Mac Island shows each on its own Settings page.
++enum MouseSettingsPart: Hashable {
++    case scrollDirection, horizontalScroll, focusFollowsMouse, smoothScroll, linearScroll, acceleration,
++         navigation, buttonShortcuts, clickDebounce, middleClick
++}
++
+ /// The Mouse & Trackpad page: a legend of every mouse feature and whether it
+ /// is on, each one a click away from its card, then one card per feature.
++///
++/// Mac Island: `MouseSettings(parts:)` shows only the named cards, with no title, legend, scroll view or
++/// permission note (the host page has its own), and shows them even while the registry holds the feature
++/// off, so its switch and settings stay reachable.
+ struct MouseSettings: View {
++    /// nil: the whole upstream page. A set: only those parts, for a page of its own.
++    let parts: Set<MouseSettingsPart>?
++
++    init(parts: Set<MouseSettingsPart>? = nil) { self.parts = parts }
++
++    private func shows(_ part: MouseSettingsPart, _ feature: AppFeature) -> Bool {
++        if let parts { return parts.contains(part) }
++        return feature.isAvailable
++    }
++
+     @ObservedObject private var l10n = L10n.shared
+     @ObservedObject private var features = FeatureRuntime.shared
+     @ObservedObject private var permissions = Permissions.shared
+@@ -52,67 +72,78 @@
+     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+
+     var body: some View {
+-        ScrollView {
+-            VStack(alignment: .leading, spacing: 20) {
+-                VStack(alignment: .leading, spacing: 5) {
+-                    Text(l10n.s.tabMouse).font(.title2.bold())
+-                    Text(FeatureStrings.settingsPages(l10n.language).mouseDescription)
+-                        .font(.callout)
+-                        .foregroundStyle(.secondary)
+-                        .fixedSize(horizontal: false, vertical: true)
+-                }
+-                if !legendFeatures.isEmpty {
+-                    legendCard
+-                }
+-                if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
+-                    scrollCard
+-                        .settingsSectionAnchor(.scrollDirection, cornerRadius: 16)
+-                }
+-                if AppFeature.focusFollowsMouse.isAvailable {
+-                    focusFollowsMouseCard
+-                        .settingsSectionAnchor(.focusFollowsMouse, cornerRadius: 16)
+-                }
+-                if AppFeature.smoothScroll.isAvailable {
+-                    smoothScrollCard
+-                        .settingsSectionAnchor(.smoothScroll, cornerRadius: 16)
+-                }
+-                if AppFeature.linearScroll.isAvailable {
+-                    linearScrollCard
+-                        .settingsSectionAnchor(.linearScroll, cornerRadius: 16)
+-                }
+-                if AppFeature.mouseAcceleration.isAvailable {
+-                    accelerationCard
+-                        .settingsSectionAnchor(.mouseAcceleration, cornerRadius: 16)
+-                }
+-                if AppFeature.mouseNavigation.isAvailable {
+-                    navigationCard
+-                        .settingsSectionAnchor(.mouseNavigation, cornerRadius: 16)
+-                }
+-                if AppFeature.mouseButtonShortcuts.isAvailable {
+-                    MouseButtonShortcutsSection()
+-                }
+-                if AppFeature.mouseClickDebounce.isAvailable {
+-                    clickDebounceCard
+-                        .settingsSectionAnchor(.mouseClickDebounce, cornerRadius: 16)
+-                }
+-                if AppFeature.middleClick.isAvailable {
+-                    middleClickCard
+-                        .settingsSectionAnchor(.middleClick, cornerRadius: 16)
+-                }
+-                if accessibilityNoteVisible {
+-                    SettingsCard(title: l10n.s.permissionRequired) {
+-                        PermissionRow(kind: .accessibility)
++        Group {
++            if parts == nil {
++                ScrollView {
++                    VStack(alignment: .leading, spacing: 20) {
++                        VStack(alignment: .leading, spacing: 5) {
++                            Text(l10n.s.tabMouse).font(.title2.bold())
++                            Text(FeatureStrings.settingsPages(l10n.language).mouseDescription)
++                                .font(.callout)
++                                .foregroundStyle(.secondary)
++                                .fixedSize(horizontal: false, vertical: true)
++                        }
++                        if !legendFeatures.isEmpty {
++                            legendCard
++                        }
++                        cards
++                        if accessibilityNoteVisible {
++                            SettingsCard(title: l10n.s.permissionRequired) {
++                                PermissionRow(kind: .accessibility)
++                            }
++                        }
+                     }
++                    .frame(maxWidth: 760)
++                    .frame(maxWidth: .infinity)
++                    .padding(22)
+                 }
++            } else {
++                VStack(alignment: .leading, spacing: 20) { cards }
+             }
+-            .frame(maxWidth: 760)
+-            .frame(maxWidth: .infinity)
+-            .padding(22)
+         }
+         .toggleStyle(.switch)
+         .onAppear {
+-            MiddleClickService.shared.refreshDragGestureConflict()
++            if shows(.middleClick, .middleClick) { MiddleClickService.shared.refreshDragGestureConflict() }
++        }
++    }
++
++    @ViewBuilder private var cards: some View {
++        if parts.map({ !$0.isDisjoint(with: [.scrollDirection, .horizontalScroll]) })
++            ?? (AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable) {
++            scrollCard
++                .settingsSectionAnchor(.scrollDirection, cornerRadius: 16)
++        }
++        if shows(.focusFollowsMouse, .focusFollowsMouse) {
++            focusFollowsMouseCard
++                .settingsSectionAnchor(.focusFollowsMouse, cornerRadius: 16)
++        }
++        if shows(.smoothScroll, .smoothScroll) {
++            smoothScrollCard
++                .settingsSectionAnchor(.smoothScroll, cornerRadius: 16)
+         }
++        if shows(.linearScroll, .linearScroll) {
++            linearScrollCard
++                .settingsSectionAnchor(.linearScroll, cornerRadius: 16)
++        }
++        if shows(.acceleration, .mouseAcceleration) {
++            accelerationCard
++                .settingsSectionAnchor(.mouseAcceleration, cornerRadius: 16)
++        }
++        if shows(.navigation, .mouseNavigation) {
++            navigationCard
++                .settingsSectionAnchor(.mouseNavigation, cornerRadius: 16)
++        }
++        if shows(.buttonShortcuts, .mouseButtonShortcuts) {
++            MouseButtonShortcutsSection()
++        }
++        if shows(.clickDebounce, .mouseClickDebounce) {
++            clickDebounceCard
++                .settingsSectionAnchor(.mouseClickDebounce, cornerRadius: 16)
++        }
++        if shows(.middleClick, .middleClick) {
++            middleClickCard
++                .settingsSectionAnchor(.middleClick, cornerRadius: 16)
++        }
+     }
+
+     // MARK: - Overview
+@@ -180,13 +211,13 @@
+
+     private var scrollCard: some View {
+         SettingsCard(title: l10n.s.scrollSection) {
+-            if AppFeature.scrollInverter.isAvailable {
++            if shows(.scrollDirection, .scrollInverter) {
+                 SettingsRow(symbol: "arrow.up.arrow.down", title: l10n.s.invertVerticalScroll) {
+                     Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
+                         .labelsHidden()
+                         .onChange(of: invertVertical) { _, _ in
+                             ScrollInverter.shared.syncWithPreferences()
+-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
++                            if scrollDirectionEnabled, !permissions.accessibility { permissions.requestAccessibility() }
+                         }
+                 }
+                 SettingsRow(symbol: "arrow.left.arrow.right", title: l10n.s.invertHorizontalScroll) {
+@@ -194,18 +225,18 @@
+                         .labelsHidden()
+                         .onChange(of: invertHorizontal) { _, _ in
+                             ScrollInverter.shared.syncWithPreferences()
+-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
++                            if scrollDirectionEnabled, !permissions.accessibility { permissions.requestAccessibility() }
+                         }
+                 }
+             }
+-            if AppFeature.scrollHorizontal.isAvailable {
++            if shows(.horizontalScroll, .scrollHorizontal) {
+                 SettingsRow(symbol: "arrow.left.and.right", title: l10n.s.scrollHorizontalName,
+                             caption: l10n.s.scrollHorizontalCaption) {
+                     Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
+                         .labelsHidden()
+                         .onChange(of: horizontalScrollEnabled) { _, _ in
+                             ScrollInverter.shared.syncWithPreferences()
+-                            if scrollDirectionEnabled { permissions.requestAccessibility() }
++                            if scrollDirectionEnabled, !permissions.accessibility { permissions.requestAccessibility() }
+                         }
+                 }
+                 if horizontalScrollEnabled {
+@@ -311,7 +342,7 @@
+                     .labelsHidden()
+                     .onChange(of: smoothScrollEnabled) { _, enabled in
+                         SmoothScrollService.shared.syncWithPreferences()
+-                        if enabled { permissions.requestAccessibility() }
++                        if enabled, !permissions.accessibility { permissions.requestAccessibility() }
+                     }
+             }
+             if smoothScrollEnabled {
+@@ -358,7 +389,7 @@
+                     .labelsHidden()
+                     .onChange(of: linearScrollEnabled) { _, enabled in
+                         ScrollInverter.shared.syncWithPreferences()
+-                        if enabled { permissions.requestAccessibility() }
++                        if enabled, !permissions.accessibility { permissions.requestAccessibility() }
+                     }
+             }
+             if linearScrollEnabled {

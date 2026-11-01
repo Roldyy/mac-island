@@ -1,0 +1,8 @@
+# Lane W1-A (scroll): the upstream harness tests this lane turns on (names as in Tests/ of the pinned Vorssaint tree).
+# scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here. They cannot be dropped into
+# Tests/PortKitTests as swift-testing files: each one is a plain-Swift check script that the upstream harness
+# rewrites (generate_sources.py) against stub singletons, and it would not compile against the real PortKit types.
+# 140 checks upstream (port plan section 4, lane 1A).
+LinearScrollTapTests
+ScrollHorizontalModifierTests
+SmoothScrollRoutingTests

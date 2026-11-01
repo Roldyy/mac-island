@@ -21,7 +21,10 @@ public struct SettingsBlock: Identifiable, Equatable, Sendable {
 /// Builds what a declarative page shows. Pure: no view, no defaults.
 public enum SettingsPageModel {
     public static func blocks(for page: SettingsPage) -> [SettingsBlock] {
-        blocks(pageID: page.id, pageTitle: page.featureID == nil ? nil : page.title,
+        // A ported body (PortKit) owns the whole page: the noted rows were placeholders for it, so none stays
+        // behind as a greyed "Bientôt" row. A page with live controls keeps its rows.
+        if SettingsPageBodies.hasBody(for: page.id), SettingsLive.controls(for: page.id) == nil { return [] }
+        return blocks(pageID: page.id, pageTitle: page.featureID == nil ? nil : page.title,
                items: SettingsPageContent.items(for: page.id), live: SettingsLive.controls(for: page.id))
     }
 
