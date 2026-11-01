@@ -65,9 +65,16 @@ struct FeatureStatusCard: View {
                         IslandBadge(badge.text, status: badge.status)
                         Spacer()
                         if case .needsPermission(let permission) = state {
-                            Button("Autoriser") { registry.noteOpened(permission); openPermission(permission) }
+                            Button("Autoriser") {
+                                PermissionClick.perform(permission, featureID: featureID, registry: registry,
+                                                        openPermission: openPermission)
+                            }
                                 .buttonStyle(IslandButtonStyle())
-                            Button("Revérifier") { registry.permissionMonitor?.recheck() }.buttonStyle(IslandButtonStyle())
+                            Button("Revérifier") {
+                                registry.permissionMonitor?.recheck()
+                                registry.refreshCapabilities()  // Automation is not in the monitor's snapshot
+                            }
+                            .buttonStyle(IslandButtonStyle())
                         }
                         if state == .quarantined {
                             Button("Réactiver") { registry.clearQuarantine(featureID) }.buttonStyle(IslandButtonStyle())

@@ -142,7 +142,8 @@ final class JunkCleaner: ObservableObject {
                 (.caches, { Self.scanCaches(excluding: claimed) }),
                 (.logs, { Self.scanLogs(excluding: claimed) }),
                 (.developer, { Self.scanDeveloperJunk() }),
-                (.trash, { Self.scanTrash() }),
+                // Mac Island: the Trash is never offered. Emptying it is the one permanent action of this tool,
+                // and here everything goes to the Trash and stays recoverable there (`emptyTrash` refuses too).
                 (.deviceBackups, { Self.scanDeviceBackups() }),
             ] + (screenshots.map { search in
                 [(.screenshots, { Self.scanScreenshots(in: search.folders, days: search.days) })]
@@ -286,7 +287,8 @@ final class JunkCleaner: ObservableObject {
 
     private static func trashViaFinder(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
-        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return }
+        // Mac Island: reads the Automation state, never asks (the prompt comes from the "Autoriser" click only).
+        guard Permissions.automationStatus(for: .finder) == .granted else { return }
         let targets = urls
             .map { "set end of targets to POSIX file \(AppleScriptRunner.literal($0.path))" }
             .joined(separator: "\n")
@@ -301,8 +303,8 @@ final class JunkCleaner: ObservableObject {
     /// Emptying the Trash is the one permanent action here, clearly labeled
     /// in the interface. Finder owns it, exactly like the menu command.
     private static func emptyTrash() -> Bool {
-        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return false }
-        return AppleScriptRunner.run("tell application \"Finder\" to empty trash").ok
+        // Mac Island: never. The Trash row is not scanned any more; this refusal covers a row that got in anyway.
+        false
     }
 
     /// Unloads a user launch agent before its plist is trashed, so the job

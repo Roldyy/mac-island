@@ -71,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .screenRecording: UserPermissionRequest.request(MonitoredPermission.screenRecording)
             }
         }
+        // The Finder tab shows the ported engine's state and forwards its two switches; it installs no tap.
+        FinderFeature.engineStatus = { .init(running: PortFinder.isRunning, cutCount: PortFinder.cutCount) }
+        FinderFeature.engineSync = { PortFinder.syncPreferences() }
+        FinderFeature.engineCancelCut = { PortFinder.cancelCut() }
+        // Now Playing talks to two players: its own ask (the running one, then the pane after a refusal) answers the click.
+        UserPermissionRequest.automationHandlers["nowplaying"] = { NowPlayingFeature.requestAutomationFromHome() }
         // The OCR page's own "Autoriser": ask once so macOS lists the app, then open the pane.
         PortCaptureTools.requestPermission = { _ in UserPermissionRequest.request(MonitoredPermission.screenRecording) }
 
@@ -91,14 +97,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 starters: ported.starters.merging([
                     "clipboard": { ClipboardFeature.start() },
                     "shelf": { ShelfFeature.start() },
-                    "finder": { FinderFeature.start() },
+                    // No "finder" here: the ported Finder engine (cut and paste, rename) owns its key taps now and
+                    // the bound starter runs it. Our module's tab only displays its state (`FinderFeature.engine*`).
+                    // No "fans" here either: the bound Fans lane starts and stops the policy.
                     "monitor": { MonitorFeature.start() },
                     "nowplaying": { NowPlayingFeature.start() },
                     "agents": { live.start() },
                 ]) { _, ours in ours },
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
-                    "finder": { FinderFeature.stop() },
                     "monitor": { MonitorFeature.stop() },
                     "agents": { live.stop() },  // withdraws every Claude activity through the sink
                 ]) { _, ours in ours },

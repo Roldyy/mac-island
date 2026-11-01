@@ -40,19 +40,11 @@ public extension FeaturePermission {
 
     /// Pane of System Settings to open. The shell opens it; nothing here asks for the permission.
     var settingsURL: URL? {
-        let privacy = "x-apple.systempreferences:com.apple.preference.security?Privacy_"
+        if let pane = privacyPane { return pane.url }
         switch self {
-        case .accessibility: return URL(string: privacy + "Accessibility")
-        case .screenRecording: return URL(string: privacy + "ScreenCapture")
-        case .automation: return URL(string: privacy + "Automation")
-        case .audioCapture: return URL(string: privacy + "AudioCapture")
-        case .camera: return URL(string: privacy + "Camera")
-        case .microphone: return URL(string: privacy + "Microphone")
-        case .calendar: return URL(string: privacy + "Calendars")
-        case .bluetooth: return URL(string: privacy + "Bluetooth")
-        case .fullDiskAccess: return URL(string: privacy + "AllFiles")
         case .notifications: return URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")
         case .helperDaemon: return URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")
+        default: return nil
         }
     }
 }

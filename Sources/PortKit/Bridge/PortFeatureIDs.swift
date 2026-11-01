@@ -27,12 +27,17 @@ enum PortFeatureIDs {
         "mixer": "audio",
         "fanControl": "fans",
         "dockPreview": "dock",
+        "finderCutPaste": "finder",
     ]
 
     /// upstream raw id -> registry id, for an upstream feature that shares a registry id with one in `existing`
     /// (it has no binding of its own: the binding of the feature that owns the id starts and stops it too).
+    /// Decided for the Finder (lane W7-A): `finderCutPaste` and `finderRename` are one registry feature, `finder` (one
+    /// switch, one island tab, two Settings pages). `finderCutPaste` owns it and its binding starts and stops BOTH
+    /// services; each service's own option (`finderCutPasteEnabled`, `finderRenameEnabled`) stays an ordinary setting.
     static let folded: [String: String] = [
         "dockClick": "dock",
+        "finderRename": "finder",
     ]
 
     static func registryID(forUpstream raw: String) -> String { existing[raw] ?? folded[raw] ?? raw }

@@ -5,8 +5,8 @@ import Observation
 @MainActor
 @Observable
 final class FinderModel {
-    var cutPasteEnabled: Bool { didSet { settings.cutPasteEnabled = cutPasteEnabled; refresh() } }
-    var pasteImageAsFile: Bool { didSet { settings.pasteImageAsFile = pasteImageAsFile; refresh() } }
+    var cutPasteEnabled: Bool { didSet { settings.cutPasteEnabled = cutPasteEnabled; FinderFeature.engineSync?(); refresh() } }
+    var pasteImageAsFile: Bool { didSet { settings.pasteImageAsFile = pasteImageAsFile; FinderFeature.engineSync?(); refresh() } }
     private(set) var accessibility = false
     private(set) var inputMonitoring = false
     private(set) var automation: AutomationStatus = .unknown
@@ -59,6 +59,19 @@ final class FinderModel {
     func refresh() {
         accessibility = KeyEventTap.accessibilityTrusted
         inputMonitoring = KeyEventTap.inputMonitoringGranted
+        if let engine = FinderFeature.engineStatus {
+            // The ported engine owns the key taps: this tab shows its state and never installs a tap of its own.
+            // Its taps are active ones (Accessibility): Input Monitoring is not asked of the person here.
+            inputMonitoring = true
+            tap?.stop()
+            tap = nil
+            let status = engine()
+            tapRunning = status.running
+            cutCount = status.cutCount
+            needsConfirmation = false
+            readAutomation()
+            return
+        }
         let wanted = started && (cutPasteEnabled || pasteImageAsFile)
         controller.publish()   // the tap thread reads the settings from the snapshot
         if wanted {
@@ -78,6 +91,10 @@ final class FinderModel {
             controller.deactivate()
         }
         syncFromController()
+        readAutomation()
+    }
+
+    private func readAutomation() {
         Task.detached {
             let s = AutomationPermission.status(ask: false)
             await MainActor.run { self.automation = s }
@@ -94,7 +111,9 @@ final class FinderModel {
 
     func openAccessibilitySettings() { open("Privacy_Accessibility") }
     func openInputMonitoringSettings() { open("Privacy_ListenEvent") }
-    func cancelCut() { controller.cancelCut() }
+    func cancelCut() {
+        if FinderFeature.engineStatus != nil { FinderFeature.engineCancelCut?(); refresh() } else { controller.cancelCut() }
+    }
     func confirmLargeMove() { controller.confirmLargeMove() }
 
     private func open(_ pane: String) {

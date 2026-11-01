@@ -1,0 +1,66 @@
+--- a/UI/Settings/CutPasteSettings.swift
++++ b/UI/Settings/CutPasteSettings.swift
+@@ -4,7 +4,29 @@
+ 
+ import SwiftUI
+ 
++/// One half of the Finder page. Mac Island shows each on its own Settings page (`cutpaste`, `renameshortcut`).
++enum CutPasteSettingsPart: Hashable {
++    case cutPaste, rename
++}
++
++/// Mac Island: `CutPasteSettings(parts:)` shows only the named half and shows it even while the registry holds the
++/// feature off, so its settings stay reachable (the page opens with the feature's own card and switch). nil: the
++/// whole upstream page.
+ struct CutPasteSettings: View {
++    let parts: Set<CutPasteSettingsPart>?
++
++    init(parts: Set<CutPasteSettingsPart>? = nil) { self.parts = parts }
++
++    private var showsCutPaste: Bool {
++        if let parts { return parts.contains(.cutPaste) }
++        return AppFeature.finderCutPaste.isAvailable
++    }
++
++    private var showsRename: Bool {
++        if let parts { return parts.contains(.rename) }
++        return AppFeature.finderRename.isAvailable
++    }
++
+     @ObservedObject private var l10n = L10n.shared
+     @ObservedObject private var permissions = Permissions.shared
+     @ObservedObject private var service = FinderCutPaste.shared
+@@ -26,13 +48,12 @@
+     }
+ 
+     private var needsAccessibility: Bool {
+-        (AppFeature.finderCutPaste.isAvailable && enabled)
+-            || (AppFeature.finderRename.isAvailable && renameEnabled)
++        (showsCutPaste && enabled) || (showsRename && renameEnabled)
+     }
+ 
+     var body: some View {
+         Form {
+-            if AppFeature.finderCutPaste.isAvailable {
++            if showsCutPaste {
+                 Section {
+                     Toggle(l10n.s.cutPasteEnable, isOn: $enabled)
+                         .onChange(of: enabled) { _, _ in
+@@ -67,7 +88,7 @@
+                 }
+             }
+ 
+-            if AppFeature.finderRename.isAvailable {
++            if showsRename {
+                 Section {
+                     Toggle(renameText.enableLabel, isOn: $renameEnabled)
+                         .onChange(of: renameEnabled) { _, _ in
+@@ -138,7 +159,7 @@
+             if needsAccessibility, !permissions.accessibility {
+                 Section(l10n.s.permissionRequired) {
+                     PermissionRow(kind: .accessibility)
+-                    if AppFeature.finderCutPaste.isAvailable, enabled {
++                    if showsCutPaste, enabled {
+                         Text(l10n.s.cutPasteAutomationNote)
+                             .font(.caption)
+                             .foregroundStyle(.secondary)

@@ -16,14 +16,7 @@ public enum MonitoredPermission: String, CaseIterable, Sendable, Hashable {
     }
 
     /// Pane of System Settings to open. Opening it never asks for the permission.
-    public var settingsURL: URL? {
-        let privacy = "x-apple.systempreferences:com.apple.preference.security?Privacy_"
-        switch self {
-        case .accessibility: return URL(string: privacy + "Accessibility")
-        case .inputMonitoring: return URL(string: privacy + "ListenEvent")
-        case .screenRecording: return URL(string: privacy + "ScreenCapture")
-        }
-    }
+    public var settingsURL: URL? { privacyPane.url }
 
     public init?(_ permission: FeaturePermission) {
         switch permission {
@@ -36,6 +29,8 @@ public enum MonitoredPermission: String, CaseIterable, Sendable, Hashable {
     /// Features whose key tap needs Input Monitoring on top of what their descriptor lists
     /// (`KeyEventTap` checks `CGPreflightListenEventAccess`). Cleaning mode is the ported `cleaningMode` feature now
     /// and needs Accessibility only, like the other ported taps (below).
+    /// The Finder stays listed: since lane W7-A its ported taps are active ones (Accessibility only), but this row
+    /// and the tests that pin it are left for the permissions follow-up.
     static let inputMonitoringFeatureIDs: Set<String> = ["finder"]
 
     /// The ported (Vorssaint) tap features: the permissions a grant must restart them for. Derived from the

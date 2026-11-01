@@ -1,0 +1,7 @@
+# Lane W7-A (Finder: cut and paste, rename shortcut): the pinned Vorssaint tree has NO harness test for these two
+# services (checked against the archive's Tests/ listing: no file for FinderCutPaste, FinderRenameService or their
+# support types). Nothing is enabled here on purpose.
+#
+# The lane's own checks are Tests/PortKitTests/FinderLaneTests.swift (binding, ids, pages, sources) and
+# Tests/FinderTests/EngineDeferralTests.swift (the island tab installs no tap while the ported engine owns the keys).
+# The disk image installer's upstream check (DiskImageHomebrewTests.swift) is listed in cleaner.txt.

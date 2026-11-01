@@ -910,7 +910,8 @@ struct CleanerView: View {
             Button(l10n.s.uninstallerCancel) { cleaner.reset() }
             Button(String(format: l10n.s.cleanerCleanSizeFormat,
                           Self.byteString(cleaner.selectedSize))) {
-                cleaner.cleanSelected(escalate: true)
+                // Mac Island: never hands a root-owned item to Finder (an administrator password prompt).
+                cleaner.cleanSelected(escalate: false)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

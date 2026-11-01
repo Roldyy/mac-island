@@ -1,0 +1,12 @@
+# Lane W7-B (cleaner) and the disk image installer of lane W7-A: the upstream harness tests this lane turns on (names as
+# in Tests/ of the pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has
+# been run here. The lane's own checks are Tests/PortKitTests/CleanerLaneTests.swift and FinderLaneTests.swift.
+#
+# Patch 1502 changes two things these checks may describe: the Trash row is no longer scanned (a check that expects a
+# `.trash` find must be stubbed or skipped) and the interface cleans with `escalate: false`. CleanerLayoutTests reads
+# the view source by path and may need the same skip.
+CleanerEligibilityTests.swift
+CleanerLastRunContract.swift
+CleanerLayoutTests.swift
+CleanerScanFlowTests.swift
+DiskImageHomebrewTests.swift

@@ -207,7 +207,7 @@ public enum SettingsPageCatalog {
           keywords: ["app store", "homebrew"]),
         P(id: "cleaner", title: "Nettoyage", symbol: "sparkle", section: .apps,
           summary: "Repère les fichiers qui encombrent le Mac.",
-          keywords: ["disque", "captures", "whatsapp"]),
+          keywords: ["disque", "captures", "whatsapp"], featureID: "cleaner"),
         P(id: "homebrew", title: "Homebrew", symbol: "shippingbox", section: .apps,
           summary: "Voir et mettre à jour les paquets Homebrew installés.",
           keywords: ["brew", "cask", "formule"]),

@@ -1,0 +1,41 @@
+--- a/Services/Finder/FinderCutPaste.swift
++++ b/Services/Finder/FinderCutPaste.swift
+@@ -789,12 +789,16 @@
+ /// the event taps.
+ enum FinderBridge {
+     private static let finderBundleID = "com.apple.finder"
++
++    /// Mac Island: reads the Automation state, never asks. A key press (⌘X, ⌘V) is not a click on "Autoriser", so the
++    /// system prompt comes only from that click (`UserPermissionRequest.requestAutomation`); without the grant the
++    /// calls below do nothing and the key goes through as a normal one.
++    private static var finderAutomationGranted: Bool {
++        Permissions.automationStatus(for: .finder) == .granted
++    }
+ 
+     static func selectionURLs(requestPermission: Bool = true) -> [URL] {
+-        let allowed = requestPermission
+-            ? AppleScriptRunner.consentToAutomate(bundleID: finderBundleID)
+-            : Permissions.automationStatus(for: .finder) == .granted
+-        guard allowed else { return [] }
++        guard finderAutomationGranted else { return [] }
+         let script = """
+         tell application "Finder"
+             set out to ""
+@@ -811,7 +815,7 @@
+     }
+ 
+     static func move(_ urls: [URL], into dir: URL) -> (ok: Bool, canceled: Bool) {
+-        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else {
++        guard finderAutomationGranted else {
+             return (false, false)
+         }
+         let targets = urls
+@@ -831,7 +835,7 @@
+     }
+ 
+     static func insertionLocationPath() -> String? {
+-        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else { return nil }
++        guard finderAutomationGranted else { return nil }
+         let script = """
+         tell application "Finder"
+             return POSIX path of (insertion location as alias)

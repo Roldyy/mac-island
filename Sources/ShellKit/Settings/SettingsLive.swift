@@ -59,7 +59,8 @@ public enum SettingsLive {
             "Coller en texte brut": flag("pastePlainEnabled", true),
             "Raccourci": C("pastePlainShortcut", .shortcut(defaultValue: "option+command:9")),
         ]),
-        "cutpaste": Page(bound: ["Couper-coller dans le Finder": flag("finderCutPasteEnabled", false)]),
+        // "cutpaste" and "renameshortcut" have no live entry any more: the ported Finder page (PortKit, W7-A lane) draws
+        // both pages whole, under the `finder` feature card their catalog rows carry.
         // "shelf" has no live entry any more: the ported shelf page (PortKit, Shelf lane) draws the whole page. The two
         // Downloads switches (shelfDownloads*) return with the island downloads pane in wave 8.
         "island": Page(

@@ -33,8 +33,9 @@ import Testing
     }
 
     @Test func aFoldedFeatureSharesTheRegistryIdOfExactlyOneOwner() {
-        // The one place two upstream features share a switch: the Dock (dockPreview owns `dock`, dockClick folds in).
-        #expect(PortFeatureIDs.folded == ["dockClick": "dock"])
+        // The two places upstream features share a switch: the Dock (dockPreview owns `dock`, dockClick folds in) and
+        // the Finder (finderCutPaste owns `finder`, finderRename folds in).
+        #expect(PortFeatureIDs.folded == ["dockClick": "dock", "finderRename": "finder"])
         for (upstream, target) in PortFeatureIDs.folded {
             #expect(AppFeature(rawValue: upstream) != nil, "\(upstream) is not an upstream feature")
             #expect(PortFeatureIDs.existing[upstream] == nil, "\(upstream) is both owner and folded")

@@ -110,7 +110,9 @@ struct FeaturesHubPage: View {
                 Button("Relancer") { relaunch() }.buttonStyle(IslandButtonStyle())
             }
             if case .needsPermission(let permission) = state {
-                Button("Autoriser") { registry.noteOpened(permission); openPermission(permission) }
+                Button("Autoriser") {
+                    PermissionClick.perform(permission, featureID: d.id, registry: registry, openPermission: openPermission)
+                }
                     .buttonStyle(IslandButtonStyle())
             }
             if state == .quarantined {
