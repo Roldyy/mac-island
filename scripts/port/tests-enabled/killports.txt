@@ -1,0 +1,7 @@
+# Lane G sweep (force quit and port manager): the upstream harness tests this lane turns on (names as in Tests/ of the
+# pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here.
+# The lane's own checks are Tests/PortKitTests/KillPortsLaneTests.swift.
+#
+# No patch touches KillProcessService, KillProcessSupport or PortManagerService: the lane only hosts the two views.
+PortManagerRefreshTests.swift
+ProcessForceQuitTests.swift

@@ -1,0 +1,15 @@
+--- a/Compat/BlackHoleGlyph.swift
++++ b/Compat/BlackHoleGlyph.swift
+@@ -209,9 +209,10 @@
+     }
+ 
+     /// Keeps a recognizable presence if the bundled asset is ever missing
+-    /// (e.g. running the bare binary from build/).
++    /// (e.g. running the bare binary from build/). Mac Island ships no bundled mark: this is its everyday icon, the
++    /// same symbol the status item draws until another one is chosen.
+     private static func fallback(active: Bool) -> NSImage? {
+-        if let symbol = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: AppInfo.name)?
++        if let symbol = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: AppInfo.name)?
+             .withSymbolConfiguration(.init(pointSize: 13, weight: active ? .bold : .regular)) {
+             symbol.isTemplate = true
+             return symbol

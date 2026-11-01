@@ -1,0 +1,14 @@
+# Lane G (quick panel and menu bar page, W9A): the upstream harness tests this lane turns on (names as in Tests/ of the
+# pinned Vorssaint tree). scripts/port/test.sh does not exist yet (lane P0-D), so none of these has been run here.
+# The lane's own checks are Tests/PortKitTests/QuickPanelLaneTests.swift and Tests/ShellKitTests/IslandLayoutSettingsTests.swift.
+#
+# They read MenuPanelView.swift and PanelLayout.swift as text: patch 1700 only changes the visibility of
+# MenuBarIconSymbolRow (GeneralToolSettings.swift), which none of them extracts.
+#
+# NOT enabled on purpose: NotchSettingsChoiceTests and NotchSettingsTabRowTests (they test the reference app's own notch
+# settings, which the island editors of ShellKit replace), MenuBarBatteryWarningTests and PostUpdateStatusItemRecoveryTests
+# (they belong to the reference status item and to its updater).
+MenuPanelKeyTests.swift
+MenuPanelRecoveryTests.swift
+MenuPanelSectionGateTests.swift
+MenuPanelToggleLabelTests.swift
