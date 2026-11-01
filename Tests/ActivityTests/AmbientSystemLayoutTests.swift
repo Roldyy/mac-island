@@ -40,13 +40,15 @@ import Testing
 
     // MARK: Defaults and keys
 
-    @Test func clockSystemAndNetworkAreOnByDefaultTheOthersOff() {
+    @Test func onlyWhatWasAskedForIsOnByDefault() {
         let standard = ClosedIslandSettings.standard
-        for channel in [AmbientChannel.clock, AmbientChannel.system, AmbientChannel.network,
-                        AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.music, AmbientChannel.battery, AmbientChannel.keepAwake] {
+        for channel in [AmbientChannel.clock, AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.battery, AmbientChannel.keepAwake] {
             #expect(standard.isEnabled(channel), "\(channel) should be on")
         }
-        for channel in [AmbientChannel.disk, AmbientChannel.mic, AmbientChannel.camera, AmbientChannel.volume] {
+        #expect(AmbientChannel.defaultOn == [AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.battery,
+                                             AmbientChannel.keepAwake, AmbientChannel.clock])
+        for channel in [AmbientChannel.music, AmbientChannel.system, AmbientChannel.network,
+                        AmbientChannel.disk, AmbientChannel.mic, AmbientChannel.camera, AmbientChannel.volume] {
             #expect(!standard.isEnabled(channel), "\(channel) should be off")
         }
         #expect(standard.isEnabled(AmbientChannel.alert))
@@ -96,7 +98,8 @@ import Testing
             #expect(!loaded.isEnabled(AmbientChannel.battery))
             #expect(loaded.isEnabled(AmbientChannel.keepAwake))
             #expect(loaded.isEnabled(AmbientChannel.claude))  // never written: default on
-            #expect(loaded.isEnabled(AmbientChannel.clock) && loaded.isEnabled(AmbientChannel.system) && loaded.isEnabled(AmbientChannel.network))
+            #expect(loaded.isEnabled(AmbientChannel.clock))  // never written: default on
+            #expect(!loaded.isEnabled(AmbientChannel.system) && !loaded.isEnabled(AmbientChannel.network))  // never written: default off
             #expect(!loaded.isEnabled(AmbientChannel.disk) && !loaded.isEnabled(AmbientChannel.mic))
             #expect(loaded.maxPerWing == 1)
             #expect(loaded.order == ["battery", "music"])
@@ -118,7 +121,7 @@ import Testing
         suite { defaults in
             defaults.set("none", forKey: ClosedIslandKeys.legacyContent)
             let loaded = ClosedIslandSettings.load(from: defaults)
-            #expect(loaded.isEnabled(AmbientChannel.claude) && loaded.isEnabled(AmbientChannel.music))
+            #expect(loaded.isEnabled(AmbientChannel.claude) && !loaded.isEnabled(AmbientChannel.music))
             #expect(!loaded.isEnabled(AmbientChannel.limits) && !loaded.isEnabled(AmbientChannel.clock))  // "nothing at rest" stays nothing
             #expect(defaults.object(forKey: "notchIdleShowClock") as? Bool == false)
             #expect(defaults.object(forKey: "notchIdleShowVolume") as? Bool == false)
@@ -126,7 +129,7 @@ import Testing
         suite { defaults in
             defaults.set("battery", forKey: ClosedIslandKeys.legacyContent)
             let loaded = ClosedIslandSettings.load(from: defaults)
-            #expect(loaded.isEnabled(AmbientChannel.battery) && loaded.isEnabled(AmbientChannel.clock) && loaded.isEnabled(AmbientChannel.network))
+            #expect(loaded.isEnabled(AmbientChannel.battery) && loaded.isEnabled(AmbientChannel.clock) && !loaded.isEnabled(AmbientChannel.network))
         }
         suite { defaults in
             defaults.set("agents", forKey: ClosedIslandKeys.legacyContent)  // what the older build wrote by default
@@ -172,11 +175,11 @@ import Testing
             let preferences = ClosedIslandPreferences(defaults: defaults)
             var seen: [ClosedIslandSettings] = []
             let subscription = preferences.$settings.dropFirst().sink { seen.append($0) }
-            preferences.setEnabled(AmbientChannel.system, false)
+            preferences.setEnabled(AmbientChannel.system, true)
             preferences.setEnabled(AmbientChannel.mic, true)
             preferences.setClockHours(.h24)
             #expect(seen.count == 3)
-            #expect(seen.last?.isEnabled(AmbientChannel.system) == false)
+            #expect(seen.last?.isEnabled(AmbientChannel.system) == true)
             #expect(seen.last?.isEnabled(AmbientChannel.mic) == true)
             #expect(seen.last?.clockHours == .h24)
             subscription.cancel()
@@ -274,7 +277,7 @@ import Testing
     @Test func theDateShowsOnlyWhileTheWingsAreEmpty() {
         let alone = ClosedIslandLayout.resolve([clock()], settings: .standard, centered: true)
         #expect(alone.center?.detail == "dim. 1 nov")
-        let busy = ClosedIslandLayout.resolve([clock(), item("system.cpu", channel: AmbientChannel.system)], settings: .standard, centered: true)
+        let busy = ClosedIslandLayout.resolve([clock(), item("battery", channel: AmbientChannel.battery)], settings: .standard, centered: true)
         #expect(busy.center?.detail == nil)
         #expect(busy.center?.text == "14:32")
     }
@@ -399,7 +402,10 @@ import Testing
                                        sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, now: { now })
             center.post(clock())
             #expect(center.widthProxy.layout.leading == nil)  // the idle pill needs no growth
-            for index in 0..<4 { center.post(item("w\(index)", channel: AmbientChannel.system, text: "Mmmmmmmm", wing: index < 2 ? .leading : .trailing)) }
+            for index in 0..<4 {
+                center.post(item("w\(index)", channel: index < 2 ? AmbientChannel.limits : AmbientChannel.battery, text: "Mmmmmmmm",
+                                 wing: index < 2 ? .leading : .trailing))
+            }
             #expect(center.widthProxy.layout.leading != nil)
         }
     }

@@ -6,10 +6,13 @@ public struct NotchGeometry: Equatable {
     public static let pillWidth: CGFloat = 200
     public static let pillHeight: CGFloat = 32
 
-    /// Black margin on each side of the notch at rest: room to hover and to see the island exist.
-    public static let baseWing: CGFloat = 16
-    /// Most a wing may add beyond `baseWing`, so a long title never stretches the island across the bar.
-    public static let maxWingExtent: CGFloat = 96
+    /// Black margin on each side of the notch at rest: a 3 pt rim so the island never disappears into the hardware
+    /// notch. Everything beyond it is the content's: each wing is exactly as wide as what it shows.
+    public static let baseWing: CGFloat = 3
+    /// Most a wing may add beyond `baseWing` (64 pt each side), so the island never stretches across the bar.
+    public static let maxWingExtent: CGFloat = 64
+    /// One point of wing in a width stand-in (a figure space), see `AmbientMetrics.measuringItem`.
+    public static let measureUnit: Character = "\u{2007}"
     public static let minOpenHeight: CGFloat = 120
 
     public let frame: CGRect
@@ -45,6 +48,9 @@ public struct NotchGeometry: Equatable {
     /// The estimate is deliberately rough (11 pt text, about 6.5 pt per character).
     public static func wingExtent(for item: CompactItem?) -> CGFloat {
         guard let item else { return 0 }
+        if let text = item.text, !text.isEmpty, text.allSatisfy({ $0 == measureUnit }) {
+            return min(CGFloat(text.count), maxWingExtent)
+        }
         var width: CGFloat = 14 + 8
         if let text = item.text, !text.isEmpty {
             width += 4 + CGFloat(min(text.count, 14)) * 6.5

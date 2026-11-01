@@ -20,23 +20,67 @@ import Testing
     @Test func noOldValueIsAFreshStartWithTheDefaultChannelsOn() {
         let s = ClosedIslandSettings.migrated(legacyContent: nil)
         #expect(s == .standard)
-        // Everything but the opt-in indicators (disk, mic, camera, volume).
+        // Only what was asked for: Claude, the clock, the battery and the cup (and the limits that ride with Claude).
         #expect(s.enabled == AmbientChannel.defaultOn)
-        #expect(s.enabled.isSuperset(of: [AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.music,
+        #expect(s.enabled.isSuperset(of: [AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.clock,
                                           AmbientChannel.battery, AmbientChannel.keepAwake]))
+        for channel in [AmbientChannel.music, AmbientChannel.system, AmbientChannel.network, AmbientChannel.disk,
+                        AmbientChannel.mic, AmbientChannel.camera, AmbientChannel.volume] {
+            #expect(!s.isEnabled(channel), "\(channel) is a choice in Settings, off by default")
+        }
     }
 
     @Test func agentsKeepsTheLimitsAndAddsTheNewIndicators() {
         #expect(ClosedIslandSettings.migrated(legacyContent: "agents") == .standard)
     }
 
-    @Test func noneKeepsNothingAtRestButTheLiveIndicators() {
+    @Test func noneKeepsNothingAtRestButClaude() {
         let s = ClosedIslandSettings.migrated(legacyContent: "none")
         #expect(!s.isEnabled(AmbientChannel.limits))
         #expect(!s.isEnabled(AmbientChannel.battery))
         #expect(!s.isEnabled(AmbientChannel.keepAwake))
         #expect(s.isEnabled(AmbientChannel.claude))
-        #expect(s.isEnabled(AmbientChannel.music))
+        #expect(!s.isEnabled(AmbientChannel.music))
+    }
+
+    // MARK: The one-shot trim of what nobody asked for
+
+    @Test func theTrimRemovesTheStoredShowKeysOfMusicSystemAndNetworkOnce() {
+        let (defaults, cleanup) = TestDefaults.make()
+        defer { cleanup() }
+        // A Mac the earlier build wrote: everything stored on, already migrated.
+        defaults.set(true, forKey: ClosedIslandKeys.migrated)
+        for channel in [AmbientChannel.music, AmbientChannel.system, AmbientChannel.network, AmbientChannel.battery] {
+            defaults.set(true, forKey: ClosedIslandKeys.show(channel))
+        }
+        let first = ClosedIslandSettings.load(from: defaults)
+        #expect(!first.isEnabled(AmbientChannel.music) && !first.isEnabled(AmbientChannel.system) && !first.isEnabled(AmbientChannel.network))
+        #expect(first.isEnabled(AmbientChannel.battery))  // only the three nobody asked for
+        #expect(defaults.bool(forKey: ClosedIslandKeys.trimmed))
+        #expect(defaults.object(forKey: ClosedIslandKeys.show(AmbientChannel.music)) == nil)
+    }
+
+    @Test func theTrimNeverTouchesAChannelTheUserSwitchesOnAfterwards() {
+        let (defaults, cleanup) = TestDefaults.make()
+        defer { cleanup() }
+        defaults.set(true, forKey: ClosedIslandKeys.migrated)
+        defaults.set(true, forKey: ClosedIslandKeys.show(AmbientChannel.music))
+        _ = ClosedIslandSettings.load(from: defaults)  // the trim runs here
+        // The user opts in from Settings; every later launch keeps it.
+        defaults.set(true, forKey: ClosedIslandKeys.show(AmbientChannel.music))
+        defaults.set(true, forKey: ClosedIslandKeys.show(AmbientChannel.network))
+        for _ in 0..<3 {
+            let again = ClosedIslandSettings.load(from: defaults)
+            #expect(again.isEnabled(AmbientChannel.music) && again.isEnabled(AmbientChannel.network))
+        }
+    }
+
+    @Test func aFreshMacStoresNothingForTheTrimmedChannelsAndTheyStayOff() {
+        let (defaults, cleanup) = TestDefaults.make()
+        defer { cleanup() }
+        let s = ClosedIslandSettings.load(from: defaults)
+        #expect(!s.isEnabled(AmbientChannel.music) && !s.isEnabled(AmbientChannel.system) && !s.isEnabled(AmbientChannel.network))
+        #expect(defaults.bool(forKey: ClosedIslandKeys.trimmed))
     }
 
     @Test func batteryPutsTheBatteryFirst() {

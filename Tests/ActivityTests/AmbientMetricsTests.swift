@@ -107,9 +107,8 @@ import Testing
         for extent in stride(from: 1.0, through: Double(NotchGeometry.maxWingExtent), by: 1) {
             let stand = AmbientMetrics.measuringItem(forExtent: CGFloat(extent))
             let measured = NotchGeometry.wingExtent(for: stand)
-            #expect(measured >= CGFloat(extent), "extent \(extent) measured \(measured)")
-            // A glyph alone already measures 22; beyond that one character (6.5 pt) is the step, so within 11.
-            #expect(extent < 22 ? measured == 22 : (measured <= CGFloat(extent) + 11 || measured == NotchGeometry.maxWingExtent))
+            // One figure space is one point: the panel is exactly as wide as asked, no padding on top.
+            #expect(measured == CGFloat(extent), "extent \(extent) measured \(measured)")
         }
     }
 

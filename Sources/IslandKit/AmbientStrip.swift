@@ -38,7 +38,7 @@ public struct AmbientStrip: View {
                 Image(systemName: dot.symbol)
                     .font(.system(size: IslandType.minimumSize, weight: .bold))
                     .foregroundStyle(dot.color)
-                    .padding(.top, 3).padding(.trailing, 4)
+                    .padding(.top, 2).padding(.trailing, 3)
                     .accessibilityLabel(CompactStrip.dotLabel(dot))
             }
         }
@@ -50,10 +50,15 @@ public struct AmbientStrip: View {
 
     private var wings: some View {
         let wing = max(0, (size.width - notchWidth) / 2)
+        // Each group sits against the notch (the clock right beside it), the free end of the wing outside.
         return HStack(spacing: 0) {
-            group(content.leading).frame(width: wing)
+            group(content.leading)
+                .padding(.trailing, AmbientMetrics.wingPadding)
+                .frame(width: wing, alignment: .trailing)
             Color.clear.frame(width: notchWidth)
-            group(content.trailing).frame(width: wing)
+            group(content.trailing)
+                .padding(.leading, AmbientMetrics.wingPadding)
+                .frame(width: wing, alignment: .leading)
         }
     }
 

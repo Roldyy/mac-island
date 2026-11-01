@@ -1,13 +1,13 @@
 import IslandUI
 import SwiftUI
 
-/// The clock in the fixed center slot of the pill: the time at 13 pt with tabular digits so it never jitters,
+/// The clock in the fixed center slot of the pill: the time at 12 pt with tabular digits so it never jitters,
 /// then, when the pill has room, the short date in the quieter 11 pt style.
 struct AmbientCenterClock: View {
     let item: AmbientIndicator
 
     static var timeFont: Font {
-        .system(size: IslandType.body, weight: .semibold, design: .rounded).monospacedDigit()
+        .system(size: IslandType.caption, weight: .semibold, design: .rounded).monospacedDigit()
     }
 
     static var dateFont: Font {

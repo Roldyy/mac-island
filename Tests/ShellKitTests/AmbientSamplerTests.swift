@@ -79,11 +79,18 @@ private struct SamplerRig {
     let defaults: UserDefaults
     private let suite: String
 
-    init(isNotched: Bool = false) {
+    /// `optedIn`: the user switched system and network on in Settings (they are off by default).
+    init(isNotched: Bool = false, optedIn: Bool = true) {
         suite = "ambient-sampler-\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suite)!
         // Not about the migration of `notchIdleContent`, and a suite reads the process-wide registration domain.
         defaults.set(true, forKey: ClosedIslandKeys.migrated)
+        defaults.set(true, forKey: ClosedIslandKeys.trimmed)
+        if optedIn {
+            for channel in [AmbientChannel.system, AmbientChannel.network, AmbientChannel.music] {
+                defaults.set(true, forKey: ClosedIslandKeys.show(channel))
+            }
+        }
         preferences = ClosedIslandPreferences(defaults: defaults)
         center = AmbientCenter(activity: ActivityCenter(), preferences: preferences, isNotched: isNotched,
                                sleep: { _ in try await Task.sleep(for: .seconds(3600)) })
@@ -150,6 +157,18 @@ private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: (
         #expect(clock.starts == 1)
         #expect(disk.starts == 0 && disk.stops == 0)  // off by default: not even touched
         #expect(hub.runningChannels == [AmbientChannel.clock])
+    }
+
+    @Test func systemAndNetworkSamplersStayIdleUntilTheUserSwitchesThemOn() {
+        let rig = SamplerRig(optedIn: false); defer { rig.cleanUp() }
+        let clock = CountingSampler(AmbientChannel.clock), system = CountingSampler(AmbientChannel.system)
+        let network = CountingSampler(AmbientChannel.network)
+        let hub = AmbientSamplerHub(center: rig.center, samplers: [clock, system, network])
+        hub.start()
+        #expect(hub.runningChannels == [AmbientChannel.clock])
+        #expect(system.starts == 0 && network.starts == 0)  // nothing is read for a channel nobody asked for
+        rig.preferences.setEnabled(AmbientChannel.system, true)
+        #expect(system.starts == 1 && network.starts == 0)
     }
 
     @Test func anOpenIslandStopsEverySamplerAndTheReturnRestartsThem() {

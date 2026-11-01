@@ -1,31 +1,34 @@
 import CoreGraphics
 import Foundation
 
-/// Pure widths of the closed island's indicators. The estimates are rough on purpose (11 pt rounded
-/// semibold with tabular digits) and slightly generous: too much room reads as breathing space, too little
-/// as a clipped value. The island's frame itself is still `NotchGeometry`'s.
+/// Pure widths of the closed island's indicators. The estimates are close to the drawn size (12 pt rounded
+/// semibold with tabular digits) and very slightly generous: the island must hug its content, so there is no
+/// breathing room beyond `wingPadding`. The island's frame itself is still `NotchGeometry`'s.
 public enum AmbientMetrics {
-    public static let glyphSize: CGFloat = 18
+    /// Glyphs and rings are 14 pt.
+    public static let glyphSize: CGFloat = 14
+    /// The battery outline is wider than it is tall.
+    public static let batteryWidth: CGFloat = 17
     public static let iconGap: CGFloat = 4
-    public static let elementGap: CGFloat = 8
-    /// Space kept free at each end of a wing.
-    public static let wingPadding: CGFloat = 10
+    public static let elementGap: CGFloat = 6
+    /// Space kept free at each end of a wing (4 beside the notch, 4 at the outer edge: the wing hugs its content).
+    public static let wingPadding: CGFloat = 4
     /// Gap between the two groups of the pill, where the separator sits.
-    public static let groupGap: CGFloat = 14
+    public static let groupGap: CGFloat = 10
     /// Free space at each end of the pill.
-    public static let pillPadding: CGFloat = 14
+    public static let pillPadding: CGFloat = 8
     /// A title or an alert wider than this scrolls (or is cut under Reduce Motion).
-    public static let maxTextWidth: CGFloat = 72
+    public static let maxTextWidth: CGFloat = 64
 
     public static func charWidth(_ c: Character) -> CGFloat {
         switch c {
-        case "0"..."9": 7.7
-        case "%": 11
-        case ":", ".", ",", "'", "’", "|", "!", "i", "l", "j", "I": 4
-        case " ": 3.8
-        case "m", "w", "M", "W": 11.4
-        case _ where c.isUppercase: 8.6
-        default: 7.2
+        case "0"..."9": 7.8
+        case "%": 10.6
+        case ":", ".", ",", "'", "’", "|", "!", "i", "l", "j", "I": 3.7
+        case " ": 3.5
+        case "m", "w", "M", "W": 10.8
+        case _ where c.isUppercase: 8.2
+        default: 6.9
         }
     }
 
@@ -53,17 +56,23 @@ public enum AmbientMetrics {
     }
 
     /// Width of the bar between a glyph and its value (the volume).
-    public static let barWidth: CGFloat = 34
+    public static let barWidth: CGFloat = 26
     /// Clear space between the center clock and each side group.
-    public static let centerGap: CGFloat = 10
-    /// The center clock is drawn at body size (13 pt) so it reads at a glance; its digits are 13/11 wider.
-    public static let centerScale: CGFloat = 13.0 / 11.0
+    public static let centerGap: CGFloat = 8
+    /// The center clock is drawn at the same 12 pt as every other value.
+    public static let centerScale: CGFloat = 1
     /// Gap between the time and the date in the center slot.
-    public static let centerDetailGap: CGFloat = 8
+    public static let centerDetailGap: CGFloat = 6
+
+    /// Width the glyph of an item takes: 14 pt, a little more for the battery outline.
+    public static func glyphWidth(_ item: AmbientIndicator) -> CGFloat {
+        guard item.glyph != .none else { return 0 }
+        return item.glyph == .symbol && item.symbol.hasPrefix("battery") ? batteryWidth : glyphSize
+    }
 
     public static func elementWidth(_ item: AmbientIndicator, now: Date) -> CGFloat {
         let slot = textSlot(item, now: now)
-        var width: CGFloat = item.glyph == .none ? 0 : glyphSize
+        var width: CGFloat = glyphWidth(item)
         if item.bar != nil { width += (width > 0 ? iconGap : 0) + barWidth }
         if slot > 0 { width += (width > 0 ? iconGap : 0) + slot }
         return width
@@ -94,7 +103,10 @@ public enum AmbientMetrics {
     public static func fitted(_ items: [AmbientIndicator], width: CGFloat, now: Date) -> [AmbientIndicator] {
         var out = items
         while !out.isEmpty, groupWidth(out, now: now) + 2 * wingPadding > width {
-            if let index = out.lastIndex(where: { $0.text != nil || $0.clockSince != nil }) {
+            // The text of the others goes first: the clock beside the notch is the last thing to lose its digits.
+            let hasText: (AmbientIndicator) -> Bool = { $0.text != nil || $0.clockSince != nil }
+            if let index = out.lastIndex(where: { hasText($0) && $0.channel != AmbientChannel.clock })
+                ?? out.lastIndex(where: hasText) {
                 var stripped = out[index]
                 stripped.text = nil
                 stripped.clockSince = nil
@@ -108,11 +120,15 @@ public enum AmbientMetrics {
 
     // MARK: - Extent
 
+    /// Wing an alert dot sits on when nothing else is shown.
+    public static let dotExtent: CGFloat = 12
+
     /// How far each wing must grow beyond `NotchGeometry.baseWing` around a hardware notch: both wings share it
     /// so the notch stays centered. 0...`NotchGeometry.maxWingExtent`.
     public static func notchedExtent(_ content: ClosedIslandContent, now: Date) -> CGFloat {
         let need = max(groupWidth(content.leading, now: now), groupWidth(content.trailing, now: now))
-        guard need > 0 else { return 0 }
+        // An edge dot alone still needs a little wing to sit on.
+        guard need > 0 else { return content.dot == nil ? 0 : dotExtent }
         return clampExtent(need + 2 * wingPadding - NotchGeometry.baseWing)
     }
 
@@ -142,13 +158,12 @@ public enum AmbientMetrics {
         return min(max(value.rounded(.up), 0), NotchGeometry.maxWingExtent)
     }
 
-    /// A stand-in the panel can measure: `NotchGeometry.wingExtent(for:)` reads an item's text length, so an
-    /// item of the right length makes the panel as wide as the strip needs. Nil when no growth is needed.
+    /// A stand-in the panel can measure: `NotchGeometry.wingExtent(for:)` counts a run of figure spaces one point
+    /// each, so the panel is exactly as wide as the strip needs. Nil when no growth is needed.
     public static func measuringItem(forExtent extent: CGFloat) -> CompactItem? {
         guard extent > 0 else { return nil }
-        if extent <= 22 { return CompactItem(symbol: "circle") }
-        let characters = min(14, max(1, Int(((extent - 26) / 6.5).rounded(.up))))
+        let points = min(Int(extent.rounded(.up)), Int(NotchGeometry.maxWingExtent))
         // Figure spaces: they are text to the measure, nothing to the eye (the item is never drawn).
-        return CompactItem(symbol: "", text: String(repeating: "\u{2007}", count: characters))
+        return CompactItem(symbol: "", text: String(repeating: NotchGeometry.measureUnit, count: points))
     }
 }

@@ -30,7 +30,9 @@ public enum AmbientChannel {
     public static let userChoices = [limits, claude, music, battery, keepAwake, clock, system, network, disk, mic, camera, volume]
 
     /// On out of the box. The rest is opt-in so the pill is not cluttered.
-    public static let defaultOn: Set<String> = [limits, claude, music, battery, keepAwake, clock, system, network]
+    /// What Harold asked for and nothing else: Claude, the clock, the battery and the keep-awake cup. Music, the
+    /// system (CPU, memory) and the network are choices in Settings, off until switched on.
+    public static let defaultOn: Set<String> = [limits, claude, battery, keepAwake, clock]
 
     public static func title(_ channel: String) -> String {
         switch channel {
@@ -133,8 +135,10 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
 
     /// Channels whose glyph is itself the information: Claude working or waiting, the keep-awake cup, the mic and
     /// camera dots, an alert. Their colour is never the only signal (`label` says it).
+    /// The battery is one: its outline fills with the charge, so it says the level without a percentage (a wing
+    /// that is too narrow drops the percentage, never the battery).
     static let stateChannels: Set<String> = [AmbientChannel.claude, AmbientChannel.keepAwake, AmbientChannel.mic,
-                                             AmbientChannel.camera, AmbientChannel.alert]
+                                             AmbientChannel.camera, AmbientChannel.alert, AmbientChannel.battery]
 
     /// An indicator is drawn only with something to read: a value, a clock, a bar, a ring, the equalizer of a track
     /// that is playing, or a state that means something on its own. A bare glyph (an arrow with no rate, a chip with

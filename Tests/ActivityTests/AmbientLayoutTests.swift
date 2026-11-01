@@ -25,13 +25,13 @@ import Testing
     }
 
     @Test func equalPriorityFollowsTheUserOrderThenId() {
-        let low = AmbientIndicator(id: "x1", channel: AmbientChannel.network, symbol: "c", text: "1")
-        let high = AmbientIndicator(id: "x2", channel: AmbientChannel.limits, symbol: "c", text: "1")
+        let low = AmbientIndicator(id: "x1", channel: AmbientChannel.limits, symbol: "c", text: "1")
+        let high = AmbientIndicator(id: "x2", channel: AmbientChannel.claude, symbol: "c", text: "1")
         let byDefault = ClosedIslandLayout.resolve([low, high], settings: settings())
-        #expect(ids(byDefault.leading) == ["x2", "x1"])  // limits before network in the default order
+        #expect(ids(byDefault.leading) == ["x1", "x2"])  // limits before Claude in the user order
         let swapped = ClosedIslandLayout.resolve(
-            [low, high], settings: settings(order: [AmbientChannel.network, AmbientChannel.limits]))
-        #expect(ids(swapped.leading) == ["x1", "x2"])
+            [low, high], settings: settings(order: [AmbientChannel.claude, AmbientChannel.limits]))
+        #expect(ids(swapped.leading) == ["x2", "x1"])
     }
 
     @Test func sameInputInAnyOrderGivesTheSameOutput() {

@@ -2,25 +2,27 @@ import IslandUI
 import SwiftUI
 
 /// The glyph of an indicator: a symbol (or the equalizer) with a thin ring around it when there is a
-/// percentage, or a turning arc while Claude works. Sized by frame so it never needs a font under 11 pt.
+/// percentage, or a turning arc while Claude works. 14 pt, sized by frame so it never needs a font under 11 pt.
 struct AmbientGlyphView: View {
     let item: AmbientIndicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let ringWidth: CGFloat = 2
+    static let ringWidth: CGFloat = 1.75
 
     private var isRinged: Bool { item.progress != nil || item.isBusy }
 
     var body: some View {
         ZStack {
             ring
+                // The stroke is centered on the edge: inset it so the ring is 14 pt outside, not 14 + its width.
+                .padding(Self.ringWidth / 2)
             inner
         }
-        .frame(width: AmbientMetrics.glyphSize, height: AmbientMetrics.glyphSize)
+        .frame(width: AmbientMetrics.glyphWidth(item), height: AmbientMetrics.glyphSize)
         .overlay(alignment: .bottomTrailing) {
             if let badge = item.badge {
                 Circle().fill(badge.color)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 5, height: 5)
                     .overlay(Circle().stroke(Color.black, lineWidth: 1))
                     .offset(x: 2, y: 2)
             }
@@ -57,14 +59,14 @@ struct AmbientGlyphView: View {
             AmbientEqualizer(color: item.status.color)
                 .scaleEffect(isRinged ? 0.85 : 1)
         case .symbol:
-            let side: CGFloat = isRinged ? 9.5 : 14
+            let side: CGFloat = isRinged ? 7.5 : 14
             if item.symbol.hasPrefix("battery") {
                 // The battery keeps a quiet outline and carries the state in its fill.
                 Image(systemName: item.symbol)
                     .symbolRenderingMode(.palette)
                     .resizable().scaledToFit()
                     .foregroundStyle(IslandPalette.textSecondary.color, item.status.color)
-                    .frame(width: 19, height: 11)
+                    .frame(width: AmbientMetrics.batteryWidth, height: 10)
             } else {
                 Image(systemName: item.symbol)
                     .symbolRenderingMode(.hierarchical)

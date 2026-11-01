@@ -14,6 +14,9 @@ public enum ClosedIslandKeys {
     public static let keepAwakeAlways = "notchIdleKeepAwakeAlways"
     /// Set once the older value has been carried over.
     public static let migrated = "notchIdleIndicatorsMigrated"
+    /// Set once the channels nobody asked for (music, system, network) have been put back to off on a Mac that
+    /// had them stored as on by an earlier build.
+    public static let trimmed = "notchIdleDefaultsTrimmed"
 
     public static func show(_ channel: String) -> String {
         switch channel {
@@ -26,7 +29,7 @@ public enum ClosedIslandKeys {
         }
     }
 
-    public static let all = [legacyContent, order, rotates, perWing, clockHours, keepAwakeAlways, migrated] + AmbientChannel.userChoices.map(show)
+    public static let all = [legacyContent, order, rotates, perWing, clockHours, keepAwakeAlways, migrated, trimmed] + AmbientChannel.userChoices.map(show)
 }
 
 /// Hour cycle of the clock: the system's (from the locale) unless the user forces one.
@@ -90,9 +93,9 @@ public struct ClosedIslandSettings: Equatable, Sendable {
     /// with everything on. "none" keeps the user's "nothing at rest": the at-rest indicators (limits,
     /// battery, keep awake) go off, the live ones (Claude, music) stay because the old build showed them too.
     public static func migrated(legacyContent: String?) -> ClosedIslandSettings {
-        let live: Set<String> = [AmbientChannel.claude, AmbientChannel.music]
+        let live: Set<String> = [AmbientChannel.claude]
         // The indicators this build added are on by default unless the old choice was "nothing at rest".
-        let added: Set<String> = [AmbientChannel.clock, AmbientChannel.system, AmbientChannel.network]
+        let added: Set<String> = [AmbientChannel.clock]
         switch legacyContent {
         case "none":
             return ClosedIslandSettings(enabled: live)
@@ -114,6 +117,12 @@ public struct ClosedIslandSettings: Equatable, Sendable {
     /// Reads the stored choices. The first time (no marker) it carries `notchIdleContent` over and writes
     /// every key, so a Settings toggle bound to one of them shows what the island does.
     public static func load(from defaults: UserDefaults) -> ClosedIslandSettings {
+        if !defaults.bool(forKey: ClosedIslandKeys.trimmed) {
+            defaults.set(true, forKey: ClosedIslandKeys.trimmed)
+            for channel in [AmbientChannel.music, AmbientChannel.system, AmbientChannel.network] {
+                defaults.removeObject(forKey: ClosedIslandKeys.show(channel))
+            }
+        }
         if !defaults.bool(forKey: ClosedIslandKeys.migrated) {
             let carried = migrated(legacyContent: defaults.string(forKey: ClosedIslandKeys.legacyContent))
             carried.write(to: defaults)

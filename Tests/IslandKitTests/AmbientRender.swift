@@ -13,6 +13,29 @@ import SwiftUI
 
     nonisolated static let clock = Date(timeIntervalSince1970: 1_800_000_000)
 
+    /// The hardware band of a 14-inch MacBook Pro (180 pt wide, 32 pt tall); the 16-inch is 200 pt wide.
+    nonisolated static let notchWidth: CGFloat = 180
+    nonisolated static let notchHeight: CGFloat = 32
+
+    /// Size of the closed island: what `NotchGeometry.closedFrame` gives for the wings the center asks for.
+    static func closedSize(center: AmbientCenter, notched: Bool, notchWidth: CGFloat = notchWidth,
+                           notchHeight: CGFloat = notchHeight) -> CGSize {
+        let screen = CGRect(x: 0, y: 0, width: 1800, height: 1200)
+        let idle: NotchGeometry
+        if notched {
+            idle = NotchGeometry.idle(
+                screenFrame: screen, safeAreaTop: notchHeight,
+                auxLeft: CGRect(x: 0, y: screen.maxY - notchHeight, width: (screen.width - notchWidth) / 2, height: notchHeight),
+                auxRight: CGRect(x: (screen.width + notchWidth) / 2, y: screen.maxY - notchHeight,
+                                 width: (screen.width - notchWidth) / 2, height: notchHeight))
+        } else {
+            idle = NotchGeometry.idle(screenFrame: screen, safeAreaTop: 0, auxLeft: nil, auxRight: nil)
+        }
+        let frame = NotchGeometry.closedFrame(
+            from: idle, wingExtent: NotchGeometry.wingExtent(for: center.widthProxy.layout), screenFrame: screen)
+        return frame.size
+    }
+
     /// A center in a known state: only the settings and indicators of the scenario.
     static func center(notched: Bool, settings: ClosedIslandSettings = .standard, step: Int = 0,
                        indicators: [AmbientIndicator], activity: ActivityLayout = .empty,
@@ -40,11 +63,16 @@ import SwiftUI
         let notched: Bool
         let background: Color
         var pulse: Double?
+        var notchWidth: CGFloat = AmbientRender.notchWidth
+        var notchHeight: CGFloat = AmbientRender.notchHeight
+
+        /// The closed island exactly as the panel sizes it: the notch (or the pill) plus the wings the width
+        /// proxy asks for, as tall as the notch.
+        var size: CGSize { AmbientRender.closedSize(center: center, notched: notched, notchWidth: notchWidth, notchHeight: notchHeight) }
 
         var body: some View {
-            let extent = NotchGeometry.wingExtent(for: center.widthProxy.layout)
-            let idle: CGFloat = notched ? 185 : NotchGeometry.pillWidth
-            let size = CGSize(width: idle + 2 * (NotchGeometry.baseWing + extent), height: notched ? 34 : NotchGeometry.pillHeight)
+            let idle: CGFloat = notched ? notchWidth : NotchGeometry.pillWidth
+            let size = size
             ZStack(alignment: .top) {
                 background
                 ZStack(alignment: .top) {
@@ -61,10 +89,11 @@ import SwiftUI
 
     @discardableResult
     static func png(center: AmbientCenter, notched: Bool, dark: Bool, name: String, pulse: Double? = nil,
-                    scale: CGFloat = 2) -> URL? {
+                    scale: CGFloat = 2, notchWidth: CGFloat = notchWidth) -> URL? {
         _ = NSApplication.shared
         let size = CGSize(width: 440, height: 58)
-        let root = Scene(center: center, notched: notched, background: Color(white: dark ? 0.07 : 0.5), pulse: pulse)
+        let root = Scene(center: center, notched: notched, background: Color(white: dark ? 0.07 : 0.5), pulse: pulse,
+                         notchWidth: notchWidth)
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .dark)
         let hosting = NSHostingView(rootView: root)

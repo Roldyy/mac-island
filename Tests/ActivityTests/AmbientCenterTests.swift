@@ -93,6 +93,7 @@ private final class ManualSleep: @unchecked Sendable {
 
     @Test func theActivityEnginesWinnersBecomeIndicators() {
         let r = rig(); defer { r.cleanup() }
+        r.prefs.setEnabled(AmbientChannel.music, true)  // music is a choice in Settings, off by default
         r.activity.post(IslandActivity(
             id: "agents.music", source: "now-playing", priority: .music,
             trailing: CompactItem(symbol: "waveform", text: "Titre")))

@@ -34,12 +34,12 @@ struct AmbientPulse: ViewModifier {
     private nonisolated func pulsed<V: View>(_ view: V, progress: Double) -> some View {
         let swell = AmbientMotion.pulseSwell(progress)
         view
-            .scaleEffect(1 + 0.1 * swell)
+            .scaleEffect(1 + 0.06 * swell)
             .background {
                 if isUrgent {
                     Capsule()
                         .strokeBorder(color.opacity(0.7 * (1 - progress)), lineWidth: 1.5)
-                        .padding(-2 - 4 * progress)
+                        .padding(-1 - 3 * progress)
                 }
             }
     }
