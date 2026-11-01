@@ -40,6 +40,8 @@ public struct ShellContext {
     /// Quit and relaunch, for the island's right-click menu. `relaunch` is nil outside an app bundle.
     public var quit: @MainActor () -> Void
     public var relaunch: (@MainActor () -> Void)?
+    /// Which switch opens a ported panel, and which panels exist only while it is on.
+    public var tabGate: ShellTabGate
 
     public init(tabs: [IslandTab], registry: FeatureRegistry, navigation: ShellNavigation,
                 quickAccess: QuickAccessModel,
@@ -54,7 +56,9 @@ public struct ShellContext {
                 onOpen: @escaping @MainActor () -> Void = {},
                 onOpenSize: @escaping @MainActor (CGSize) -> Void = { _ in },
                 quit: @escaping @MainActor () -> Void = {},
-                relaunch: (@MainActor () -> Void)? = nil) {
+                relaunch: (@MainActor () -> Void)? = nil,
+                tabGate: ShellTabGate = .none) {
+        self.tabGate = tabGate
         self.tabs = tabs
         self.registry = registry
         self.navigation = navigation
@@ -73,6 +77,11 @@ public struct ShellContext {
         self.relaunch = relaunch
     }
 
+    /// Whether the panel is on: its own switch, or the switches `tabGate` names for it.
+    public func isTabEnabled(_ tabID: String) -> Bool {
+        tabGate.isEnabled(tabID) { registry.isEnabled($0) }
+    }
+
     // MARK: - Home actions
 
     /// Whether an action can run now: a quick action needs its handler, a page needs its feature on.
@@ -80,7 +89,7 @@ public struct ShellContext {
         switch action.kind {
         case .explore, .settings: true
         case .quick(let id): quickAccess.table.isAvailable(id)
-        case .page(let tabID): tabs.contains { $0.id == tabID } && registry.isEnabled(tabID)
+        case .page(let tabID): tabs.contains { $0.id == tabID } && isTabEnabled(tabID)
         }
     }
 
@@ -107,8 +116,10 @@ public struct ShellContext {
     public func tileItems(showHidden: Bool = false) -> [HomeTileItem] {
         HomeTileCatalog.merged(
             actions: HomeActionCatalog.tileIDs.compactMap(HomeActionCatalog.action),
-            features: tabs.map { HomeFeature(id: $0.id, title: $0.title, systemImage: $0.systemImage) },
-            enabled: { registry.isEnabled($0) },
+            // An optional panel (the ported extras) has no tile while its switch is off.
+            features: tabs.filter { !tabGate.isOptional($0.id) || isTabEnabled($0.id) }
+                .map { HomeFeature(id: $0.id, title: $0.title, systemImage: $0.systemImage) },
+            enabled: { isTabEnabled($0) },
             hidden: home.hiddenTiles, showHidden: showHidden)
     }
 

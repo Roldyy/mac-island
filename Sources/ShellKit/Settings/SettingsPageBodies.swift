@@ -15,13 +15,26 @@ public enum SettingsPageBodies {
         bodies[pageID] = body
     }
 
+    /// Registers a body UNDER the one already registered for the page (when there is one): a page two lanes (or a lane and
+    /// the app) both draw shows both, in registration order, and the last registration never erases the first.
+    @MainActor public static func registerComposed(pageID: String, _ body: @escaping @MainActor () -> AnyView) {
+        guard let earlier = bodies[pageID] else { register(pageID: pageID, body); return }
+        register(pageID: pageID) {
+            AnyView(VStack(alignment: .leading, spacing: IslandSpacing.l) {
+                earlier()
+                body()
+            })
+        }
+    }
+
     /// Registers the body of a page that belongs to one registry feature (a ported feature's page): the page
     /// opens with that feature's switch and status card, the same card the declarative pages show, then the body.
     /// The catalog row of such a page has no `featureID`, and the catalog is not touched for it.
     @MainActor public static func register(pageID: String, featureID: String, registry: FeatureRegistry,
                                            openPermission: @escaping @MainActor (FeaturePermission) -> Void,
                                            _ body: @escaping @MainActor () -> AnyView) {
-        register(pageID: pageID) {
+        // Composed, not replaced: a page a bound feature shares with another lane keeps the other body too.
+        registerComposed(pageID: pageID) {
             AnyView(VStack(alignment: .leading, spacing: IslandSpacing.l) {
                 FeatureStatusCard(registry: registry, featureID: featureID, openPermission: openPermission)
                 body()

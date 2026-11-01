@@ -14,9 +14,15 @@ public struct IslandLayoutSettings: View {
     /// Opens the island so the change can be seen. Nil leaves the button out (tests, no island).
     var openIsland: (@MainActor () -> Void)?
 
-    public init(home: HomeModel, openIsland: (@MainActor () -> Void)? = nil) {
+    /// Extra sections hosted under the editors (the ported lock-screen, companion and combine settings). ShellKit
+    /// does not see the ported code, so the app hands the view in.
+    var extras: (@MainActor () -> AnyView)?
+
+    public init(home: HomeModel, openIsland: (@MainActor () -> Void)? = nil,
+                extras: (@MainActor () -> AnyView)? = nil) {
         self.home = home
         self.openIsland = openIsland
+        self.extras = extras
     }
 
     public var body: some View {
@@ -30,6 +36,7 @@ public struct IslandLayoutSettings: View {
             fitCard
             buttonsCard
             tilesCard
+            if let extras { extras() }
         }
     }
 

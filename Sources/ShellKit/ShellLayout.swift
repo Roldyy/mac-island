@@ -72,6 +72,9 @@ public enum ShellLayout {
     static let openHeights: [String: CGFloat] = [
         "terminal": 480, "agents": 560, "clipboard": 420, "shelf": 400,
         "nowplaying": 320, "audio": 380, "keepawake": 320, "monitor": 360, "fans": 380,
+        // Ported panels (lanes E and F): the player carries lyrics and the queue under it.
+        "music": 480, "timer": 380, "calendar": 400, "notifications": 380, "accessories": 340,
+        "downloads": 380, "filetools": 400, "watch": 380, "mirror": 380, "companion": 420,
     ]
 
     /// Panel height for the visible section; `IslandController` clamps it to the screen.

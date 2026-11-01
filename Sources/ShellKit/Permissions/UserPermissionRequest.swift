@@ -34,8 +34,32 @@ public enum UserPermissionRequest {
             request(monitored)
         } else if permission == .audioCapture, let ask = audioCaptureRequest {
             ask()
+        } else if permission == .notifications {
+            requestNotifications()
         } else {
             open(permission.settingsURL)
+        }
+    }
+
+    // MARK: Notifications
+
+    /// The prompt itself (live: `NotificationAuthorizationCache.request`). Tests swap it.
+    @MainActor public static var notificationsAsk: (@escaping @Sendable (Bool?) -> Void) -> Void = {
+        NotificationAuthorizationCache.shared.request(done: $0)
+    }
+
+    /// Called on the main queue once the answer is known, so the card re-reads the registry (the app delegate sets it).
+    @MainActor public static var afterNotificationsAnswer: (@MainActor () -> Void)?
+
+    /// The "Autoriser" click of a Notifications card: the system prompt first (it lists the app), the pane when the
+    /// system did not grant or cannot ask (it never asks twice). Never called outside a click.
+    @MainActor public static func requestNotifications() {
+        // `notificationsAsk` answers on the main queue (the cache hops there), so the answer is handled in place.
+        notificationsAsk { granted in
+            MainActor.assumeIsolated {
+                if granted != true { open(FeaturePermission.notifications.settingsURL) }
+                afterNotificationsAnswer?()
+            }
         }
     }
 

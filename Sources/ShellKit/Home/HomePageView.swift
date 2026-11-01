@@ -12,7 +12,7 @@ struct HomePageView: View {
 
     private var siblings: [ShellSection] {
         guard let group = ShellLayout.group(containing: tabID) else { return [] }
-        return ShellLayout.visibleSections(of: group) { context.registry.isEnabled($0) }
+        return ShellLayout.visibleSections(of: group) { context.isTabEnabled($0) }
     }
 
     var body: some View {
@@ -39,7 +39,7 @@ struct HomePageView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let tab, context.registry.isEnabled(tabID) {
+        if let tab, context.isTabEnabled(tabID) {
             tab.makeView()
         } else {
             Text("Cet onglet est désactivé dans les Réglages.")

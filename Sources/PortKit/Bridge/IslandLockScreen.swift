@@ -189,6 +189,71 @@ enum IslandGestures {
     static var perform: (@MainActor (NotchGestureSupport.Action) -> Void)?
 }
 
+/// What a gesture asks of the app, in plain public terms (the engine's own `Action` is internal to PortKit).
+public enum PortIslandGestureAction: Equatable, Sendable {
+    case openIsland, closeIsland, nextTrack, previousTrack
+}
+
+/// Where the island is, in plain public terms (screen coordinates, as `NSEvent.mouseLocation`).
+public struct PortIslandGestureSpot: Equatable, Sendable {
+    public var frame: CGRect
+    public var expanded: Bool
+    public var overHeader: Bool
+    public var musicSurface: Bool
+
+    public init(frame: CGRect, expanded: Bool, overHeader: Bool, musicSurface: Bool) {
+        self.frame = frame
+        self.expanded = expanded
+        self.overHeader = overHeader
+        self.musicSurface = musicSurface
+    }
+}
+
+/// The app delegate's door to the gestures: it says where the island is and what each action does. The kill switch
+/// (a plain defaults flag, `macIslandGesturesKill`) cuts both hooks at once, whatever the feature switch says, and the
+/// hooks are released when the app calls `uninstall`.
+@MainActor
+public enum PortIslandGestureHost {
+    public static let killKey = "macIslandGesturesKill"
+
+    /// True when the kill switch is on (read live, so flipping it takes effect on the next scroll).
+    public static func isKilled(defaults: UserDefaults = PortHost.defaults) -> Bool { defaults.bool(forKey: killKey) }
+
+    /// `spot` is read on each scroll event; `perform` runs the action. Both are skipped while the kill switch is on.
+    public static func install(
+        defaults: UserDefaults = PortHost.defaults,
+        spot: @escaping @MainActor () -> PortIslandGestureSpot?,
+        perform: @escaping @MainActor (PortIslandGestureAction) -> Void
+    ) {
+        IslandGestures.context = {
+            guard !isKilled(defaults: defaults), let spot = spot() else { return nil }
+            return IslandGestureContext(frame: spot.frame, expanded: spot.expanded, overHeader: spot.overHeader,
+                                        musicSurface: spot.musicSurface)
+        }
+        IslandGestures.perform = { action in
+            guard !isKilled(defaults: defaults) else { return }
+            perform(mapped(action))
+        }
+    }
+
+    public static func uninstall() {
+        IslandGestures.context = nil
+        IslandGestures.perform = nil
+    }
+
+    static func mapped(_ action: NotchGestureSupport.Action) -> PortIslandGestureAction {
+        switch action {
+        case .open: .openIsland
+        case .close: .closeIsland
+        case .nextTrack: .nextTrack
+        case .previousTrack: .previousTrack
+        }
+    }
+
+    /// Track change on the ported player (the "Musique" tab), for the delegate's `perform`.
+    public static func skipOnPortedPlayer(forward: Bool) { NotchMusicService.shared.skipFromGesture(forward: forward) }
+}
+
 @MainActor
 final class IslandGestureMonitor {
     private var engine = IslandGestureEngine()
@@ -341,6 +406,27 @@ extension IslandPortTabs {
 
     /// The tabs of lane group 2, in the order the island lists them.
     @MainActor public static func laneGroup2() -> [IslandTab] { lane8C() + [companion()] }
+}
+
+/// The ported island settings the island page hosts below its own editors: the lock-screen switches, the companion's
+/// look and the "Combiner" menu. The companion's closed-island slot is NOT offered anywhere (the closed island shows
+/// only the indicators the person listed); this is a settings view and a tab, never a closed-strip item.
+public struct PortIslandExtrasSettings: View {
+    public init() {}
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            IslandLockScreenSettingsView()
+            NotchMascotSettings(embedded: true)
+            HStack {
+                Text("Combiner deux activités").font(.callout)
+                Spacer()
+                IslandCombineMenu()
+            }
+        }
+        .environment(\.colorScheme, .dark)
+        .defaultAppStorage(PortHost.defaults)
+    }
 }
 
 /// Settings of the lock-screen island: the two upstream switches in French, and the state of the private part, with the way

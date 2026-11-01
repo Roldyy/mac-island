@@ -63,7 +63,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PortBridge.updatePermissions(Self.portPermissions(PermissionProbe.live(defaults: defaults).snapshot()))
         PortBridge.registerDefaults()
         // The one prompt-capable audio call (a probe tap) runs from the "Autoriser" click only.
-        UserPermissionRequest.audioCaptureRequest = { PortMixer.requestAudioCaptureByClick() }
+        // Both cards (the mixer's and the equalizer's) read the probe tap's stored outcome: re-read it after the click.
+        UserPermissionRequest.audioCaptureRequest = { [weak self] in
+            PortMixer.requestAudioCaptureByClick()
+            self?.registry?.refreshCapabilities()
+        }
         // The Dock tab's "Autoriser" buttons ask like the Settings cards do: once, so macOS lists the app, then the pane.
         PortDock.requestPermission = { permission in
             switch permission {
@@ -119,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Re-reads Accessibility, Input Monitoring and Screen Recording on activation, on the system
         // notification and on a slow poll (2.5 s, backing off) while one is missing; starts or stops the
         // features that use it. Every reading is copied to the ported code before the registry reacts.
+        // Notifications: the settings are read (never prompted) at launch and on activation; the prompt is the card's click.
+        UserPermissionRequest.afterNotificationsAnswer = { [weak self] in self?.registry?.refreshCapabilities() }
+        refreshNotificationReading()
         let monitor = PermissionMonitor.attachLive(to: registry, probe: .live(defaults: defaults))
         monitor.addSnapshotObserver { PortBridge.updatePermissions(Self.portPermissions($0)) }
 
@@ -161,7 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 islandRef?.setOpenHeight(size.height)
             },
             quit: { NSApp.terminate(nil) },
-            relaunch: Self.relaunchAction)
+            relaunch: Self.relaunchAction,
+            tabGate: .ported)
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }
@@ -172,9 +180,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The home's now-playing card reads the players themselves (Now Playing feature), not the closed island.
         home.attachNowPlaying(Self.nowPlayingSource())
         // The island page's editors (size, look, notch fit, round buttons) drive this very model.
-        SettingsPageBodies.register(pageID: "island") {
-            AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() }))
+        SettingsPageBodies.registerComposed(pageID: "island") {
+            AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() },
+                                         extras: { AnyView(PortIslandExtrasSettings()) }))
         }
+        installGestures(island: island, navigation: navigation, home: home)
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         startAmbientSources(live: live)
         self.island = island
@@ -199,6 +209,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 island?.open()
             }
         })
+    }
+
+    // MARK: - Island gestures
+
+    /// The scroll gestures of the island (lane F). The monitor itself starts only with the "notchGestures" switch; these
+    /// two hooks say where the island is and what each swipe does. `PortIslandGestureHost` cuts both with its kill switch.
+    /// Swipe down opens, up closes, sideways changes track on the music surface (Lecture or Musique), never elsewhere.
+    private func installGestures(island: IslandController, navigation: ShellNavigation, home: HomeModel) {
+        PortIslandGestureHost.install(
+            spot: { [weak island] in
+                guard let island else { return nil }
+                let frame = island.panel.frame
+                let open = island.state.isOpen
+                let mouse = NSEvent.mouseLocation
+                // The closed pill is all header; the open island's header is its top band.
+                let header = !open || mouse.y >= frame.maxY - home.bandHeight
+                return PortIslandGestureSpot(
+                    frame: frame, expanded: open, overHeader: header,
+                    musicSurface: open && Self.isMusicRoute(navigation.route))
+            },
+            perform: { [weak island] action in
+                switch action {
+                case .openIsland: island?.open()
+                case .closeIsland: island?.close()
+                case .nextTrack, .previousTrack:
+                    let forward = action == .nextTrack
+                    switch navigation.route {
+                    case .page("music"): PortIslandGestureHost.skipOnPortedPlayer(forward: forward)
+                    case .page("nowplaying"): NowPlayingFeature.sendFromHome(forward ? .next : .previous)
+                    default: break
+                    }
+                }
+            })
+    }
+
+    static func isMusicRoute(_ route: IslandRoute) -> Bool {
+        route == .page("music") || route == .page("nowplaying")
     }
 
     // MARK: - Closed island indicators
@@ -269,7 +316,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Re-applies permissions the user may have just granted in System Settings.
-    func applicationDidBecomeActive(_ notification: Notification) { registry?.refreshCapabilities() }
+    func applicationDidBecomeActive(_ notification: Notification) {
+        registry?.refreshCapabilities()
+        refreshNotificationReading()
+    }
+
+    /// Reads the notification settings (no prompt), then lets the registry re-derive the cards.
+    private func refreshNotificationReading() {
+        NotificationAuthorizationCache.shared.refresh { [weak self] _ in
+            MainActor.assumeIsolated { self?.registry?.refreshCapabilities() }
+        }
+    }
 
     /// Starts a fresh instance of the app, then quits this one. Only possible from an app bundle.
     private static var relaunchAction: (@MainActor () -> Void)? {
@@ -321,15 +378,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The 12 feature tabs, reused as sub-views of the island's four groups and of the Settings sheets.
+/// The feature tabs: the 12 of the daily groups, then the ported ones (lanes E and F). The ported tabs sit outside the
+/// four groups and exist as tiles only while their switch is on (`ShellTabGate.ported`).
 @MainActor
 enum ShellTabs {
-    static let all: [IslandTab] = [
+    static let all: [IslandTab] = base + ported
+
+    static let base: [IslandTab] = [
         TerminalFeature.tab(), AgentsFeature.tab(), ClipboardFeature.tab(),
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
         FinderFeature.tab(), DockFeature.tab(), AudioFeature.tab(),
         FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
     ]
+
+    static let ported: [IslandTab] = [
+        PortIslandMusic.tab(),
+        PortIslandTimer.timerTab(), PortIslandTimer.calendarTab(),
+        PortIslandTimer.notificationsTab(), PortIslandTimer.accessoriesTab(),
+    ] + IslandPortTabs.laneGroup2()
 }
 
 /// Bridges Claude sessions to the shared activity engine.

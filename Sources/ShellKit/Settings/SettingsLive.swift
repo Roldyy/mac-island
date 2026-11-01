@@ -50,6 +50,8 @@ public enum SettingsLive {
                 ], defaultValue: 50)),
                 "Vider le presse-papiers automatiquement après": flag("clipboardAutoClearOnDelay", false),
                 "Coller les images copiées comme fichiers": flag("finderPasteImageAsFile", true),
+                // The migrated key our Clipboard module reads (`ClipboardSettings.includeImagesAndFilesKey`): off keeps text only.
+                "Enregistrer aussi les images et fichiers copiés": flag("clipboardHistoryIncludeImagesFiles", true),
             ],
             extras: [
                 C("clipboardAutoClearDelaySeconds", .stepper(range: 1...3600, defaultValue: 20, unit: "s"),

@@ -14,15 +14,33 @@ public struct PermissionProbe: Sendable {
     public var inputMonitoring: @Sendable () -> Bool
     /// Automation is per target app, so the answer depends on the feature; nil when unknown.
     public var automation: @Sendable (_ featureID: String) -> Bool?
+    /// System Audio Recording. macOS has no read call: the answer is the stored outcome of the probe tap a click ran
+    /// (`audioCaptureEvidence`), so it reads false until the person pressed "Autoriser". nil = cannot be asked here.
+    public var audioCapture: @Sendable () -> Bool?
+    /// Notifications (`UNUserNotificationCenter` settings, read from a cache the activation refreshes). nil = unknown.
+    public var notifications: @Sendable () -> Bool?
 
     public init(accessibility: @escaping @Sendable () -> Bool,
                 screenRecording: @escaping @Sendable () -> Bool,
                 inputMonitoring: @escaping @Sendable () -> Bool = { true },
-                automation: @escaping @Sendable (_ featureID: String) -> Bool?) {
+                automation: @escaping @Sendable (_ featureID: String) -> Bool?,
+                audioCapture: @escaping @Sendable () -> Bool? = { nil },
+                notifications: @escaping @Sendable () -> Bool? = { nil }) {
         self.accessibility = accessibility
         self.screenRecording = screenRecording
         self.inputMonitoring = inputMonitoring
         self.automation = automation
+        self.audioCapture = audioCapture
+        self.notifications = notifications
+    }
+
+    /// Where the mixer stores the status of the last probe tap (a click wrote it). 0 = the tap was created = granted.
+    public static let audioCaptureEvidenceKey = "macisland.mixer.audioCaptureProbeStatus"
+
+    /// Pure: what the stored status says. nil when the running bundle cannot ask (no usage description: `swift run`).
+    public static func audioCaptureReading(evidence: Int?, hasUsageDescription: Bool) -> Bool? {
+        guard hasUsageDescription else { return nil }
+        return evidence == 0
     }
 
     /// The three permissions the monitor watches, read once.
@@ -48,7 +66,14 @@ public struct PermissionProbe: Sendable {
                 case "nowplaying": return defaults.bool(forKey: "nowplaying.automationRequested")
                 default: return nil
                 }
-            })
+            },
+            audioCapture: {
+                let described = (Bundle.main.object(forInfoDictionaryKey: "NSAudioCaptureUsageDescription") as? String ?? "")
+                    .isEmpty == false
+                return audioCaptureReading(evidence: defaults.object(forKey: audioCaptureEvidenceKey) as? Int,
+                                           hasUsageDescription: described)
+            },
+            notifications: { NotificationAuthorizationCache.shared.granted })
     }
 
     /// nil when Finder is not running or the state is unreadable: not enough to claim a refusal.
@@ -74,6 +99,10 @@ public enum SystemCapabilities {
                 return .needsPermission(.screenRecording)
             case .automation where probe.automation(descriptor.id) == false:
                 return .needsPermission(.automation)
+            case .audioCapture where probe.audioCapture() == false:
+                return .needsPermission(.audioCapture)
+            case .notifications where probe.notifications() == false:
+                return .needsPermission(.notifications)
             default:
                 continue
             }

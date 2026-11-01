@@ -34,7 +34,17 @@ BIN="$(swift build -c release --show-bin-path)"
 
 echo "==> assembling $APP"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Library/LaunchDaemons"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks" "$APP/Contents/Library/LaunchDaemons"
+# The Now Playing adapter (lane W8A) is never linked into the app: Resources/now-playing.pl loads the dylib into
+# /usr/bin/perl, the only process MediaRemote still answers since macOS 15.4. Both files must be in the bundle
+# (MediaRemoteAdapterLocator reads Contents/Resources/now-playing.pl and Contents/Frameworks/libMacIslandNowPlaying.dylib).
+NOWPLAYING_DYLIB="$BIN/libMacIslandNowPlaying.dylib"
+if [ ! -f "$NOWPLAYING_DYLIB" ]; then
+  echo "ERROR: $NOWPLAYING_DYLIB is missing (swift build -c release --product MacIslandNowPlaying)" >&2
+  exit 1
+fi
+cp "$NOWPLAYING_DYLIB" "$APP/Contents/Frameworks/libMacIslandNowPlaying.dylib"
+cp Resources/now-playing.pl "$APP/Contents/Resources/now-playing.pl"
 cp "$BIN/MacIsland" "$APP/Contents/MacOS/MacIsland"
 cp "$BIN/FanHelper" "$APP/Contents/MacOS/FanHelper"
 cp "$BIN/ClaudeHook" "$APP/Contents/MacOS/ClaudeHook"
@@ -59,6 +69,11 @@ fi
 codesign --force $RT $TS -s "$IDENTITY" -i "$HELPER_ID" "$APP/Contents/MacOS/FanHelper"
 # shellcheck disable=SC2086
 codesign --force $RT $TS -s "$IDENTITY" -i "be.roldy.macisland.claudehook" "$APP/Contents/MacOS/ClaudeHook"
+# The adapter library, signed before the app seals it. It is loaded by /usr/bin/perl (a platform binary without
+# library validation, `codesign -dv /usr/bin/perl` reads flags=0x0), so the app needs no disable-library-validation
+# entitlement: the app itself never loads it. The same identity keeps the signature valid under the hardened runtime.
+# shellcheck disable=SC2086
+codesign --force $RT $TS -s "$IDENTITY" -i "be.roldy.macisland.nowplaying" "$APP/Contents/Frameworks/libMacIslandNowPlaying.dylib"
 # shellcheck disable=SC2086
 codesign --force $RT $TS --entitlements Resources/MacIsland.entitlements \
   -s "$IDENTITY" -i "$APP_ID" "$APP"
