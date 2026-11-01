@@ -26,6 +26,8 @@ public final class HomeModel {
         static let extraDock = "notchExtraDockLayout"
         /// Whether the extra dock row shows on the home; absent means on.
         static let showsExtraDock = "notchExtraDockShown"
+        /// "Rétroéclairage du clavier" slider of the home row; absent means shown (when the Mac has one).
+        static let showKeyboardLight = "notchHomeKeyboardLightSlider"
         /// "Activer Dynamic Island" (the migrated key); absent means on, the island is the app.
         static let enabled = "notchEnabled"
     }
@@ -102,6 +104,11 @@ public final class HomeModel {
     /// Tile ids the user hid from the home grid (right-click "Masquer ce raccourci"). The Explorer still lists them.
     public private(set) var hiddenTiles: Set<String> {
         didSet { if hiddenTiles != oldValue { defaults.set(HomeHiddenTiles.encode(hiddenTiles), forKey: Keys.hiddenTiles) } }
+    }
+
+    /// Whether the keyboard backlight slider may appear in the home row. It still needs a controllable backlight.
+    public var showsKeyboardLight: Bool {
+        didSet { if showsKeyboardLight != oldValue { defaults.set(showsKeyboardLight, forKey: Keys.showKeyboardLight) } }
     }
 
     public let volume: HomeLevel
@@ -191,6 +198,7 @@ public final class HomeModel {
         showsExtraDock = (defaults.object(forKey: Keys.showsExtraDock) as? Bool) ?? true
         // A version-0 blob is rewritten once in the current form; nothing else changes.
         if storedDock != nil, let data = dock.encoded(), data != storedDock { defaults.set(data, forKey: Keys.extraDock) }
+        showsKeyboardLight = (defaults.object(forKey: Keys.showKeyboardLight) as? Bool) ?? true
         self.volume = HomeLevel(title: "Volume", systemImage: "speaker.wave.2.fill", backend: volume)
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
         self.keyboardLight = HomeLevel(title: "Rétroéclairage du clavier", systemImage: "light.max", backend: keyboardLight)
@@ -213,15 +221,18 @@ public final class HomeModel {
     public func refreshLevels() {
         volume.refresh()
         brightness.refresh()
-        keyboardLight.refresh()
+        if showsKeyboardLight { keyboardLight.refresh() }
     }
 
     /// The sliders the home shows, in order: only the levels the system lets us read.
-    public var availableLevels: [HomeLevel] { [volume, brightness, keyboardLight].filter(\.isAvailable) }
+    /// The keyboard slider is also left out when the user switched it off in the island settings.
+    public var availableLevels: [HomeLevel] { shownLevels.filter(\.isAvailable) }
 
-    /// Why a slider is missing, for the tooltip of the sliders row. Nil when all three are there.
+    private var shownLevels: [HomeLevel] { showsKeyboardLight ? [volume, brightness, keyboardLight] : [volume, brightness] }
+
+    /// Why a slider is missing, for the tooltip of the sliders row. Nil when all the shown ones are there.
     public var unavailableLevelsHelp: String? {
-        let missing = [volume, brightness, keyboardLight].filter { !$0.isAvailable }
+        let missing = shownLevels.filter { !$0.isAvailable }
         guard !missing.isEmpty else { return nil }
         return missing.map { "\($0.title) : \($0.unavailableReason)" }.joined(separator: "\n")
     }

@@ -1,0 +1,22 @@
+--- a/Services/Display/BrightnessService.swift
++++ b/Services/Display/BrightnessService.swift
+@@ -59,7 +59,19 @@
+     static let shared = BrightnessService()
+     private static let sharedKeyboardLightBridge = KeyboardLightBridge()
+     static var keyboardLightIsSupported: Bool { sharedKeyboardLightBridge != nil }
++
++    /// Mac Island: the island Home slider reads and writes the backlight through the same bridge without building
++    /// the service. Nil when this Mac has no controllable built-in keyboard backlight; a read never writes.
++    static func keyboardLightHomeLevel() -> Float? {
++        guard let level = sharedKeyboardLightBridge?.brightness(), level >= 0, level <= 1 else { return nil }
++        return level
++    }
+ 
++    static func setKeyboardLightHomeLevel(_ level: Float) -> Bool {
++        guard let target = BrightnessSupport.sliderKeyboardLightLevel(level) else { return false }
++        return sharedKeyboardLightBridge?.setBrightness(target) ?? false
++    }
++
+     /// Field diagnosis channel: external display trouble is invisible from
+     /// here (issue #301 kind of reports), so the display pipeline narrates
+     /// its decisions to the unified log, where a user can collect them with

@@ -16,6 +16,7 @@ import os
 import PortKit
 import ShelfFeature
 import IslandKit
+import IslandUI
 import ShellKit
 import TerminalFeature
 import SettingsKit
@@ -159,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The ported menu bar metrics may hide the app's icon (their option), only while one of their items shows.
         PortMenuBar.installAppIconVisibility { [weak self] visible in self?.menuBar?.setIconVisible(visible) }
 
-        let home = HomeModel(defaults: defaults)
+        let home = HomeModel(defaults: defaults, keyboardLight: .keyboardBacklight(PortKeyboardBacklight()))
         let ambientCenter = ambient
         weak var islandRef: IslandController?  // weak: the island owns this context
         let context = ShellContext(
@@ -194,7 +195,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The island page's editors (size, look, notch fit, round buttons) drive this very model.
         SettingsPageBodies.registerComposed(pageID: "island") {
             AnyView(IslandLayoutSettings(home: home, openIsland: { [weak island] in island?.open() },
-                                         extras: { AnyView(PortIslandExtrasSettings()) },
+                                         extras: {
+                AnyView(VStack(alignment: .leading, spacing: IslandSpacing.l) {
+                    HomeSlidersSettings(home: home)
+                    PortIslandExtrasSettings()
+                })
+            },
                                          dockCatalog: { context.dockCatalog() }))
         }
         // The clipboard history shortcut, and a click on the menu bar preview, open the island on its tab.
