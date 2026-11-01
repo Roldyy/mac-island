@@ -9,15 +9,26 @@ import IslandKit
 public struct PermissionProbe: Sendable {
     public var accessibility: @Sendable () -> Bool
     public var screenRecording: @Sendable () -> Bool
+    /// Input Monitoring (`kTCCServiceListenEvent`): the key taps of the Finder feature and of cleaning mode need it
+    /// on top of Accessibility. Defaults to granted for callers that do not care.
+    public var inputMonitoring: @Sendable () -> Bool
     /// Automation is per target app, so the answer depends on the feature; nil when unknown.
     public var automation: @Sendable (_ featureID: String) -> Bool?
 
     public init(accessibility: @escaping @Sendable () -> Bool,
                 screenRecording: @escaping @Sendable () -> Bool,
+                inputMonitoring: @escaping @Sendable () -> Bool = { true },
                 automation: @escaping @Sendable (_ featureID: String) -> Bool?) {
         self.accessibility = accessibility
         self.screenRecording = screenRecording
+        self.inputMonitoring = inputMonitoring
         self.automation = automation
+    }
+
+    /// The three permissions the monitor watches, read once.
+    public func snapshot() -> PermissionSnapshot {
+        PermissionSnapshot(accessibility: accessibility(), inputMonitoring: inputMonitoring(),
+                           screenRecording: screenRecording())
     }
 
     /// `AXIsProcessTrusted`, `CGPreflightScreenCaptureAccess` and `AEDeterminePermissionToAutomateTarget`
@@ -28,6 +39,7 @@ public struct PermissionProbe: Sendable {
         return PermissionProbe(
             accessibility: { AXIsProcessTrusted() },
             screenRecording: { CGPreflightScreenCaptureAccess() },
+            inputMonitoring: { CGPreflightListenEventAccess() },
             automation: { id in
                 switch id {
                 case "finder": return finderAutomationGranted()

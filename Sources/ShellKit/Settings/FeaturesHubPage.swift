@@ -47,6 +47,7 @@ struct FeaturesHubPage: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
+            PermissionStatusCard(registry: registry, relaunch: relaunch)
             TextField("Rechercher une fonction", text: $query)
                 .textFieldStyle(.roundedBorder)
             HStack(spacing: 8) {
@@ -109,7 +110,8 @@ struct FeaturesHubPage: View {
                 Button("Relancer") { relaunch() }.buttonStyle(IslandButtonStyle())
             }
             if case .needsPermission(let permission) = state {
-                Button("Autoriser") { openPermission(permission) }.buttonStyle(IslandButtonStyle())
+                Button("Autoriser") { registry.noteOpened(permission); openPermission(permission) }
+                    .buttonStyle(IslandButtonStyle())
             }
             if state == .quarantined {
                 Button("Réactiver") { registry.clearQuarantine(d.id) }.buttonStyle(IslandButtonStyle())

@@ -61,6 +61,7 @@ public final class SettingsWindowController {
         }
         startPolling()
         registry.refreshCapabilities()  // the user may have just granted something in System Settings
+        registry.permissionMonitor?.recheck()
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }

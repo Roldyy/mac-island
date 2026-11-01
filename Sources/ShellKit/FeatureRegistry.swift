@@ -38,6 +38,10 @@ public final class FeatureRegistry {
     @ObservationIgnored private var stoppers: [String: @MainActor () -> Void] = [:]
     @ObservationIgnored private var activitySources: [String: String] = [:]
     @ObservationIgnored private var launched = false
+    /// Features stopped because a permission they use was revoked, with the permissions still missing.
+    @ObservationIgnored private var suspended: [String: Set<MonitoredPermission>] = [:]
+    /// Set by `PermissionMonitor.attachLive`; the Settings pages read the live state and the stale hint from it.
+    public var permissionMonitor: PermissionMonitor?
 
     /// `withdraw` drops what a stopped feature posted on the island (source name in, activities out).
     public init(descriptors: [FeatureDescriptor], defaults: UserDefaults, crashMarker: CrashMarker,
@@ -131,12 +135,52 @@ public final class FeatureRegistry {
         running.contains(id) && stoppers[id] == nil && !isEnabled(id)
     }
 
+    // MARK: - Permission changes
+
+    /// Monitored permissions that at least one enabled feature uses; the monitor polls while one is missing.
+    public var neededPermissions: Set<MonitoredPermission> {
+        descriptors.filter { isEnabled($0.id) }.reduce(into: Set<MonitoredPermission>()) {
+            $0.formUnion(MonitoredPermission.used(by: $1))
+        }
+    }
+
+    /// A grant restarts each running feature that uses it (start() ran while the permission was missing and
+    /// armed nothing); a revoke stops them until it is back. Features with no stopper are left alone.
+    public func permissionsChanged(_ change: PermissionChange) {
+        for d in descriptors where stoppers[d.id] != nil {
+            let used = MonitoredPermission.used(by: d)
+            let lost = used.intersection(change.revoked)
+            if !lost.isEmpty, running.contains(d.id) { suspended[d.id, default: []].formUnion(lost) }
+            let back = used.intersection(change.granted)
+            guard !back.isEmpty else { continue }
+            if var missing = suspended[d.id] {
+                missing.subtract(back)
+                suspended[d.id] = missing.isEmpty ? nil : missing  // reconcile starts it again once nothing is missing
+            } else if running.contains(d.id), isEnabled(d.id) {
+                stopForRestart(d)
+            }
+        }
+        refreshCapabilities()
+    }
+
+    private func stopForRestart(_ d: FeatureDescriptor) {
+        stoppers[d.id]?()
+        withdraw(activitySources[d.id] ?? d.id)
+        running.remove(d.id)
+    }
+
+    /// The "Autoriser" buttons call this next to opening the pane.
+    public func noteOpened(_ permission: FeaturePermission) {
+        if let p = MonitoredPermission(permission) { permissionMonitor?.noteOpened(p) }
+    }
+
     /// Brings what runs in line with what `state(for:)` allows. Idempotent.
     private func reconcile() {
         guard launched else { return }
+        defer { permissionMonitor?.refreshPolling() }
         for d in descriptors {
             guard let start = starters[d.id] else { continue }
-            let wanted = isEnabled(d.id)
+            let wanted = isEnabled(d.id) && suspended[d.id] == nil
             if wanted && !running.contains(d.id) {
                 beginStart(d.id)
                 start()

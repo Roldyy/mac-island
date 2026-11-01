@@ -64,11 +64,18 @@ struct FeatureStatusCard: View {
                         IslandBadge(badge.text, status: badge.status)
                         Spacer()
                         if case .needsPermission(let permission) = state {
-                            Button("Autoriser") { openPermission(permission) }.buttonStyle(IslandButtonStyle())
+                            Button("Autoriser") { registry.noteOpened(permission); openPermission(permission) }
+                                .buttonStyle(IslandButtonStyle())
+                            Button("Revérifier") { registry.permissionMonitor?.recheck() }.buttonStyle(IslandButtonStyle())
                         }
                         if state == .quarantined {
                             Button("Réactiver") { registry.clearQuarantine(featureID) }.buttonStyle(IslandButtonStyle())
                         }
+                    }
+                    if let stale = registry.permissionMonitor?.staleSuspected, !stale.isEmpty,
+                       !stale.isDisjoint(with: MonitoredPermission.used(by: d)) {
+                        Text(PermissionHints.stale)
+                            .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
                     }
                 }
             }

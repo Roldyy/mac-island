@@ -9,7 +9,15 @@ cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-$(tr -d '[:space:]' < VERSION)}"
 BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
-IDENTITY="${SIGN_IDENTITY:--}"
+IDENTITY="${SIGN_IDENTITY:-}"
+if [ -z "$IDENTITY" ]; then
+  # An ad-hoc signature is identified by its cdhash, which changes on every build: macOS then keeps the
+  # Accessibility / Input Monitoring / Screen Recording switch ON in System Settings while the new binary
+  # no longer matches it, so the app reads "not granted". Prefer the Developer ID identity when one exists.
+  IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1 || true)"
+  IDENTITY="${IDENTITY:--}"   # SIGN_IDENTITY=- forces ad hoc
+fi
 APP="build/Mac Island.app"
 APP_ID="be.roldy.macisland"
 HELPER_ID="be.roldy.macisland.fanhelper"
@@ -33,6 +41,8 @@ for b in "$BIN"/*.bundle; do [ -e "$b" ] && cp -R "$b" "$APP/Contents/Resources/
 
 echo "==> signing with: $IDENTITY"
 if [ "$IDENTITY" = "-" ]; then
+  echo "WARNING: ad-hoc signature. System permissions granted to an earlier build will not apply to this one;" >&2
+  echo "         grant them again (tccutil reset All be.roldy.macisland first) after every install." >&2
   TS="--timestamp=none"; RT=""
 else
   TS="--timestamp"; RT="--options runtime"

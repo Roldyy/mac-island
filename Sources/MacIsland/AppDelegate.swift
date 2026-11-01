@@ -86,6 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ],
             activitySources: ["agents": ClaudeActivityMapper.source])
         self.registry = registry
+        // Re-reads Accessibility, Input Monitoring and Screen Recording on activation, on the system
+        // notification and on a 1 s poll while one is missing; starts or stops the features that use it.
+        PermissionMonitor.attachLive(to: registry, probe: .live(defaults: defaults))
 
         let tabs = ShellTabs.all
         let navigation = ShellNavigation()
