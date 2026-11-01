@@ -7,6 +7,7 @@ import CommandBarFeature
 import FansFeature
 import MonitorFeature
 import FinderFeature
+import IPScannerFeature
 import DockFeature
 import AudioFeature
 import KeepAwakeFeature
@@ -112,11 +113,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "monitor": { MonitorFeature.start() },
                     "nowplaying": { NowPlayingFeature.start() },
                     "agents": { live.start() },
+                    "ipscanner": { IPScannerFeature.start() },
                 ]) { _, ours in ours },
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
                     "monitor": { MonitorFeature.stop() },
                     "agents": { live.stop() },  // withdraws every Claude activity through the sink
+                    "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
                 ]) { _, ours in ours },
                 activitySources: ["agents": ClaudeActivityMapper.source])
         }
@@ -420,6 +423,7 @@ enum ShellTabs {
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
         FinderFeature.tab(), DockFeature.tab(), AudioFeature.tab(),
         FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
+        IPScannerFeature.tab(),
     ]
 
     static let ported: [IslandTab] = [
@@ -469,6 +473,8 @@ extension AppDelegate {
                 PortBridge.settingsBody(pageID: pageID) ?? AnyView(EmptyView())
             }
         }
+        // The IP scanner's page: its catalog row carries the feature id (switch and status card), this is the body.
+        SettingsPageBodies.register(pageID: IPScannerFeature.pageID) { IPScannerFeature.settingsBody() }
         // A bound feature's page opens with its switch and status, then the ported body.
         if let registry {
             for page in PortFeatureBinding.shared.pages {

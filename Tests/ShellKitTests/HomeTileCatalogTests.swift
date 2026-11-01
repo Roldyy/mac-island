@@ -30,7 +30,7 @@ import Testing
         #expect(tiles.map(\.id) == [
             "mixer", "keepawake", "agents", "commands", "capture", "lockScreen", "cleaning", "monitor",
             "shelf", "clipboard", "terminal", "nowplaying", "settings",
-            "fans", "finder", "dock",
+            "fans", "finder", "dock", "ipscanner",
         ])
         #expect(tiles.allSatisfy { $0.isEnabled })
         // Every Explorer feature is reachable from exactly one tile.
@@ -74,9 +74,9 @@ import Testing
         let on = tiles.filter(\.isEnabled).map(\.id)
         let off = tiles.filter { !$0.isEnabled }.map(\.id)
         #expect(on == ["agents", "capture", "lockScreen", "cleaning", "clipboard", "terminal", "settings"])
-        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "monitor", "fans", "commands", "finder", "dock"])
+        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "monitor", "fans", "commands", "finder", "dock", "ipscanner"])
         #expect(tiles.map(\.id) == on + off)
-        #expect(tiles.count == 16)
+        #expect(tiles.count == 17)
     }
 
     @Test func aFeatureWithNoTabCountsAsOff() {
@@ -93,7 +93,7 @@ import Testing
         let extra = HomeFeature(id: "switcher", title: "Sélecteur", systemImage: "rectangle.on.rectangle")
         let tiles = merged(features: features + [extra])
         #expect(tiles.last?.id == "switcher" && tiles.last?.source == .feature)
-        #expect(tiles.count == 17)
+        #expect(tiles.count == 18)
     }
 
     // MARK: hidden set
@@ -101,9 +101,9 @@ import Testing
     @Test func hiddenTilesLeaveTheHomeButStayInTheExplorerFlagged() {
         let home = merged(hidden: ["capture", "finder", "ghost"])
         #expect(!home.map(\.id).contains("capture") && !home.map(\.id).contains("finder"))
-        #expect(home.count == 14)
+        #expect(home.count == 15)
         let explorer = merged(hidden: ["capture", "finder"], showHidden: true)
-        #expect(explorer.count == 16)
+        #expect(explorer.count == 17)
         #expect(explorer.filter(\.isHidden).map(\.id) == ["capture", "finder"])
         // Same order either way: hiding never reshuffles the rest.
         #expect(explorer.filter { !$0.isHidden }.map(\.id) == home.map(\.id))

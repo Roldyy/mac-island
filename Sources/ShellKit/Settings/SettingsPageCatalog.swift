@@ -220,6 +220,9 @@ public enum SettingsPageCatalog {
         P(id: "ports", title: "Gestionnaire de ports", symbol: "network", section: .apps,
           summary: "Voir quel processus écoute sur quel port.",
           keywords: ["réseau", "port", "localhost"]),
+        P(id: "ipscanner", title: "Scanner IP", symbol: "dot.radiowaves.left.and.right", section: .apps,
+          summary: "Liste les appareils de votre réseau local, sur clic uniquement.",
+          keywords: ["réseau", "ip", "arp", "nmap", "appareils", "bonjour", "ports", "mac"], featureID: "ipscanner"),
     ]
 
     private static let app: [SettingsPage] = [

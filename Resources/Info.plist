@@ -41,6 +41,19 @@
     <string>Mac Island lowers or raises the volume of a single app, and can record the Mac's sound into a screen recording you start yourself. Nothing leaves your Mac.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Mac Island enregistre votre voix avec l’enregistrement de l’écran, uniquement si vous activez le micro et lancez vous-même un enregistrement. Rien ne quitte votre Mac.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Mac Island parcourt votre réseau local pour lister les appareils, uniquement quand vous lancez un scan vous-même. Rien ne quitte votre réseau.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_http._tcp</string>
+        <string>_https._tcp</string>
+        <string>_ssh._tcp</string>
+        <string>_smb._tcp</string>
+        <string>_afpovertcp._tcp</string>
+        <string>_ipp._tcp</string>
+        <string>_airplay._tcp</string>
+        <string>_device-info._tcp</string>
+    </array>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Mac Island lists your latest finished downloads so you can drag them out of the island.</string>
 </dict>

@@ -3,16 +3,16 @@ import Testing
 @testable import ShellKit
 
 @Suite struct SettingsCatalogTests {
-    @Test func hasSixtySevenPagesInNineSections() {
-        #expect(SettingsPageCatalog.all.count == 67)
+    @Test func hasSixtyEightPagesInNineSections() {
+        #expect(SettingsPageCatalog.all.count == 68)
         #expect(SettingsSection.allCases.count == 9)
         #expect(SettingsSearch.sections(SettingsPageCatalog.all).count == 9)
-        #expect(Set(SettingsPageCatalog.all.map(\.id)).count == 67)
+        #expect(Set(SettingsPageCatalog.all.map(\.id)).count == 68)
     }
 
     @Test func sectionSizesFollowTheReferenceIndex() {
         let sizes = SettingsSection.allCases.map { SettingsPageCatalog.pages(in: $0).count }
-        #expect(sizes == [6, 12, 5, 4, 7, 14, 7, 6, 6])
+        #expect(sizes == [6, 12, 5, 4, 7, 14, 7, 7, 6])
     }
 
     @Test func everyPageHasTextAndSymbol() {
@@ -31,7 +31,7 @@ import Testing
     @Test func searchIgnoresCaseAndAccents() {
         let hits = SettingsSearch.filter(SettingsPageCatalog.all, query: "ETAGERE").map(\.id)
         #expect(hits.first == "shelf")
-        #expect(SettingsSearch.filter(SettingsPageCatalog.all, query: "").count == 67)
+        #expect(SettingsSearch.filter(SettingsPageCatalog.all, query: "").count == 68)
         #expect(SettingsSearch.filter(SettingsPageCatalog.all, query: "zzzzqq").isEmpty)
     }
 

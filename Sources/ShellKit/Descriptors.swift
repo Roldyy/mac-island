@@ -31,5 +31,8 @@ public enum ShellDescriptors {
         .init(id: "dock", title: "Dock", summary: "Aperçus de fenêtres et actions au clic sur le Dock.",
               systemImage: "dock.rectangle", category: .windows, permissions: [.accessibility, .screenRecording],
               risk: .touchesInput, tabID: "dock"),
+        // Off until the user switches it on; a scan never starts by itself (module IPScannerFeature).
+        .init(id: "ipscanner", title: "Scanner IP", summary: "Liste les appareils du réseau local, sur clic uniquement.",
+              systemImage: "dot.radiowaves.left.and.right", category: .tools, enabledByDefault: false, tabID: "ipscanner"),
     ]
 }

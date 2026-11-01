@@ -19,14 +19,14 @@ import Testing
         #expect(ids.allSatisfy(known.contains))
     }
 
-    @Test func tabsOutsideGroupsAreTheThreeSettingsOnlyOnes() {
+    @Test func tabsOutsideGroupsAreTheFourSettingsOnlyOnes() {
         let outside = ShellLayout.tabsOutsideGroups(ShellDescriptors.all.compactMap(\.tabID))
-        #expect(Set(outside) == ["commandbar", "finder", "dock"])
+        #expect(Set(outside) == ["commandbar", "finder", "dock", "ipscanner"])
     }
 
     @Test func descriptorIdsAreUniqueAndTabIdsMatch() {
         let ids = ShellDescriptors.all.map(\.id)
-        #expect(ids.count == 12 && Set(ids).count == 12)
+        #expect(ids.count == 13 && Set(ids).count == 13)
         #expect(ShellDescriptors.all.allSatisfy { $0.tabID == $0.id })
     }
 
@@ -83,7 +83,7 @@ import Testing
     @Test func groupsByCategoryInEnumOrderAndSkipsEmptyOnes() {
         let sections = FeatureHub.sections(ShellDescriptors.all, query: "")
         #expect(sections.map(\.category) == [.daily, .claude, .sound, .windows, .monitor, .files, .tools, .media])
-        #expect(sections.flatMap(\.features).count == 12)
+        #expect(sections.flatMap(\.features).count == 13)
     }
 
     @Test func searchIgnoresCaseAndAccentsAndMatchesSummaryAndCategory() {

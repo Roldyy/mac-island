@@ -112,7 +112,7 @@ import Testing
         let b = bench()
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil)
-        #expect(context.tileItems().count == 16)
+        #expect(context.tileItems().count == 17)
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
             try await render("a-all-\(mode.rawValue)", context)
@@ -126,7 +126,7 @@ import Testing
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: ["terminal", "agents", "clipboard"])
         let tiles = context.tileItems()
-        #expect(tiles.count == 16 && tiles.filter(\.isEnabled).count == 7)
+        #expect(tiles.count == 17 && tiles.filter(\.isEnabled).count == 7)
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
             try await render("b-three-\(mode.rawValue)", context)
@@ -137,11 +137,11 @@ import Testing
         let b = bench()
         defer { b.cleanup() }
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil, extra: 9)
-        #expect(context.tileItems().count == 25)
+        #expect(context.tileItems().count == 26)
         context.home.customHeight = 640
         for mode in IslandSizeMode.allCases {
             context.home.sizeMode = mode
-            let rows = context.home.tileRows(tileCount: 25)
+            let rows = context.home.tileRows(tileCount: 26)
             let columns = context.home.tileColumns
             let scrollable = HomeTileCatalog.rows(context.tileItems(), columns: columns).count > rows
             // Scrolled to the end of the content (a clip view does not stop an offset beyond it).
@@ -158,10 +158,10 @@ import Testing
         let context = makeContext(b.defaults, marker: b.marker, enabled: nil)
         context.home.hideTile("capture")
         context.home.hideTile("dock")
-        #expect(context.tileItems().count == 14)
+        #expect(context.tileItems().count == 15)
         try await render("d-hidden-home", context)
         context.navigation.route = .explore
-        #expect(context.tileItems(showHidden: true).count == 16)
+        #expect(context.tileItems(showHidden: true).count == 17)
         try await render("d-hidden-explore", context)
     }
 }

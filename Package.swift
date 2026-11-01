@@ -42,6 +42,8 @@ let package = Package(
         .target(name: "FinderFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/Finder"),
         .target(name: "DockFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Dock"),
         .target(name: "AudioFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Audio"),
+        // IP scanner: Network.framework + getifaddrs + SystemConfiguration only, no PortKit, nothing depends on it but the app.
+        .target(name: "IPScannerFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/IPScanner"),
 
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
         .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),
@@ -56,7 +58,7 @@ let package = Package(
             "IslandKit", "IslandUI", "ShellKit", "ClaudeLiveKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
             "FansFeature", "MonitorFeature", "CommandBarFeature",
-            "FinderFeature", "DockFeature", "AudioFeature",
+            "FinderFeature", "DockFeature", "AudioFeature", "IPScannerFeature",
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
@@ -82,5 +84,7 @@ let package = Package(
         .testTarget(name: "FinderFeatureTests", dependencies: ["FinderFeature"], path: "Tests/FinderTests"),
         .testTarget(name: "DockFeatureTests", dependencies: ["DockFeature"], path: "Tests/DockTests"),
         .testTarget(name: "AudioFeatureTests", dependencies: ["AudioFeature"], path: "Tests/AudioTests"),
+        // ShellKit joins only to check the registration (descriptor off by default, kill switch stops the feature).
+        .testTarget(name: "IPScannerFeatureTests", dependencies: ["IPScannerFeature", "ShellKit", "IslandKit", "IslandTestSupport"], path: "Tests/IPScannerTests"),
     ]
 )
