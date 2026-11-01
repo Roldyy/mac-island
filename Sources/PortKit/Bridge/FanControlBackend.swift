@@ -53,6 +53,9 @@ final class FanControlBackend {
         var tickInterval: TimeInterval
         /// False in tests: nothing schedules a tick behind the test's back.
         var schedulesTicks = true
+        /// Whether the registry lets the feature run (switch, kill switch, safe mode). A resume only replaces the
+        /// launch recovery when the feature will really start; otherwise the recovery hands the fans back.
+        var featureAvailable: @MainActor () -> Bool = { true }
 
         @MainActor static var live: Environment {
             let probe = FanControlProbe()
@@ -61,7 +64,8 @@ final class FanControlBackend {
                 temperatures: { probe.temperatures() },
                 thermalState: { ProcessInfo.processInfo.thermalState },
                 defaults: { PortHost.defaults },
-                tickInterval: 2)
+                tickInterval: 2,
+                featureAvailable: { AppFeature.fanControl.isAvailable })
         }
     }
 
@@ -89,6 +93,16 @@ final class FanControlBackend {
     /// The last apply or resume started from a click or a wake, for tests to await.
     private(set) var pendingApply: Task<Void, Never>?
     private var observersInstalled = false
+    /// The launch recovery in flight. Every command that moves a fan (a resume, a click, a wake) awaits it first, so
+    /// a hand-back can never land between a resumed speed and the next one.
+    private var recoveryTask: Task<Void, Never>?
+    /// The recovery stood aside for a resume that was supposed to follow (`start()`), and still owes the hand-back
+    /// if that resume does not happen.
+    private var recoveryDeferredToResume = false
+    /// A resume was started (`start()`, a wake) and has not run yet.
+    private var resumeQueued = false
+    /// What the Ventilos tab was last told (`FanDriving.setExternalControl`).
+    private var externalControlPublished = false
 
     init(environment: Environment? = nil) {
         self.environment = environment ?? .live
@@ -116,9 +130,26 @@ final class FanControlBackend {
         state.isRunning = true
         publish()
         if let configuration = resumableConfiguration, driver.access == .enabled {
-            pendingApply = Task { await applyConfigurationNow(configuration) }
+            resumeQueued = true
+            pendingApply = Task { await applyConfigurationNow(configuration) }  // awaits a recovery in flight
         } else {
+            payDeferredRecovery()
             requestTick()
+        }
+    }
+
+    /// The recovery that stood aside for a resume owes its hand-back when no resume came.
+    private func payDeferredRecovery() {
+        guard recoveryDeferredToResume else { return }
+        recoveryDeferredToResume = false
+        chainRecovery()
+    }
+
+    private func chainRecovery() {
+        let previous = recoveryTask
+        recoveryTask = Task { [weak self] in
+            await previous?.value
+            await self?.recoverAutomatic()
         }
     }
 
@@ -126,6 +157,7 @@ final class FanControlBackend {
     /// to automatic, now.
     func stop() {
         started = false
+        recoveryDeferredToResume = false
         state.isRunning = false
         panelVisible = false
         handBackNow(reason: nil)
@@ -153,6 +185,7 @@ final class FanControlBackend {
             driver.returnAllToAutomaticNow()
             isReturning = false
         }
+        syncExternalControl()
     }
 
     // MARK: - Launch recovery
@@ -161,20 +194,37 @@ final class FanControlBackend {
     /// before any feature starts. Never resumes (a resume waits for the registry to start the feature) and never
     /// registers or prompts: without an approved helper the fans stay with the system and the journal stays.
     func recoverAtLaunch() {
-        guard journalIsSet, !isControlling else { return }
-        Task { await recoverAutomatic() }
+        guard journalIsSet, !isControlling, !state.isWorking else { return }
+        chainRecovery()
     }
+
+    /// The test seam and the end of the recovery task: await it to see the recovery done.
+    func awaitRecovery() async { await recoveryTask?.value }
 
     func recoverAutomatic() async {
         let driver = self.driver
         driver.refreshAccess()
         guard driver.access == .enabled else { return }
+        // A resume the person asked for replaces the recovery (upstream's rule): it applies its own speeds under its
+        // own journal, and a hand-back in between would only make the fans jump. The journal stays set until the
+        // helper confirms automatic, so a resume that fails still ends in a hand-back (`restoreNow`).
+        if resumeQueued || (!started && resumableConfiguration != nil && environment.featureAvailable()) {
+            recoveryDeferredToResume = true
+            return
+        }
         await driver.connectIfApproved()
         guard driver.isReachable else { return }
+        let generation = controlGeneration
         isReturning = true
+        syncExternalControl()
         let outcome = await driver.returnAllToAutomatic()
         isReturning = false
-        if outcome == .automatic { defaults.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded) }
+        // The journal is also the control's own while a configuration is held: only a confirmed automatic that no
+        // control started or ended in the meantime may close it.
+        if outcome == .automatic, generation == controlGeneration, !isControlling {
+            defaults.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+        }
+        syncExternalControl()
         requestTick()
     }
 
@@ -259,6 +309,15 @@ final class FanControlBackend {
 
     /// Journal first, then one read, then the first speeds. Any refusal ends in automatic.
     func applyConfigurationNow(_ configuration: FanControlConfiguration) async {
+        await recoveryTask?.value  // never two writers: the launch recovery finishes before the first speed
+        defer {
+            resumeQueued = false
+            // The recovery stood aside for this resume: if no control came out of it, the hand-back is still owed.
+            if recoveryDeferredToResume {
+                recoveryDeferredToResume = false
+                if !isControlling { chainRecovery() }
+            }
+        }
         guard started, FanControlPolicy.validConfiguration(configuration), configuration.mode != .system else { return }
         let driver = self.driver
         state.isWorking = true
@@ -282,6 +341,7 @@ final class FanControlBackend {
         }
         controlGeneration += 1
         activeConfiguration = configuration
+        syncExternalControl()
         appliedLevel = nil
         appliedTargets = [:]
         temperatureFailures = 0
@@ -419,9 +479,9 @@ final class FanControlBackend {
         if !keepError { stickyError = nil }
         guard hadControl || (cachedDriver?.isManualActive ?? false) else { publish(); return }
         let driver = self.driver
+        isReturning = true  // before publish(): the tab must not unlock for a moment mid hand-back
         state.isWorking = true
         publish()
-        isReturning = true
         let outcome = await driver.returnAllToAutomatic()
         isReturning = false
         state.isWorking = false
@@ -501,6 +561,7 @@ final class FanControlBackend {
     func didWake() {
         guard started else { return }
         if let configuration = resumableConfiguration, driver.access == .enabled {
+            resumeQueued = true
             pendingApply = Task { await applyConfigurationNow(configuration) }
         } else if journalIsSet {
             recoverAtLaunch()
@@ -579,7 +640,16 @@ final class FanControlBackend {
         onChange?(state)
     }
 
+    /// Tells the Ventilos tab to lock its own controls while this backend holds the fans or hands them back.
+    private func syncExternalControl() {
+        let holds = isControlling || isReturning
+        guard holds != externalControlPublished, let cachedDriver else { return }
+        externalControlPublished = holds
+        cachedDriver.setExternalControl(holds ? FanExternalControl(takeBack: { [weak self] in self?.returnToSystem() }) : nil)
+    }
+
     private func publish() {
+        syncExternalControl()
         var next = state
         if let cachedDriver { next.accessState = Self.access(cachedDriver.access) }
         next.snapshot.isCooling = isControlling

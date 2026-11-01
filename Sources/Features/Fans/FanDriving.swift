@@ -49,6 +49,15 @@ public enum FanDriverOutcome: Equatable, Sendable {
     case unreachable
 }
 
+/// Told to the Ventilos tab while the ported fan policy (a curve or a preset) holds the fans: the tab then shows a
+/// read-only state with one button, instead of a second set of sliders driving the same helper.
+public struct FanExternalControl {
+    /// The tab's only action while locked: the policy stops, journal first, and the fans go back to automatic.
+    public let takeBack: @MainActor () -> Void
+
+    public init(takeBack: @escaping @MainActor () -> Void) { self.takeBack = takeBack }
+}
+
 /// The one door the ported fan policy uses to reach Mac Island's root helper. The XPC contract (`FanHelperContract`)
 /// stays what it is: this protocol sits above it and is implemented by the Fans model, so the ported curves,
 /// presets and safety limits drive the very same client, heartbeat and watchdog as the Ventilos tab.
@@ -76,4 +85,7 @@ public protocol FanDriving: AnyObject {
     func returnAllToAutomatic() async -> FanDriverOutcome
     /// Automatic for every fan, callable at quit: waits at most half a second, opens no connection.
     func returnAllToAutomaticNow()
+    /// Non-nil while the policy holds the fans (and while it hands them back): the tab's own sliders and its
+    /// "Retour automatique" are replaced by a read-only state. Nil gives the tab its controls back.
+    func setExternalControl(_ control: FanExternalControl?)
 }

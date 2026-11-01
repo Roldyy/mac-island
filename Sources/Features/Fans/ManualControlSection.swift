@@ -11,6 +11,13 @@ struct ManualControlSection: View {
         « Retour automatique », jusqu'à ce que l'app quitte ou que le Mac chauffe (au-delà de 95 °C).
         """
 
+    /// Shown instead of the sliders while a curve or a preset from the Ventilos settings drives the fans.
+    static let externalNote = """
+        Une courbe ou un réglage des Réglages > Ventilos pilote actuellement les ventilateurs. Les curseurs sont \
+        verrouillés pour éviter deux commandes à la fois.
+        """
+    static let takeBackTitle = "Reprendre la main"
+
     let model: FansModel
 
     var body: some View {
@@ -26,27 +33,45 @@ struct ManualControlSection: View {
                 .foregroundStyle(.yellow)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(model.readings) { reading in
-                    if let range = model.range(for: reading.index) {
-                        FanSliderRow(model: model, fan: reading.index, range: range)
+            if let control = model.externalControl {
+                // The ported curve or preset holds the fans: one controller at a time.
+                Text(Self.externalNote)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    control.takeBack()
+                } label: {
+                    Label(Self.takeBackTitle, systemImage: "hand.raised.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.green)
+                .accessibilityHint("Arrête la courbe et rend le contrôle des ventilateurs à macOS")
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(model.readings) { reading in
+                        if let range = model.range(for: reading.index) {
+                            FanSliderRow(model: model, fan: reading.index, range: range)
+                        }
                     }
                 }
-            }
-            .disabled(!model.manualAvailable)
-            .opacity(model.manualAvailable ? 1 : 0.4)
+                .disabled(!model.manualAvailable)
+                .opacity(model.manualAvailable ? 1 : 0.4)
 
-            Button {
-                Task { await model.returnToAutomatic() }
-            } label: {
-                Label("Retour automatique", systemImage: "arrow.uturn.backward.circle.fill")
-                    .frame(maxWidth: .infinity)
+                Button {
+                    Task { await model.returnToAutomatic() }
+                } label: {
+                    Label("Retour automatique", systemImage: "arrow.uturn.backward.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.green)
+                .disabled(!model.helperReachable)
+                .accessibilityHint("Rend le contrôle des ventilateurs à macOS")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(.green)
-            .disabled(!model.helperReachable)
-            .accessibilityHint("Rend le contrôle des ventilateurs à macOS")
         }
         .padding(10)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))

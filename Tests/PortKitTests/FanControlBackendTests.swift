@@ -16,6 +16,11 @@ final class FakeFanDriver: FanDriving {
     var targetOutcome: (Int, Double) -> FanDriverOutcome = { .applied(fan: $0, rpm: $1) }
     var returnOutcome: FanDriverOutcome = .automatic
     var onSetTarget: (() -> Void)?
+    /// Runs inside `returnAllToAutomatic`, before it answers: lets a test hold a hand-back in flight.
+    var duringReturn: (() async -> Void)?
+    /// What the Ventilos tab was last told; `lockLog` keeps the order of locks and unlocks.
+    var externalControl: FanExternalControl?
+    var lockLog: [Bool] = []
 
     static let twoFans = [
         FanDriverFan(index: 0, actualRPM: 2300, minRPM: 2317, maxRPM: 7826, targetRPM: 2317, isManual: false),
@@ -38,8 +43,14 @@ final class FakeFanDriver: FanDriving {
         return outcome
     }
 
+    func setExternalControl(_ control: FanExternalControl?) {
+        externalControl = control
+        lockLog.append(control != nil)
+    }
+
     func returnAllToAutomatic() async -> FanDriverOutcome {
         log.append("auto")
+        await duringReturn?()
         isManualActive = false
         return returnOutcome
     }
@@ -440,6 +451,142 @@ struct FanBench {
         b.backend.start()
         await b.backend.pendingApply?.value
         #expect(b.driver.count("set:") == 0)
+    }
+
+    // MARK: Recovery and resume never run together
+
+    private func configureResume(_ b: FanBench) {
+        b.defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        b.defaults.set(true, forKey: DefaultsKey.fanControlResume)
+        b.defaults.set("manual", forKey: DefaultsKey.fanControlMode)
+        b.defaults.set(FanControlConfiguration.encodeResume(.manual(level: 50)),
+                       forKey: DefaultsKey.fanControlResumeConfiguration)
+    }
+
+    @Test func aResumeReplacesTheLaunchRecoveryAndTheJournalStaysSet() async {
+        let b = FanBench.make(started: false)
+        defer { b.cleanup() }
+        configureResume(b)
+        b.backend.recoverAtLaunch()  // as PortBridge does, before any feature starts
+        b.backend.start()  // then the registry starts the feature and the resume follows
+        await b.backend.awaitRecovery()
+        await b.backend.pendingApply?.value
+        #expect(b.driver.count("auto") == 0, "no hand-back between the crash and the resumed speeds: \(b.driver.log)")
+        #expect(b.driver.log.filter { $0.hasPrefix("set:") } == ["set:0:5072", "set:1:4000"])
+        #expect(b.backend.isControlling)
+        #expect(b.journal, "the journal is the resumed control's own: it closes on a confirmed automatic only")
+    }
+
+    @Test func aRecoveryThatStoodAsideForAResumeIsOwedWhenTheResumeNeverComes() async {
+        let b = FanBench.make(started: false)
+        defer { b.cleanup() }
+        configureResume(b)
+        b.backend.recoverAtLaunch()
+        await b.backend.awaitRecovery()
+        #expect(b.driver.log.isEmpty, "the recovery waits for the resume")
+        b.defaults.set("system", forKey: DefaultsKey.fanControlMode)  // the person went back to System meanwhile
+        b.backend.start()
+        await b.backend.awaitRecovery()
+        #expect(b.driver.count("auto") == 1 && b.driver.count("set:") == 0)
+        #expect(!b.journal)
+    }
+
+    @Test func aResumeThatFailsStillHandsTheFansBack() async {
+        let b = FanBench.make(started: false)
+        defer { b.cleanup() }
+        configureResume(b)
+        b.driver.fans = []
+        b.backend.recoverAtLaunch()
+        b.backend.start()
+        await b.backend.awaitRecovery()
+        await b.backend.pendingApply?.value
+        #expect(b.driver.count("auto") == 1 && b.driver.count("set:") == 0)
+        #expect(!b.backend.isControlling)
+    }
+
+    @Test func aSendWaitsForTheRecoveryInFlight() async {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        b.defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        let release = Box(false)
+        b.driver.duringReturn = { while !release.value { await Task.yield() } }
+        b.backend.recoverAtLaunch()
+        for _ in 0..<5 { await Task.yield() }
+        #expect(b.driver.count("auto") == 1, "the recovery is in flight, held")
+        b.backend.applyConfiguration(.manual(level: 50))
+        for _ in 0..<20 { await Task.yield() }
+        #expect(b.driver.count("set:") == 0, "no speed while the hand-back is in flight: \(b.driver.log)")
+        release.value = true
+        await b.backend.awaitRecovery()
+        await b.backend.pendingApply?.value
+        let autoIndex = b.driver.log.firstIndex(of: "auto")
+        let setIndex = b.driver.log.firstIndex(where: { $0.hasPrefix("set:") })
+        #expect(autoIndex != nil && setIndex != nil && autoIndex! < setIndex!, "ordered: \(b.driver.log)")
+        #expect(b.backend.isControlling)
+        #expect(b.journal, "the recovery's confirmation never closes the journal of the control that followed")
+    }
+
+    @Test func aRecoveryNeverClosesTheJournalOfAControlThatStartedMeanwhile() async {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        b.defaults.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
+        let backend = b.backend
+        // Direct call (no task to wait on): a control starts while the recovery's hand-back is in flight.
+        b.driver.duringReturn = { [driver = b.driver] in
+            driver.duringReturn = nil
+            await backend.applyConfigurationNow(.manual(level: 50))
+        }
+        await b.backend.recoverAutomatic()
+        #expect(b.backend.isControlling)
+        #expect(b.journal, "a configuration is held and the helper confirmed only the earlier hand-back")
+    }
+
+    // MARK: One controller at a time (the Ventilos tab)
+
+    @Test func theTabIsToldToLockWhileTheBackendHoldsTheFansAndToUnlockAfterTheHandBack() async {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        #expect(b.driver.externalControl == nil)
+        await b.backend.applyConfigurationNow(.manual(level: 50))
+        #expect(b.driver.externalControl != nil)
+        await b.backend.restoreNow(reason: nil)
+        #expect(b.driver.externalControl == nil)
+        #expect(b.driver.lockLog == [true, false], "one lock, one unlock: \(b.driver.lockLog)")
+    }
+
+    @Test func theTabStaysLockedWhileTheHandBackIsInFlight() async {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        await b.backend.applyConfigurationNow(.manual(level: 50))
+        let lockedDuring = Box<Bool?>(nil)
+        b.driver.duringReturn = { lockedDuring.value = b.driver.externalControl != nil }
+        await b.backend.restoreNow(reason: nil)
+        #expect(lockedDuring.value == true)
+        #expect(b.driver.externalControl == nil)
+    }
+
+    @Test func reprendreLaMainStopsTheCurveThroughTheBackendAndForgetsTheResume() async throws {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        b.defaults.set(true, forKey: DefaultsKey.fanControlResume)
+        await b.backend.applyConfigurationNow(.manual(level: 50))
+        let control = try #require(b.driver.externalControl)
+        control.takeBack()
+        await b.backend.pendingApply?.value
+        #expect(!b.backend.isControlling)
+        #expect(b.driver.count("auto") == 1)
+        #expect(!b.journal, "journal closed on the helper's confirmation")
+        #expect(b.defaults.string(forKey: DefaultsKey.fanControlResumeConfiguration) == nil)
+        #expect(b.driver.externalControl == nil)
+    }
+
+    @Test func aHelperThatEndedManualDuringOurHandBackIsNotAHeartbeatLoss() async {
+        let b = FanBench.make()
+        defer { b.cleanup() }
+        await b.backend.applyConfigurationNow(.manual(level: 50))
+        b.driver.duringReturn = { b.driver.onManualEnded?("Ventilateurs en mode automatique.") }
+        await b.backend.restoreNow(reason: nil)
+        #expect(b.backend.state.snapshot.stopReason == nil, "our own command, not heartbeatLost")
     }
 
     // MARK: Snapshot

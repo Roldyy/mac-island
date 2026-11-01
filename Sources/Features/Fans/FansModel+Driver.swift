@@ -18,6 +18,8 @@ extension FansModel: FanDriving {
     var isReachable: Bool { helperReachable }
     var isManualActive: Bool { manualActive }
 
+    func setExternalControl(_ control: FanExternalControl?) { externalControl = control }
+
     func refreshAccess() { refreshInstallStatus() }
 
     func connectIfApproved() async { await appeared() }

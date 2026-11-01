@@ -22,6 +22,9 @@ final class FansModel {
     private(set) var statusMessage: String?
     /// Slider value per fan index, committed when the drag ends.
     var targets: [Int: Double] = [:]
+    /// Set by the ported fan policy while it holds the fans: the tab is read-only with one "Reprendre la main"
+    /// button, and a slider commit is refused here as well (two controllers must never drive one helper).
+    var externalControl: FanExternalControl?
 
     @ObservationIgnored let policy = FanSafetyPolicy()
     @ObservationIgnored private(set) var connectTask: Task<Void, Never>?
@@ -39,6 +42,9 @@ final class FansModel {
     @ObservationIgnored var automaticEpoch = 0
     /// Set by the ported fan policy (`FanDriving`): told when manual mode ended without its own command.
     @ObservationIgnored var onManualEnded: (@MainActor (String?) -> Void)?
+    /// True while `returnToAutomatic()` runs: that end of manual mode is our own command, never "the helper's
+    /// watchdog" for the policy listening on `onManualEnded`.
+    @ObservationIgnored private var ownReturnInFlight = false
 
     init(source: FanReadingSource, client: FanHelperClient, installer: FanHelperInstalling,
          heartbeat: HeartbeatScheduling) {
@@ -166,7 +172,7 @@ final class FansModel {
     // MARK: - Manual control
 
     func commitTarget(fan: Int) async {
-        guard manualAvailable, let range = range(for: fan), let wanted = targets[fan],
+        guard externalControl == nil, manualAvailable, let range = range(for: fan), let wanted = targets[fan],
               let rpm = policy.clamp(wanted.rounded(), to: FanLimits(minRPM: range.lowerBound, maxRPM: range.upperBound))
         else { return }
         let epoch = automaticEpoch
@@ -186,6 +192,8 @@ final class FansModel {
     func returnToAutomatic() async -> FanDriverOutcome {
         automaticEpoch += 1
         heartbeat.stop()
+        ownReturnInFlight = true
+        defer { ownReturnInFlight = false }
         var outcome = FanDriverOutcome.unreachable
         do {
             let result = try await client.perform(.allAutomatic)
@@ -270,7 +278,7 @@ final class FansModel {
         manualActive = false
         releaseGuard.manualActive = false
         heartbeat.stop()
-        if wasActive { onManualEnded?(statusMessage) }
+        if wasActive, !ownReturnInFlight { onManualEnded?(statusMessage) }
     }
 }
 

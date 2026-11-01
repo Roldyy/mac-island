@@ -124,6 +124,45 @@ import Testing
         #expect(!heartbeat.isRunning)
     }
 
+    // MARK: - One controller at a time (the ported curve holds the fans)
+
+    @Test func theSlidersCommitNothingWhileThePolicyHoldsTheFans() async {
+        let model = await ready()
+        model.setExternalControl(FanExternalControl(takeBack: {}))
+        model.targets[0] = 4000
+        await model.commitTarget(fan: 0)
+        #expect(client.commands.isEmpty, "two controllers must never drive one helper")
+        #expect(!model.manualActive)
+        model.setExternalControl(nil)
+        await model.commitTarget(fan: 0)
+        #expect(client.commands == [.setTarget(fan: 0, rpm: 4000)], "the tab has its sliders back once the policy lets go")
+    }
+
+    @Test func theLockedTabOffersOneFrenchButtonThatCallsTheBackend() async {
+        let model = await ready()
+        var taken = 0
+        model.setExternalControl(FanExternalControl(takeBack: { taken += 1 }))
+        model.externalControl?.takeBack()
+        #expect(taken == 1)
+        #expect(ManualControlSection.takeBackTitle == "Reprendre la main")
+        #expect(ManualControlSection.externalNote.contains("courbe") && ManualControlSection.externalNote.contains("verrouillés"))
+    }
+
+    @Test func theTabsOwnReturnToAutomaticIsNotAHeartbeatLossForThePolicy() async {
+        let model = await ready()
+        var ended: [String?] = []
+        model.onManualEnded = { ended.append($0) }
+        model.targets[0] = 4000
+        await model.commitTarget(fan: 0)
+        await model.returnToAutomatic()
+        #expect(ended.isEmpty, "our own command is not the helper's watchdog")
+        model.targets[0] = 4000
+        await model.commitTarget(fan: 0)
+        client.heartbeatAnswer = false
+        await heartbeat.fire()
+        #expect(ended.count == 1, "a refused heartbeat is still reported")
+    }
+
     @Test func heartbeatRefusedMeansTheHelperWentAutomatic() async {
         let model = await ready()
         model.targets[0] = 4000

@@ -101,6 +101,36 @@ import Testing
         #expect(offenders.isEmpty, "old author handle: \(offenders.prefix(5))")
     }
 
+    /// The Now Playing adapter is built as `libMacIslandNowPlaying.dylib` (Package.swift). Every `.dylib` name the
+    /// port can resolve must be that one: the radial menu once kept upstream's `libVorssaintNowPlaying.dylib`,
+    /// which does not exist in our bundle, so its Now Playing card was always empty.
+    @Test func everyAdapterLibraryNameTheAppResolvesIsOurs() throws {
+        var names = Set<String>()
+        var radialUsesLocator = false
+        for file in Self.files {
+            for line in file.lines {
+                var rest = Substring(line)
+                while let range = rest.range(of: ".dylib") {
+                    let head = rest[..<range.lowerBound]
+                    let start = head.lastIndex(where: { !($0.isLetter || $0.isNumber) }).map { head.index(after: $0) }
+                        ?? head.startIndex
+                    names.insert(String(head[start...]) + ".dylib")
+                    rest = rest[range.upperBound...]
+                }
+            }
+            if file.path == "Services/RadialMenu/RadialNowPlayingService.swift" {
+                radialUsesLocator = file.lines.contains { $0.contains("MediaRemoteAdapterLocator.live.launchArguments()") }
+            }
+        }
+        #expect(names == ["libMacIslandNowPlaying.dylib"], "adapter library names in the port: \(names.sorted())")
+        #expect(radialUsesLocator, "the radial menu resolves the adapter through MediaRemoteAdapterLocator (patch 1800)")
+        let package = try String(contentsOf: Self.repoRoot.appendingPathComponent("Package.swift"), encoding: .utf8)
+        #expect(package.contains(".library(name: \"MacIslandNowPlaying\", type: .dynamic"))
+        let patches = try FileManager.default.contentsOfDirectory(
+            atPath: Self.repoRoot.appendingPathComponent("scripts/port/patches").path)
+        #expect(patches.contains("1800-radial-now-playing-uses-adapter-locator.patch"))
+    }
+
     @Test func defaultsKeyNamesAreKeptVerbatim() throws {
         let url = Self.portKit.appendingPathComponent("Core/Defaults.swift")
         let text = try String(contentsOf: url, encoding: .utf8)

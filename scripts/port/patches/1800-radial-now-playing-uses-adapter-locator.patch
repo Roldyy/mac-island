@@ -1,0 +1,22 @@
+--- a/Services/RadialMenu/RadialNowPlayingService.swift
++++ b/Services/RadialMenu/RadialNowPlayingService.swift
+@@ -335,15 +335,14 @@
+     private static let replyTimeout: TimeInterval = 2.0
+
+     func fetch(completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
+-        guard let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
+-              let library = Bundle.main.privateFrameworksURL?
+-                .appendingPathComponent("libVorssaintNowPlaying.dylib"),
+-              FileManager.default.fileExists(atPath: library.path) else {
++        // Mac Island: the same capability probe and kill switch as the music page (`MediaRemoteAdapterLocator`), so
++        // the library name (`libMacIslandNowPlaying.dylib`) is written in one place only.
++        guard let adapter = MediaRemoteAdapterLocator.live.launchArguments() else {
+             completion(nil)
+             return
+         }
+         queue.async {
+-            let result = BoundedProcessRunner.run("/usr/bin/perl", [script.path, library.path],
++            let result = BoundedProcessRunner.run("/usr/bin/perl", adapter,
+                                                   timeout: Self.replyTimeout,
+                                                   maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes)
+             guard result.status == 0, !result.timedOut,
