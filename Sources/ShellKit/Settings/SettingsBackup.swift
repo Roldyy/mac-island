@@ -1,4 +1,5 @@
 import Foundation
+import SettingsKit
 
 public enum SettingsBackupError: Error, Equatable {
     case notASettingsFile
@@ -32,6 +33,12 @@ public struct SettingsBackup {
         key.hasPrefix("NS") || key.hasPrefix("Apple") || key.hasPrefix("com.apple.") || key.hasPrefix("SU")
     }
 
+    /// What a backup neither exports nor restores: system keys, and this Mac's runtime markers, consents,
+    /// evidence and journals (`SettingsMachineState`, the one list the v2 import and its purge share).
+    static func isLeftOut(_ key: String) -> Bool {
+        isSystemKey(key) || SettingsMachineState.isExcluded(key)
+    }
+
     func stamp() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -41,7 +48,7 @@ public struct SettingsBackup {
 
     @discardableResult
     public func export() throws -> URL {
-        let kept = (defaults.persistentDomain(forName: domain) ?? [:]).filter { !Self.isSystemKey($0.key) }
+        let kept = (defaults.persistentDomain(forName: domain) ?? [:]).filter { !Self.isLeftOut($0.key) }
         let data = try PropertyListSerialization.data(fromPropertyList: kept, format: .xml, options: 0)
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -60,12 +67,14 @@ public struct SettingsBackup {
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
-    /// Writes every key of the file back. Keys the file does not hold stay as they are.
+    /// Writes every preference of the file back. Keys the file does not hold stay as they are, and so do the keys
+    /// of `SettingsMachineState` whatever the file says (an older backup may still carry them): a live marker is
+    /// neither overwritten nor deleted, a consent is never brought back without a click.
     public func restore(from url: URL) throws {
         let data = try Data(contentsOf: url)
         guard let dict = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             throw SettingsBackupError.notASettingsFile
         }
-        for (key, value) in dict where !Self.isSystemKey(key) { defaults.set(value, forKey: key) }
+        for (key, value) in dict where !Self.isLeftOut(key) { defaults.set(value, forKey: key) }
     }
 }

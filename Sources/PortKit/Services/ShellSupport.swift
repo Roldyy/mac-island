@@ -213,6 +213,8 @@ enum Sudoers {
             let finish: (Bool) -> Void = { ok in
                 sleepStateQueue.async {
                     sleepStateProbeSuspensions -= 1
+                    // Mac Island: sleep is back on, so the guard child stands down.
+                    if ok { ClosedLidGuard.shared.sleepStateChanged(disabled: false) }
                     completion(ok)
                 }
             }
@@ -228,13 +230,16 @@ enum Sudoers {
                     finish(false)
                     return
                 }
-                AdminShell.run("pmset disablesleep 0", prompt: prompt, completion: finish)
+                AdminShell.run("/usr/bin/pmset disablesleep 0", prompt: prompt, completion: finish)
             }
         }
     }
 
     private static func pmsetDisableSleepOnQueue(_ on: Bool) -> Bool {
-        Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
+        let ok = Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
+        // Mac Island: while lid sleep is off a guard child gives it back if this process dies (`ClosedLidGuard`).
+        if ok { ClosedLidGuard.shared.sleepStateChanged(disabled: on) }
+        return ok
     }
 }
 

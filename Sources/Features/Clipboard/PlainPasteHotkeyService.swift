@@ -92,12 +92,14 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
         // Rewriting drops every flavour, including the password-manager markers: carry them over
         // (empty data is how the convention is written) so the item stays unrecordable.
         let markers = blockedMarkers(on: pasteboard)
-        let before = pasteboard.types?.map(\.rawValue) ?? []
+        let beforeCount = pasteboard.types?.count ?? 0
         pasteboard.clearContents()
         pasteboard.setString(PlainPaste.normalize(raw), forType: .string)
         for m in markers { pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(m)) }
-        let after = pasteboard.types?.map(\.rawValue) ?? []
-        PasteLog.logger.notice("pasteboard converted: types \(before.joined(separator: ","), privacy: .public) -> \(after.joined(separator: ","), privacy: .public)")
+        let afterCount = pasteboard.types?.count ?? 0
+        // Counts only: a type identifier can name what was copied (a concealed-password marker, an app's own
+        // flavour), and the notice level is persisted.
+        PasteLog.logger.notice("\(Self.conversionLogLine(before: beforeCount, after: afterCount), privacy: .public)")
         afterWrite()
         guard accessibilityTrusted() else {
             PasteLog.logger.notice("not posted: Accessibility not granted (AXIsProcessTrusted false)")
@@ -112,6 +114,12 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
             didSend(result)
         }
         return .pasted
+    }
+
+    /// The one line the conversion leaves in the log: how many pasteboard types there were before and after,
+    /// never their identifiers.
+    nonisolated static func conversionLogLine(before: Int, after: Int) -> String {
+        "pasteboard converted: \(before) types -> \(after) types"
     }
 
     nonisolated static func blockedMarkers(on pasteboard: NSPasteboard) -> [String] {

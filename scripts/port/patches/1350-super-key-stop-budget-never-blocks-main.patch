@@ -1,0 +1,218 @@
+--- a/Services/SuperKey/SuperKeyMappingGuard.swift
++++ b/Services/SuperKey/SuperKeyMappingGuard.swift
+@@ -13,6 +13,33 @@
+     static let cleanupArgument = "--super-key-mapping-cleanup"
+     private static let commandTimeout: TimeInterval = 5
+ 
++    /// Mac Island: ONE time budget for taking the mapping out when the feature stops, counted from the moment
++    /// the stop was asked for (a queue backlog eats it too). The clear runs off the main thread within it; past
++    /// it nothing more is waited for and the guard child, which already has the pipe closed, finishes the job.
++    struct StopBudget {
++        /// A registry stop (kill switch, safe mode, permission revoked): nobody waits for it.
++        static let asyncTotal: TimeInterval = 3
++        /// `applicationWillTerminate`: the only place the main thread may wait, and for this long at most.
++        static let terminationTotal: TimeInterval = 2
++        /// Test seam: the clock (system uptime).
++        nonisolated(unsafe) static var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
++
++        let total: TimeInterval
++        private let deadline: TimeInterval
++
++        init(seconds: TimeInterval) {
++            total = seconds
++            deadline = Self.uptime() + seconds
++        }
++
++        var remaining: TimeInterval { max(0, deadline - Self.uptime()) }
++        var isExhausted: Bool { remaining <= 0 }
++    }
++
++    /// Test seam: the guard child's command, so a test starts a harmless child that waits on the pipe like the
++    /// real one and never re-executes the test binary.
++    nonisolated(unsafe) static var launchOverride: ((SuperKeySource) -> (executable: String, arguments: [String]))?
++
+     final class Handle {
+         let source: SuperKeySource
+ 
+@@ -21,17 +48,23 @@
+         private let finished: DispatchSemaphore
+ 
+         fileprivate init?(source: SuperKeySource) {
+-            guard let executable = Bundle.main.executableURL?.path else { return nil }
++            let command: (executable: String, arguments: [String])
++            if let launchOverride = SuperKeyMappingGuard.launchOverride {
++                command = launchOverride(source)
++            } else {
++                guard let executable = Bundle.main.executableURL?.path else { return nil }
++                command = ("/bin/sh", [
++                    "-c",
++                    "IFS= read -r _; exec \"$1\" \"$2\" \"$3\"",
++                    "sh", executable, cleanupArgument, source.rawValue,
++                ])
++            }
+ 
+             let process = Process()
+             let inputPipe = Pipe()
+             let finished = DispatchSemaphore(value: 0)
+-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+-            process.arguments = [
+-                "-c",
+-                "IFS= read -r _; exec \"$1\" \"$2\" \"$3\"",
+-                "sh", executable, cleanupArgument, source.rawValue,
+-            ]
++            process.executableURL = URL(fileURLWithPath: command.executable)
++            process.arguments = command.arguments
+             process.standardInput = inputPipe
+             process.standardOutput = FileHandle.nullDevice
+             process.standardError = FileHandle.nullDevice
+@@ -53,8 +86,16 @@
+         /// Closing the pipe asks the guard to clean now. The app has already
+         /// attempted the same clear; this bounded second pass covers a failed
+         /// command without ever holding termination indefinitely.
+-        func stop() -> Bool {
++        ///
++        /// `budget` (Mac Island): the most this call may wait. The pipe is closed first either way, so the guard
++        /// child starts its own cleanup at once; when the budget runs out the child is LEFT RUNNING (it is the
++        /// one that gives the key back) and the answer is "not confirmed", which keeps the recovery marker.
++        func stop(within budget: TimeInterval? = nil) -> Bool {
+             try? input.close()
++            if let budget {
++                guard finished.wait(timeout: .now() + max(0, budget)) == .success else { return false }
++                return process.terminationStatus == EXIT_SUCCESS
++            }
+             var didFinish = finished.wait(
+                 timeout: .now() + SuperKeyMappingGuard.commandTimeout + 1
+             ) == .success
+@@ -133,12 +174,13 @@
+     nonisolated(unsafe) static var runHIDOverride: (([String]) -> (status: Int32, output: String))?
+ 
+     /// The one door to `hidutil`: the guard's cleanup and the service's apply, clear and readback all use it.
+-    static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
++    /// `budget` (Mac Island): a command never runs longer than what is left of it.
++    static func runHID(_ arguments: [String], budget: StopBudget? = nil) -> (status: Int32, output: String) {
+         if let runHIDOverride { return runHIDOverride(arguments) }
+         let result = BoundedProcessRunner.run(
+             "/usr/bin/hidutil",
+             arguments,
+-            timeout: commandTimeout,
++            timeout: min(commandTimeout, budget?.remaining ?? commandTimeout),
+             maxOutputBytes: 4 * 1024 * 1024
+         )
+         return (result.status, String(decoding: result.output, as: UTF8.self))
+--- a/Services/SuperKey/SuperKeyService.swift
++++ b/Services/SuperKey/SuperKeyService.swift
+@@ -158,9 +158,19 @@
+         start()
+     }
+ 
+-    /// Quitting takes the mapping out on the spot: the process is about to go
+-    /// away, and a mapping left behind would leave its source doing nothing.
++    /// Mac Island: the registry's stop (kill switch, safe mode, permission revoked) and the launch recovery. The
++    /// mapping is taken out off the main thread, within ONE budget (`StopBudget.asyncTotal`), and nothing waits
++    /// for it: the emergency stop must never freeze the UI behind a hung `hidutil`. What the budget does not
++    /// finish, the guard child does (its pipe is closed), and the recovery marker stays for the next launch.
+     func suspend() {
++        syncExceptionMonitoring(enabled: false)
++        stop(synchronously: false)
++    }
++
++    /// `applicationWillTerminate`: the process is about to go away, and a mapping left behind would leave its
++    /// source doing nothing. The only caller that waits, for `StopBudget.terminationTotal` at most; past that
++    /// the guard child gives the key back when the pipe closes with the process.
++    func suspendForTermination() {
+         syncExceptionMonitoring(enabled: false)
+         stop(synchronously: true)
+     }
+@@ -422,6 +432,10 @@
+             lastMappingAt = ProcessInfo.processInfo.systemUptime
+             if enabled { pendingMappingEnableCount += 1 }
+         }
++        // Mac Island: a clear lives within one budget counted from here, so a backlog in front of it eats it too.
++        let budget: SuperKeyMappingGuard.StopBudget? = enabled ? nil : SuperKeyMappingGuard.StopBudget(
++            seconds: synchronously ? SuperKeyMappingGuard.StopBudget.terminationTotal
++                                   : SuperKeyMappingGuard.StopBudget.asyncTotal)
+         let work = { [weak self] in
+             guard let self else { return }
+             defer {
+@@ -449,10 +463,12 @@
+             let failure = self.performMapping(
+                 enabled,
+                 source: source,
+-                ownedSource: ownedSource
++                ownedSource: ownedSource,
++                budget: budget
+             )
+             if !enabled {
+-                let guardConfirmed = self.mappingGuard?.stop() ?? false
++                // Closes the pipe at once (the guard child starts its own cleanup) and waits only what is left.
++                let guardConfirmed = self.mappingGuard?.stop(within: budget?.remaining) ?? false
+                 self.mappingGuard = nil
+                 let marker = SuperKeySupport.mappingMarkerAfterClear(
+                     previous: previousMarker,
+@@ -465,13 +481,26 @@
+                 DispatchQueue.main.async { completion(failure) }
+             }
+         }
+-        if synchronously {
+-            mappingQueue.sync(execute: work)
++        if synchronously, let budget {
++            // Never `mappingQueue.sync`: it would wait behind whatever is queued, without a limit.
++            let done = DispatchSemaphore(value: 0)
++            mappingQueue.async {
++                work()
++                done.signal()
++            }
++            _ = done.wait(timeout: .now() + budget.total)
+         } else {
+             mappingQueue.async(execute: work)
+         }
+     }
+ 
++    /// Test seam: returns once everything queued before this call has run, or false when `timeout` passed first.
++    func waitForMappingQueueForTesting(timeout: TimeInterval) -> Bool {
++        let done = DispatchSemaphore(value: 0)
++        mappingQueue.async { done.signal() }
++        return done.wait(timeout: .now() + timeout) == .success
++    }
++
+     /// Applies or clears the mapping, and answers with the reason it could not
+     /// be done, or nil when it was.
+     ///
+@@ -480,10 +509,14 @@
+     /// answers null for rules written by System Settings.
+     private func performMapping(_ enabled: Bool,
+                                 source: SuperKeySource,
+-                                ownedSource: SuperKeySource?) -> SuperKeyMappingFailure? {
++                                ownedSource: SuperKeySource?,
++                                budget: SuperKeyMappingGuard.StopBudget? = nil) -> SuperKeyMappingFailure? {
++        // A clear that has run out of budget starts no further `hidutil`: the guard child finishes it.
++        if let budget, budget.isExhausted { return .systemRefused }
+         let report = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+-             "--get", SuperKeySupport.userMappingProperty]
++             "--get", SuperKeySupport.userMappingProperty],
++            budget: budget
+         )
+         guard report.status == 0 else { return .systemRefused }
+         guard let existing = SuperKeySupport.consistentMappings(
+@@ -535,14 +568,18 @@
+                 }
+             }
+         }
++        if let budget, budget.isExhausted { return .systemRefused }
+         let write = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+-             "--set", SuperKeySupport.mappingArgument(wanted)]
++             "--set", SuperKeySupport.mappingArgument(wanted)],
++            budget: budget
+         )
+         guard write.status == 0 else { return .systemRefused }
++        if let budget, budget.isExhausted { return .systemRefused }
+         let readback = SuperKeyMappingGuard.runHID(
+             ["property", "--matching", keyboardMatch,
+-             "--get", SuperKeySupport.userMappingProperty]
++             "--get", SuperKeySupport.userMappingProperty],
++            budget: budget
+         )
+         guard readback.status == 0 else { return .systemRefused }
+         mappingConfirmed = SuperKeySupport.mappingReportConfirms(readback.output, expected: wanted)

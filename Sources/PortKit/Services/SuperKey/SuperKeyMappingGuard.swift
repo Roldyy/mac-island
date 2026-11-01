@@ -13,6 +13,33 @@ enum SuperKeyMappingGuard {
     static let cleanupArgument = "--super-key-mapping-cleanup"
     private static let commandTimeout: TimeInterval = 5
 
+    /// Mac Island: ONE time budget for taking the mapping out when the feature stops, counted from the moment
+    /// the stop was asked for (a queue backlog eats it too). The clear runs off the main thread within it; past
+    /// it nothing more is waited for and the guard child, which already has the pipe closed, finishes the job.
+    struct StopBudget {
+        /// A registry stop (kill switch, safe mode, permission revoked): nobody waits for it.
+        static let asyncTotal: TimeInterval = 3
+        /// `applicationWillTerminate`: the only place the main thread may wait, and for this long at most.
+        static let terminationTotal: TimeInterval = 2
+        /// Test seam: the clock (system uptime).
+        nonisolated(unsafe) static var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+
+        let total: TimeInterval
+        private let deadline: TimeInterval
+
+        init(seconds: TimeInterval) {
+            total = seconds
+            deadline = Self.uptime() + seconds
+        }
+
+        var remaining: TimeInterval { max(0, deadline - Self.uptime()) }
+        var isExhausted: Bool { remaining <= 0 }
+    }
+
+    /// Test seam: the guard child's command, so a test starts a harmless child that waits on the pipe like the
+    /// real one and never re-executes the test binary.
+    nonisolated(unsafe) static var launchOverride: ((SuperKeySource) -> (executable: String, arguments: [String]))?
+
     final class Handle {
         let source: SuperKeySource
 
@@ -21,17 +48,23 @@ enum SuperKeyMappingGuard {
         private let finished: DispatchSemaphore
 
         fileprivate init?(source: SuperKeySource) {
-            guard let executable = Bundle.main.executableURL?.path else { return nil }
+            let command: (executable: String, arguments: [String])
+            if let launchOverride = SuperKeyMappingGuard.launchOverride {
+                command = launchOverride(source)
+            } else {
+                guard let executable = Bundle.main.executableURL?.path else { return nil }
+                command = ("/bin/sh", [
+                    "-c",
+                    "IFS= read -r _; exec \"$1\" \"$2\" \"$3\"",
+                    "sh", executable, cleanupArgument, source.rawValue,
+                ])
+            }
 
             let process = Process()
             let inputPipe = Pipe()
             let finished = DispatchSemaphore(value: 0)
-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
-            process.arguments = [
-                "-c",
-                "IFS= read -r _; exec \"$1\" \"$2\" \"$3\"",
-                "sh", executable, cleanupArgument, source.rawValue,
-            ]
+            process.executableURL = URL(fileURLWithPath: command.executable)
+            process.arguments = command.arguments
             process.standardInput = inputPipe
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
@@ -53,8 +86,16 @@ enum SuperKeyMappingGuard {
         /// Closing the pipe asks the guard to clean now. The app has already
         /// attempted the same clear; this bounded second pass covers a failed
         /// command without ever holding termination indefinitely.
-        func stop() -> Bool {
+        ///
+        /// `budget` (Mac Island): the most this call may wait. The pipe is closed first either way, so the guard
+        /// child starts its own cleanup at once; when the budget runs out the child is LEFT RUNNING (it is the
+        /// one that gives the key back) and the answer is "not confirmed", which keeps the recovery marker.
+        func stop(within budget: TimeInterval? = nil) -> Bool {
             try? input.close()
+            if let budget {
+                guard finished.wait(timeout: .now() + max(0, budget)) == .success else { return false }
+                return process.terminationStatus == EXIT_SUCCESS
+            }
             var didFinish = finished.wait(
                 timeout: .now() + SuperKeyMappingGuard.commandTimeout + 1
             ) == .success
@@ -133,12 +174,13 @@ enum SuperKeyMappingGuard {
     nonisolated(unsafe) static var runHIDOverride: (([String]) -> (status: Int32, output: String))?
 
     /// The one door to `hidutil`: the guard's cleanup and the service's apply, clear and readback all use it.
-    static func runHID(_ arguments: [String]) -> (status: Int32, output: String) {
+    /// `budget` (Mac Island): a command never runs longer than what is left of it.
+    static func runHID(_ arguments: [String], budget: StopBudget? = nil) -> (status: Int32, output: String) {
         if let runHIDOverride { return runHIDOverride(arguments) }
         let result = BoundedProcessRunner.run(
             "/usr/bin/hidutil",
             arguments,
-            timeout: commandTimeout,
+            timeout: min(commandTimeout, budget?.remaining ?? commandTimeout),
             maxOutputBytes: 4 * 1024 * 1024
         )
         return (result.status, String(decoding: result.output, as: UTF8.self))

@@ -125,8 +125,15 @@ public enum PortBridge {
         var keepAwake = false
         var systemShortcuts = false
         var fanControl = false
+        /// Bluetooth switched off for a sleep the run never saw the end of (a Mac shut down while asleep, a crash).
+        var bluetoothRestore = false
+        /// A microphone this app muted and owes back (the flag, or a device it still holds a claim on).
+        var micUnmute = false
 
         init(defaults: UserDefaults) {
+            bluetoothRestore = defaults.bool(forKey: DefaultsKey.bluetoothSleepRestorePending)
+            micUnmute = defaults.bool(forKey: DefaultsKey.micMuteActive)
+                || !(defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []).isEmpty
             keepAwake = defaults.bool(forKey: DefaultsKey.sleepDisabledFlag)
                 || defaults.object(forKey: DefaultsKey.dimmedDisplaySavedBrightness) != nil
             systemShortcuts = defaults.object(forKey: DefaultsKey.systemShortcutsSuppressed) != nil
@@ -139,7 +146,13 @@ public enum PortBridge {
     /// and `applicationDidFinishLaunching`; the port had dropped them). Once per launch, only for a marker
     /// that is actually set. Nothing is started. Runs from the app delegate before the registry starts any
     /// feature (`recoverBeforeLaunch`); `install` calls it again and finds it done.
-    static func recoverAtLaunch(defaults: UserDefaults = PortHost.defaults) {
+    ///
+    /// `restoreBluetooth` and `unmuteMic` are seams for the test; live they are the services' own restore paths.
+    /// Both run whatever the feature's availability (kill switch, quarantine, safe mode: the registry then calls
+    /// neither lane, and a Mac that came back with its Bluetooth or its microphone cut by this app must not stay so).
+    static func recoverAtLaunch(defaults: UserDefaults = PortHost.defaults,
+                                restoreBluetooth: () -> Void = { BluetoothSleepService.shared.restoreNow() },
+                                unmuteMic: () -> Void = { MicMuteService.shared.unmuteForTeardown() }) {
         guard !didRecoverAtLaunch else { return }
         didRecoverAtLaunch = true
         recoveryRuns += 1
@@ -147,6 +160,8 @@ public enum PortBridge {
         if plan.systemShortcuts { SystemShortcutTakeover.recoverIfNeeded(keeping: []) }
         if plan.keepAwake { KeepAwakeManager.shared.recoverIfNeeded() }
         if plan.fanControl { FanControlService.recoverIfNeeded() }
+        if plan.bluetoothRestore { restoreBluetooth() }
+        if plan.micUnmute { unmuteMic() }
         MouseAccelerationService.recoverPendingAtLaunch()
         SpacesOrderHold.recoverIfNeeded()
         // A gamma dim or a switched-off display left by a run that died: each step tests its own marker.

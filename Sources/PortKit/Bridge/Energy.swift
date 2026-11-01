@@ -67,6 +67,166 @@ enum ClosedLidRule {
     }
 }
 
+// MARK: - Closed-lid guard child
+
+/// `pmset disablesleep 1` outlives the app that set it: a crash or a kill leaves the Mac unable to sleep, and the
+/// heat, battery and 8 h stops only run on the app's own timer. So while lid sleep is disabled a tiny child waits
+/// on a pipe the app owns. Pipe closed by the kernel (the app died): the child runs the one command the sudoers
+/// rule already allows, `/usr/bin/sudo -n /usr/bin/pmset disablesleep 0`, and exits. Normal restore: the app
+/// writes one line first, so the child stands down instead of running it (a restore followed at once by a new
+/// enable must not be undone by a late cleanup).
+///
+/// The pure part: when a child must exist.
+struct ClosedLidGuardState: Equatable {
+    enum Phase: Equatable { case idle, armed }
+    enum Action: Equatable { case start, release, none }
+
+    private(set) var phase: Phase = .idle
+
+    /// `pmset disablesleep 1` went through: a child is needed, once.
+    mutating func lidSleepDisabled() -> Action {
+        guard phase == .idle else { return .none }
+        phase = .armed
+        return .start
+    }
+
+    /// `pmset disablesleep 0` went through: the child stands down, once.
+    mutating func lidSleepRestored() -> Action {
+        guard phase == .armed else { return .none }
+        phase = .idle
+        return .release
+    }
+
+    /// The child is gone without having been released (it could not start, or it was killed): the next disable
+    /// starts a new one.
+    mutating func childEnded() { phase = .idle }
+}
+
+/// A running guard child.
+protocol ClosedLidGuardChild: AnyObject {
+    /// Normal restore: the child stands down without running its cleanup.
+    func release()
+}
+
+/// Starts guard children. The live one spawns `/bin/sh`; tests pass a fake.
+protocol ClosedLidGuardLaunching {
+    /// nil when the child could not start. `onExit` runs once when the child is gone, whatever the reason.
+    func launch(onExit: @escaping @Sendable () -> Void) -> ClosedLidGuardChild?
+}
+
+/// The guard itself: `Sudoers.pmsetDisableSleep` reports every successful `pmset disablesleep` to it.
+final class ClosedLidGuard: @unchecked Sendable {
+    static let shared = ClosedLidGuard(launcher: ShellClosedLidGuardLauncher())
+
+    private let launcher: ClosedLidGuardLaunching
+    private let lock = NSLock()
+    private var state = ClosedLidGuardState()
+    private var child: ClosedLidGuardChild?
+    /// Tells a child's late exit report from the current child's.
+    private var generation = 0
+
+    init(launcher: ClosedLidGuardLaunching) { self.launcher = launcher }
+
+    var isArmed: Bool { lock.withLock { state.phase == .armed } }
+
+    func sleepStateChanged(disabled: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if disabled {
+            guard state.lidSleepDisabled() == .start else { return }
+            generation += 1
+            let mine = generation
+            child = launcher.launch { [weak self] in self?.childExited(generation: mine) }
+            if child == nil { state.childEnded() }
+        } else {
+            guard state.lidSleepRestored() == .release else { return }
+            let released = child
+            child = nil
+            released?.release()
+        }
+    }
+
+    private func childExited(generation exited: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard exited == generation, state.phase == .armed else { return }
+        child = nil
+        state.childEnded()
+    }
+}
+
+/// The real child: `/bin/sh` with a FIXED argv (nothing interpolated), standard input a pipe the app owns.
+struct ShellClosedLidGuardLauncher: ClosedLidGuardLaunching {
+    /// What runs when the app dies. The sudoers rule (`ClosedLidRule.commands`) permits exactly this.
+    static let cleanupCommand = ["/usr/bin/sudo", "-n", "/usr/bin/pmset", "disablesleep", "0"]
+
+    var cleanup: [String] = Self.cleanupCommand
+
+    /// `read` succeeds only when the app wrote its line (stand down); at end of file (the app is gone) it fails
+    /// and the cleanup replaces the shell.
+    static func arguments(cleanup: [String]) -> [String] {
+        ["-c", "IFS= read -r _ && exit 0; exec \"$@\"", "sh"] + cleanup
+    }
+
+    func launch(onExit: @escaping @Sendable () -> Void) -> ClosedLidGuardChild? {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = Self.arguments(cleanup: cleanup)
+        process.standardInput = pipe
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { _ in onExit() }
+        do {
+            try process.run()
+        } catch {
+            try? pipe.fileHandleForWriting.close()
+            return nil
+        }
+        return ShellClosedLidGuardChild(process: process, input: pipe.fileHandleForWriting)
+    }
+}
+
+final class ShellClosedLidGuardChild: ClosedLidGuardChild, @unchecked Sendable {
+    private let process: Process
+    private let input: FileHandle
+    private let descriptor: Int32
+    private let lock = NSLock()
+    private var closed = false
+
+    fileprivate init(process: Process, input: FileHandle) {
+        self.process = process
+        self.input = input
+        descriptor = input.fileDescriptor
+        // A write to a child that is already gone must come back as an error, never as SIGPIPE for the app.
+        _ = fcntl(descriptor, F_SETNOSIGPIPE, 1)
+    }
+
+    var processIdentifier: pid_t { process.processIdentifier }
+
+    /// Closes the write end once; false when it was already closed.
+    private func closeOnce() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return false }
+        closed = true
+        return true
+    }
+
+    func release() {
+        guard closeOnce() else { return }
+        var line: UInt8 = 0x0A
+        _ = Darwin.write(descriptor, &line, 1)
+        try? input.close()
+    }
+
+    /// Test seam: what the kernel does when the app dies, the pipe closes with no line written.
+    func abandon() {
+        guard closeOnce() else { return }
+        try? input.close()
+    }
+}
+
 // MARK: - Keep Awake: what ours did that the port does not
 
 /// One-time reconciliation of our old Keep Awake choices with the ported manager's keys.

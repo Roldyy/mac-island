@@ -21,28 +21,19 @@ public struct MigrationV2Report: Equatable {
     public init() {}
 }
 
-extension VorssaintMigrator {
-    public static let doneKeyV2 = "migration.vorssaint.v2.done"
-
-    /// Kept out of the second pass. Same spirit as the first one: secrets, bookmarks bound to the old
-    /// app's identity, onboarding and what's-new markers, system keys, and the old app's runtime state
-    /// (`vorss*` holds crash-recovery notes about its own sleep and brightness changes).
-    static let skippedExactV2: Set<String> = Set([
-        "commandBarQueryHabitKey",
-        "notchDownloadsFolderBookmark",
-        "fanControlHelperVersion",
-    ]).union(runtimeMarkerKeysV2)
-
-    /// Crash and runtime markers that name a system change the old app applied and still owed back (or a
-    /// security-scoped grant of its own identity). Carried here, a ported recovery step would "restore"
+/// The ONE list of preference keys that describe THIS Mac's live state or a consent given on it, never a setting
+/// to carry. A settings backup never exports one and a restore never writes one (a restored old marker would make
+/// the launch recovery act on a change this boot never applied, and a restored consent would come back without
+/// a click); the v2 import skips the old app's markers and its one-shot purge removes them. A restore leaves a
+/// live key of this list as it is: it neither writes nor deletes it.
+public enum SettingsMachineState {
+    /// Crash and runtime markers that name a system change an app applied and still owed back (or a
+    /// security-scoped grant of the old app's identity). Carried here, a ported recovery step would "restore"
     /// state that this app never applied, or act on a stale grant. Each is machine state in upstream's own
     /// `SettingsBackup.machineStateKeys` (never exported there either). Only the ported services write
-    /// them, and a marker carried from the old app's identity names a change THIS app never applied: the ported
-    /// recovery (`PortBridge.recoverAtLaunch`) would act on it as if it had. They are removed from our domain
-    /// once (see `purgeRuntimeKeysV2`), before any ported service runs.
-    /// `vorssDisabledSleep` / `vorssDimmedDisplaySavedBrightness` (pmset sleep, panel dimming) are
-    /// already covered by the `vorss` prefix.
-    static let runtimeMarkerKeysV2: Set<String> = [
+    /// them. `vorssDisabledSleep` / `vorssDimmedDisplaySavedBrightness` (pmset sleep, panel dimming) are
+    /// covered by `prefixes`. This subset is what the one-shot purge removes (`purgeRuntimeKeysV2`).
+    public static let runtimeMarkers: Set<String> = [
         // Fans: hand-back owed to the helper, and a control to re-apply after launch.
         "fanControlRecoveryNeeded", "fanControlResume", "fanControlResumeConfiguration",
         // Keyboard mapping (hidutil) in place and the source to take back.
@@ -65,6 +56,53 @@ extension VorssaintMigrator {
         // A start that did not finish: would make the ported code think this app crashed.
         "startupDidNotFinish",
     ]
+
+    /// Mac Island's own consents, evidence and recovery journals. Not carried by the v2 import (they are not
+    /// Vorssaint keys) and not purged (they are this app's own, legitimately set), but never part of a backup.
+    public static let ownStateKeys: Set<String> = [
+        // Consents: a click on this Mac, never inherited from a file.
+        "systemShortcutTakeOverKeys.macisland", "switcherTakeOverConsent.macisland", "macIslandClosedLidConfirmed",
+        // Evidence of what the system answered on this Mac.
+        "macisland.mixer.audioCaptureProbeStatus",
+        // Journals of a change owed back: gamma dim, Finder flags, staging folders, the wallpaper restore point.
+        "macIslandDisplayGammaDimActive", "quickToggles.finderJournal.macisland",
+        "quickToggles.temporaryFinderFlags.macisland", "macisland.media.stagingDirectories",
+        "macisland.wallpaper.restorePoint",
+    ]
+
+    /// The old app's own runtime state is named `vorss*` (`vorssDisabledSleep`, `vorssDimmedDisplaySavedBrightness`).
+    public static let prefixes: [String] = ["vorss"]
+
+    /// Everything a backup leaves out, whichever way it goes.
+    public static let excludedKeys: Set<String> = runtimeMarkers.union(ownStateKeys)
+
+    public static func isExcluded(_ key: String) -> Bool {
+        excludedKeys.contains(key) || prefixes.contains(where: key.hasPrefix)
+    }
+}
+
+extension VorssaintMigrator {
+    public static let doneKeyV2 = "migration.vorssaint.v2.done"
+
+    /// Kept out of the second pass. Same spirit as the first one: secrets, bookmarks bound to the old
+    /// app's identity, onboarding and what's-new markers, system keys, and the old app's runtime state
+    /// (`vorss*` holds crash-recovery notes about its own sleep and brightness changes).
+    static let skippedExactV2: Set<String> = Set([
+        "commandBarQueryHabitKey",
+        "notchDownloadsFolderBookmark",
+        "fanControlHelperVersion",
+    ]).union(runtimeMarkerKeysV2)
+
+    /// Crash and runtime markers that name a system change the old app applied and still owed back (or a
+    /// security-scoped grant of its own identity). Carried here, a ported recovery step would "restore"
+    /// state that this app never applied, or act on a stale grant. Each is machine state in upstream's own
+    /// `SettingsBackup.machineStateKeys` (never exported there either). Only the ported services write
+    /// them, and a marker carried from the old app's identity names a change THIS app never applied: the ported
+    /// recovery (`PortBridge.recoverAtLaunch`) would act on it as if it had. They are removed from our domain
+    /// once (see `purgeRuntimeKeysV2`), before any ported service runs.
+    /// `vorssDisabledSleep` / `vorssDimmedDisplaySavedBrightness` (pmset sleep, panel dimming) are
+    /// already covered by the `vorss` prefix.
+    static let runtimeMarkerKeysV2: Set<String> = SettingsMachineState.runtimeMarkers
     static let skippedPrefixesV2 = [
         "whatsNew", "onboarding", "migration", "vorss", "SU", "NS", "AppleLanguages",
     ]

@@ -35,8 +35,10 @@ enum InputKeyboardLane {
                                   stop: { QuitProtectionService.shared.suspend() }),
             keyboardDebounce: Hooks(start: { KeyboardDebounceService.shared.syncWithPreferences() },
                                     stop: { KeyboardDebounceService.shared.suspend() }),
-            // `suspend` and not `stop`: it takes the hidutil mapping out on the spot (the key is never left
-            // doing nothing), and it also ends the app-exception tracking.
+            // `suspend` and not `stop`: it takes the hidutil mapping out (the key is never left doing nothing)
+            // and also ends the app-exception tracking. Off the main thread, within one 3 s budget, never
+            // waited for: a kill switch or safe mode must not freeze the UI behind a hung `hidutil`. What the
+            // budget does not finish, the guard child does.
             superKey: Hooks(start: { SuperKeyService.shared.syncWithPreferences() },
                             stop: { SuperKeyService.shared.suspend() }),
             textSnippets: Hooks(start: {
@@ -53,7 +55,7 @@ enum InputKeyboardLane {
         guard !didInstallLaunchSafety else { return }
         didInstallLaunchSafety = true
         recoverLeftoverMapping(defaults: PortHost.defaults) { SuperKeyService.shared.suspend() }
-        observeTermination(of: binding) { SuperKeyService.shared.suspend() }
+        observeTermination(of: binding) { SuperKeyService.shared.suspendForTermination() }
     }
 
     @MainActor static func bind(into binding: PortFeatureBinding, runtime: Runtime) {
@@ -86,7 +88,8 @@ enum InputKeyboardLane {
     }
 
     /// The app delegate only ends a Finder session at termination, so the lane takes the super key's mapping
-    /// out itself when the app quits normally (the guard process covers a crash or a kill).
+    /// out itself when the app quits normally (the guard process covers a crash or a kill). The one place the
+    /// main thread waits: at most 2 s (`SuperKeyMappingGuard.StopBudget.terminationTotal`).
     @MainActor @discardableResult
     static func observeTermination(of binding: PortFeatureBinding,
                                    clear: @escaping @MainActor () -> Void) -> NSObjectProtocol {

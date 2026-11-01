@@ -129,7 +129,7 @@ import Testing
             defaults.set(true, forKey: DefaultsKey.superKeyMappingApplied)
             defaults.set(SuperKeySource.capsLock.rawValue, forKey: DefaultsKey.superKeyMappedSource)
             let hid = FakeHID(tables: [[Self.ours, Self.foreign]])
-            withFake(hid) { SuperKeyService.shared.suspend() }  // what the bound stop calls, synchronously
+            withFake(hid) { SuperKeyService.shared.suspendForTermination() }  // the quit path: waits (<= 2 s)
             #expect(hid.current == [[Self.foreign]], "Caps Lock is a real key again, the user's own mapping stays")
             #expect(!defaults.bool(forKey: DefaultsKey.superKeyMappingApplied))
             #expect(defaults.object(forKey: DefaultsKey.superKeyMappedSource) == nil)
@@ -143,7 +143,7 @@ import Testing
             defaults.set(SuperKeySource.capsLock.rawValue, forKey: DefaultsKey.superKeyMappedSource)
             let hid = FakeHID(tables: [[Self.ours]])
             hid.ignoreSet = true
-            withFake(hid) { SuperKeyService.shared.suspend() }
+            withFake(hid) { SuperKeyService.shared.suspendForTermination() }
             #expect(defaults.bool(forKey: DefaultsKey.superKeyMappingApplied), "still eligible for a retry")
         }
     }
