@@ -44,7 +44,14 @@ public struct IslandShellView: View {
             if stripLive {
                 closedLayer
                     .frame(width: closedSize.width, height: closedSize.height)
+                    // The closed island is lopsided when its wings differ: its centre is off the notch's.
+                    .offset(x: state.closedCenterOffset)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: closedSize)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: state.closedCenterOffset)
+                    // The panel is the closed frame at rest and the centred open frame otherwise: the offset
+                    // between them follows the window at once and is never animated.
+                    .offset(x: -state.panelOffset)
+                    .animation(nil, value: state.panelOffset)
                     .modifier(IslandClosedReveal(progress: progress))
                     .allowsHitTesting(!state.isOpen)
             }
@@ -57,7 +64,7 @@ public struct IslandShellView: View {
                                       isOpen: state.isOpen, isLive: contentLive)
                         .frame(width: open.width, height: open.height, alignment: .top)
                 }
-                .modifier(HomeOpenReveal(progress: progress, closedSize: closedSize,
+                .modifier(HomeOpenReveal(progress: progress, closedSize: closedSize, closedOffset: state.closedShift,
                                          translucent: context.home.translucentBackground))
                 .allowsHitTesting(state.isOpen)
                 .accessibilityHidden(!state.isOpen)

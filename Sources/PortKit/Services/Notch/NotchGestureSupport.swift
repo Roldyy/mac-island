@@ -40,7 +40,7 @@ struct NotchGestureSupport {
     }
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchGestures.isAvailable(in: defaults)
+        NotchSupport.islandIsEnabled(in: defaults) && AppFeature.notchGestures.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchGesturesEnabled)
     }
 

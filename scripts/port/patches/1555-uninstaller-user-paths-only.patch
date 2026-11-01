@@ -1,0 +1,62 @@
+--- a/Services/Uninstall/AppUninstaller.swift
++++ b/Services/Uninstall/AppUninstaller.swift
+@@ -520,8 +520,14 @@
+         // Last line of defense: nothing outside the scanned roots (or the app
+         // bundle itself) may ever reach the removal list.
+         let appPath = appURL.standardizedFileURL.path
++        let policyRoots = Self.policyRoots(home: home)
+         let safe = dedupe(paths).filter { candidate in
+             let path = candidate.url.standardizedFileURL.path
++            // Mac Island: only the person's own space is ever offered (`UninstallPathPolicy`): never /Library,
++            // /System, the install receipts or a protected folder; the app bundle itself, except under a system root.
++            guard UninstallPathPolicy.isRemovable(path, isAppBundle: path == appPath, userRoots: policyRoots) else {
++                return false
++            }
+             if path == appPath {
+                 return !UninstallerSupport.isSymbolicLink(candidate.url)
+             }
+@@ -861,6 +867,9 @@
+         let path = url.standardizedFileURL.path
+         guard allowedPaths.contains(path), let targetURL,
+               UninstallerSupport.fileIdentity(at: url) == expectedIdentity else { return false }
++        // Mac Island: the same policy again at the moment of the move.
++        guard UninstallPathPolicy.isRemovable(path, isAppBundle: path == targetURL.standardizedFileURL.path,
++                                              userRoots: policyRoots(home: NSHomeDirectory())) else { return false }
+         if path == targetURL.standardizedFileURL.path {
+             return !UninstallerSupport.isSymbolicLink(url)
+         }
+@@ -919,14 +928,13 @@
+     ]
+ 
+     private static func scanRoots(home: String) -> [URL] {
++        // Mac Island: the person's own folders only. Upstream also scanned /Library, the install receipts and
++        // /Users/Shared/Library, which a user-level Trash move cannot touch anyway.
+         var roots = [
+             URL(fileURLWithPath: home + "/Library", isDirectory: true),
+-            URL(fileURLWithPath: "/Library", isDirectory: true),
+             URL(fileURLWithPath: home + "/.config", isDirectory: true),
+             URL(fileURLWithPath: home + "/.cache", isDirectory: true),
+             URL(fileURLWithPath: home + "/.local/share", isDirectory: true),
+-            URL(fileURLWithPath: "/private/var/db/receipts", isDirectory: true),
+-            URL(fileURLWithPath: "/Users/Shared/Library", isDirectory: true),
+         ]
+         if let cache = darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR) { roots.append(cache) }
+         if let temp = darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR) { roots.append(temp) }
+@@ -936,9 +944,15 @@
+     private static func spotlightRoots(home: String) -> [URL] {
+         [
+             URL(fileURLWithPath: home + "/Library", isDirectory: true),
+-            URL(fileURLWithPath: "/Library", isDirectory: true),
+-            URL(fileURLWithPath: "/Users/Shared/Library", isDirectory: true),
+         ].map(\.standardizedFileURL)
++    }
++
++    /// The roots `UninstallPathPolicy` lets a non-bundle item sit under: the home folder and the per-user
++    /// cache and temp folders of the system.
++    private static func policyRoots(home: String) -> [String] {
++        UninstallPathPolicy.userRoots(home: home,
++                                      darwinCache: darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR)?.path,
++                                      darwinTemp: darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR)?.path)
+     }
+ 
+     private static func darwinUserDirectory(_ name: Int32) -> URL? {

@@ -1232,7 +1232,7 @@ enum NotchMascotSupport {
 
     /// Installed on the Features page, switched on, and in an island that is on.
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        AppFeature.notchMascot.isAvailable(in: defaults) && NotchSupport.isEnabled(in: defaults)
+        AppFeature.notchMascot.isAvailable(in: defaults) && NotchSupport.islandIsEnabled(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchMascotEnabled)
     }
 

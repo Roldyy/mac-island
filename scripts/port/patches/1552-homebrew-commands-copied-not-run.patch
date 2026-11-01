@@ -1,0 +1,192 @@
+--- a/Core/FeatureCatalog.swift
++++ b/Core/FeatureCatalog.swift
+@@ -384,8 +384,10 @@
+         case .keepAwake: return [.accessibility]
+         case .brightness: return [.accessibility]
+         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
+-        case .uninstaller: return [.fullDiskAccess, .automationFinder]
+-        case .homebrew: return [.automationTerminal, .appManagement]
++        // Mac Island: no Apple Events (no Finder trash script, no Terminal launch): the Trash moves are in-process and the
++        // commands for Terminal are copied, never run.
++        case .uninstaller: return [.fullDiskAccess]
++        case .homebrew: return [.appManagement]
+         case .appUpdates: return [.notifications, .appManagement]
+         case .diskImageInstaller: return [.appManagement]
+         case .mixer: return [.audioCapture, .accessibility]
+--- a/Core/Localization.swift
++++ b/Core/Localization.swift
+@@ -1685,14 +1685,14 @@
+         homebrewName: "Homebrew",
+         homebrewEnableCaption: "Search, install and remove formulae and casks.",
+         homebrewMissingTitle: "Homebrew not found",
+-        homebrewMissingBody: "Mac Island can open Terminal with the official Homebrew installer. Terminal shows the steps and asks for your password if needed.",
+-        homebrewInstallHomebrew: "Install Homebrew",
++        homebrewMissingBody: "Mac Island does not run the installer for you. Copy the official Homebrew command, paste it into Terminal and follow the steps.",
++        homebrewInstallHomebrew: "Copy the install command",
+         homebrewInstallHomebrewCaption: "When Terminal finishes, come back here and click Refresh.",
+-        homebrewInstallHomebrewOpened: "Installer opened in Terminal.",
++        homebrewInstallHomebrewOpened: "Command copied. Paste it into Terminal.",
+         homebrewShellSetupTitle: "Finish Terminal setup",
+-        homebrewShellSetupBody: "Homebrew is installed, but Terminal may not find the brew command yet. Mac Island can open Terminal with the setup command.",
+-        homebrewShellSetupButton: "Set up Terminal",
+-        homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
++        homebrewShellSetupBody: "Homebrew is installed, but Terminal may not find the brew command yet. Copy the setup command and paste it into Terminal.",
++        homebrewShellSetupButton: "Copy the command",
++        homebrewShellSetupOpened: "Command copied. Paste it into Terminal, then come back here and click Refresh.",
+         homebrewRefresh: "Refresh",
+         homebrewCheckPackages: "Check packages",
+         homebrewTrustTitle: "Tap not trusted yet",
+@@ -1720,7 +1720,7 @@
+         homebrewUpgradeAll: "Update all",
+         homebrewUpdateHomebrew: "Update Homebrew",
+         homebrewAllPackages: "packages",
+-        homebrewOpenTerminal: "Open Terminal",
++        homebrewOpenTerminal: "Copy the command",
+         homebrewCancelOperation: "Cancel",
+         homebrewClearLog: "Clear log",
+         homebrewLogTitle: "Log",
+@@ -1744,7 +1744,7 @@
+         homebrewConfirmUpgradeAllBody: "Homebrew will download and apply the latest versions for packages with updates available. Dependencies may also be updated.",
+         homebrewConfirmUpdateHomebrewTitle: "Update Homebrew?",
+         homebrewConfirmUpdateHomebrewBody: "Homebrew will fetch the latest information and then reload your packages.",
+-        homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Mac Island does not capture passwords.",
++        homebrewTerminalFallback: "This operation asks for an administrator password. Mac Island does not type it and does not launch Terminal: copy the command and run it in Terminal.",
+         homebrewLoading: "Loading…",
+         homebrewSearchEmpty: "No results",
+         homebrewOperationInstallFormat: "Installing %@",
+@@ -1766,7 +1766,7 @@
+         homebrewOperationUpgrading: "Updating files…",
+         homebrewOperationFinalizing: "Finishing…",
+         homebrewOperationRefreshing: "Refreshing list…",
+-        homebrewOperationTerminal: "Continue in Terminal.",
++        homebrewOperationTerminal: "Finish in Terminal.",
+         homebrewOperationElapsedFormat: "%@ elapsed",
+         homebrewOperationShowDetails: "Show details",
+         homebrewOperationHideDetails: "Hide details",
+--- a/Core/Localizations/Strings+French.swift
++++ b/Core/Localizations/Strings+French.swift
+@@ -385,14 +385,14 @@
+         homebrewName: "Homebrew",
+         homebrewEnableCaption: "Recherchez, installez et retirez des formules et des casks.",
+         homebrewMissingTitle: "Homebrew introuvable",
+-        homebrewMissingBody: "Mac Island peut ouvrir Terminal avec l’installateur officiel de Homebrew. Terminal affiche les étapes et demande votre mot de passe si nécessaire.",
+-        homebrewInstallHomebrew: "Installer Homebrew",
++        homebrewMissingBody: "Mac Island ne lance pas l’installateur à votre place. Copiez la commande officielle de Homebrew, collez-la dans Terminal et suivez les étapes.",
++        homebrewInstallHomebrew: "Copier la commande d’installation",
+         homebrewInstallHomebrewCaption: "Quand Terminal a terminé, revenez ici et cliquez sur Actualiser.",
+-        homebrewInstallHomebrewOpened: "Installateur ouvert dans Terminal.",
++        homebrewInstallHomebrewOpened: "Commande copiée. Collez-la dans Terminal.",
+         homebrewShellSetupTitle: "Finaliser la configuration de Terminal",
+-        homebrewShellSetupBody: "Homebrew est installé, mais Terminal peut ne pas encore trouver la commande brew. Mac Island peut ouvrir Terminal avec la commande de configuration.",
+-        homebrewShellSetupButton: "Configurer Terminal",
+-        homebrewShellSetupOpened: "Commande ouverte dans Terminal. Revenez ensuite ici et cliquez sur Actualiser.",
++        homebrewShellSetupBody: "Homebrew est installé, mais Terminal peut ne pas encore trouver la commande brew. Copiez la commande de configuration et collez-la dans Terminal.",
++        homebrewShellSetupButton: "Copier la commande",
++        homebrewShellSetupOpened: "Commande copiée. Collez-la dans Terminal, puis revenez ici et cliquez sur Actualiser.",
+         homebrewRefresh: "Actualiser",
+         homebrewCheckPackages: "Vérifier les paquets",
+         homebrewTrustTitle: "Tap pas encore approuvé",
+@@ -420,7 +420,7 @@
+         homebrewUpgradeAll: "Tout mettre à jour",
+         homebrewUpdateHomebrew: "Mettre à jour Homebrew",
+         homebrewAllPackages: "paquets",
+-        homebrewOpenTerminal: "Ouvrir Terminal",
++        homebrewOpenTerminal: "Copier la commande",
+         homebrewCancelOperation: "Annuler",
+         homebrewClearLog: "Effacer le journal",
+         homebrewLogTitle: "Journal",
+@@ -444,7 +444,7 @@
+         homebrewConfirmUpgradeAllBody: "Homebrew va télécharger et appliquer les dernières versions des paquets avec une mise à jour disponible. Des dépendances peuvent aussi être mises à jour.",
+         homebrewConfirmUpdateHomebrewTitle: "Mettre à jour Homebrew\u{00A0}?",
+         homebrewConfirmUpdateHomebrewBody: "Homebrew va récupérer les dernières informations puis recharger vos paquets.",
+-        homebrewTerminalFallback: "Cette opération nécessite Terminal pour demander le mot de passe administrateur. Mac Island ne capture pas les mots de passe.",
++        homebrewTerminalFallback: "Cette opération demande un mot de passe administrateur. Mac Island ne le saisit pas et ne lance pas Terminal : copiez la commande et exécutez-la dans Terminal.",
+         homebrewLoading: "Chargement…",
+         homebrewSearchEmpty: "Aucun résultat",
+         homebrewOperationInstallFormat: "Installation de %@",
+@@ -466,7 +466,7 @@
+         homebrewOperationUpgrading: "Mise à jour des fichiers…",
+         homebrewOperationFinalizing: "Finalisation…",
+         homebrewOperationRefreshing: "Actualisation de la liste…",
+-        homebrewOperationTerminal: "Continuez dans Terminal.",
++        homebrewOperationTerminal: "Terminez dans Terminal.",
+         homebrewOperationElapsedFormat: "%@ écoulés",
+         homebrewOperationShowDetails: "Afficher les détails",
+         homebrewOperationHideDetails: "Masquer les détails",
+--- a/Services/Homebrew/HomebrewManager.swift
++++ b/Services/Homebrew/HomebrewManager.swift
+@@ -2,6 +2,7 @@
+ // Copyright (C) 2026 Vorssaint
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
++import AppKit
+ import Combine
+ import Darwin
+ import Foundation
+@@ -300,12 +301,12 @@
+ 
+     func openTerminalFallback() {
+         guard let command = terminalFallbackCommand else { return }
+-        openTerminal(command: command)
++        copyForTerminal(command: command)
+     }
+ 
+     func openHomebrewInstaller() {
+         errorMessage = nil
+-        if openTerminal(command: HomebrewCommandBuilder.installerCommand) {
++        if copyForTerminal(command: HomebrewCommandBuilder.installerCommand) {
+             didOpenInstaller = true
+         }
+     }
+@@ -315,7 +316,7 @@
+         self.brewPath = brewPath
+         errorMessage = nil
+         let command = HomebrewCommandBuilder.shellConfigCommand(brewPath: brewPath)
+-        if openTerminal(command: command) {
++        if copyForTerminal(command: command) {
+             didOpenShellConfig = true
+         }
+     }
+@@ -330,20 +331,15 @@
+         updateShellConfigStatus(brewPath: brewPath)
+     }
+ 
++    /// Mac Island: never starts Terminal and never runs a script for the person. The command is put on the
++    /// pasteboard, in answer to a click, and the person pastes it into their own Terminal (no Apple Events
++    /// consent, no `osascript`, no shell started by this app). True when the pasteboard took it.
+     @discardableResult
+-    private func openTerminal(command: String) -> Bool {
+-        let source = """
+-        tell application "Terminal"
+-            activate
+-            do script \(appleScriptString(command))
+-        end tell
+-        """
+-        // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
+-        // consent is attributed to this app and re-requested if it was lost,
+-        // instead of a fragile osascript subprocess. Same permission as before.
+-        let result = AppleScriptRunner.run(source)
+-        if !result.ok {
+-            errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
++    private func copyForTerminal(command: String) -> Bool {
++        let pasteboard = NSPasteboard.general
++        pasteboard.clearContents()
++        guard pasteboard.setString(command, forType: .string) else {
++            errorMessage = L10n.shared.s.homebrewTerminalFallback
+             return false
+         }
+         return true
+@@ -822,13 +818,6 @@
+ 
+     private func appendLog(_ text: String) {
+         log.append(text)
+-    }
+-
+-    private func appleScriptString(_ value: String) -> String {
+-        let escaped = value
+-            .replacingOccurrences(of: "\\", with: "\\\\")
+-            .replacingOccurrences(of: "\"", with: "\\\"")
+-        return "\"\(escaped)\""
+     }
+ }
+ 

@@ -6,8 +6,9 @@ public struct NotchGeometry: Equatable {
     public static let pillWidth: CGFloat = 200
     public static let pillHeight: CGFloat = 32
 
-    /// Black margin on each side of the notch at rest: a 3 pt rim so the island never disappears into the hardware
-    /// notch. Everything beyond it is the content's: each wing is exactly as wide as what it shows.
+    /// Black margin a wing keeps next to the notch when it has something to show (a 3 pt rim). A side with nothing
+    /// to show has no wing at all, so the island at rest is exactly the notch. Everything beyond the rim is the
+    /// content's: each wing is exactly as wide as what it shows.
     public static let baseWing: CGFloat = 3
     /// Most a wing may add beyond `baseWing` (64 pt each side), so the island never stretches across the bar.
     public static let maxWingExtent: CGFloat = 64
@@ -58,18 +59,48 @@ public struct NotchGeometry: Equatable {
         return min(width.rounded(.up), maxWingExtent)
     }
 
-    /// Both wings share one extent so the notch stays centered. A dot alone adds nothing: it sits on the base wing.
+    /// The larger of the two sides' extents. Kept for callers that only need "how wide is the widest wing".
     public static func wingExtent(for layout: ActivityLayout) -> CGFloat {
         max(wingExtent(for: layout.leading), wingExtent(for: layout.trailing))
     }
 
-    /// Closed frame: the idle frame plus the base wings plus `wingExtent`, kept on screen.
-    public static func closedFrame(from idle: NotchGeometry, wingExtent: CGFloat, screenFrame: CGRect) -> CGRect {
-        let grow = baseWing + max(0, min(wingExtent, maxWingExtent))
-        let width = min(idle.frame.width + 2 * grow, screenFrame.width)
-        var x = idle.frame.midX - width / 2
+    /// Width of each wing of a layout, measured from the notch edge: 0 for a side with nothing to show,
+    /// otherwise `baseWing` plus what its own item needs. A dot alone sits on a base wing on the right.
+    public static func wingWidths(for layout: ActivityLayout) -> (leading: CGFloat, trailing: CGFloat) {
+        func width(_ item: CompactItem?) -> CGFloat { item == nil ? 0 : baseWing + wingExtent(for: item) }
+        let trailing = width(layout.trailing)
+        return (width(layout.leading), trailing == 0 && layout.dot != nil ? baseWing : trailing)
+    }
+
+    /// Closed frame with a wing of its own width on each side of the idle frame. `leading` and `trailing` are
+    /// the full wing widths (0 allowed, capped at `baseWing + maxWingExtent`). The notch stays where it is:
+    /// the frame starts `leading` points left of the idle frame and ends `trailing` points right of it, so with
+    /// nothing to show it is exactly the idle frame. Kept on screen.
+    public static func closedFrame(
+        from idle: NotchGeometry, leading: CGFloat, trailing: CGFloat, screenFrame: CGRect
+    ) -> CGRect {
+        var left = max(0, min(leading, baseWing + maxWingExtent))
+        var right = max(0, min(trailing, baseWing + maxWingExtent))
+        // A screen without a notch has a pill, not a hole to keep in place: it stays centred, both sides equal.
+        if !idle.hasNotch {
+            left = max(left, right, baseWing)
+            right = left
+        }
+        let width = min(idle.frame.width + left + right, screenFrame.width)
+        var x = idle.frame.minX - left
         x = max(screenFrame.minX, min(x, screenFrame.maxX - width))
         return CGRect(x: x, y: idle.frame.minY, width: width, height: idle.frame.height)
+    }
+
+    /// Closed frame of a layout (see `wingWidths`).
+    public static func closedFrame(from idle: NotchGeometry, layout: ActivityLayout, screenFrame: CGRect) -> CGRect {
+        let wings = wingWidths(for: layout)
+        return closedFrame(from: idle, leading: wings.leading, trailing: wings.trailing, screenFrame: screenFrame)
+    }
+
+    /// Wing widths actually left once the closed frame is kept on screen, measured from the idle frame.
+    public static func wings(of closed: CGRect, around idle: NotchGeometry) -> (leading: CGFloat, trailing: CGFloat) {
+        (max(0, idle.frame.minX - closed.minX), max(0, closed.maxX - idle.frame.maxX))
     }
 
     /// A tab may ask for any height; the panel keeps it between a usable minimum and the screen.

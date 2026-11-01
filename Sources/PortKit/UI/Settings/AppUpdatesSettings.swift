@@ -43,10 +43,8 @@ struct AppUpdatesSettings: View {
                 }
                 Toggle(text.notifyToggle, isOn: $notify)
                     .disabled(AppUpdatesSupport.CheckFrequency.sanitized(frequencyRaw) == .off)
-                    .onChange(of: notify) { _, value in
-                        guard value else { return }
-                        Notifier.requestPermission()
-                    }
+                // Mac Island: switching it on never raises the system prompt; a note and a button open the Notifications pane.
+                AppUpdatesNotificationHint()
             }
 
             Section(text.sourcesTitle) {
@@ -87,7 +85,6 @@ struct AppUpdatesSettings: View {
         } set: { frequency in
             frequencyRaw = frequency.rawValue
             AppUpdatesService.shared.syncWithPreferences()
-            if frequency != .off, notify { Notifier.requestPermission() }
         }
     }
 

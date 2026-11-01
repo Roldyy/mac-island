@@ -66,7 +66,13 @@ enum ShelfLane {
         guard !didInstallPages else { return }
         didInstallPages = true
         // The catalog row `shelf` already carries the shelf's feature card: a plain page body.
-        PortBridge.register(pageID: shelfPageID) { AnyView(ShelfSettings().defaultAppStorage(PortHost.defaults)) }
+        // Lane W8C: the two Downloads switches of the old page (and the island downloads folder) sit under the ported page.
+        PortBridge.register(pageID: shelfPageID) {
+            AnyView(VStack(alignment: .leading, spacing: 16) {
+                ShelfSettings()
+                IslandShelfDownloadsSettings()
+            }.defaultAppStorage(PortHost.defaults))
+        }
     }
 
     @MainActor private static var didPrepare = false

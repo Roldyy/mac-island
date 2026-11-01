@@ -34,7 +34,7 @@ final class NotchFileToolsService: ObservableObject {
     deinit { operation?.cancel(immediately: true) }
 
     var offersMediaDrop: Bool {
-        NotchSupport.showsFiles()
+        NotchSupport.islandShowsFiles()
             && AppFeature.mediaTools.isAvailable && AppFeature.shelf.isAvailable
             && PortHost.defaults.bool(forKey: DefaultsKey.shelfEnabled)
     }
@@ -75,7 +75,7 @@ final class NotchFileToolsService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        guard NotchSupport.showsFiles(),
+        guard NotchSupport.islandShowsFiles(),
               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable else {
             stop()
             return
@@ -102,7 +102,7 @@ final class NotchFileToolsService: ObservableObject {
 
     @discardableResult
     func openMedia(_ tool: MediaTool, inputs: [URL]) -> Bool {
-        guard NotchSupport.showsFiles(),
+        guard NotchSupport.islandShowsFiles(),
               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
               NotchFileToolsSupport.accepts(inputs, for: tool) else { return false }
         closeMedia()
@@ -133,7 +133,7 @@ final class NotchFileToolsService: ObservableObject {
 
     func archive(_ inputs: [URL], destination: URL, directory: Bool) {
         guard !isRunning, AppFeature.notch.isAvailable, AppFeature.shelf.isAvailable,
-              AppFeature.mediaTools.isAvailable, NotchSupport.showsFiles() else { return }
+              AppFeature.mediaTools.isAvailable, NotchSupport.islandShowsFiles() else { return }
         guard destination.isFileURL, !inputs.isEmpty, inputs.allSatisfy(\.isFileURL) else {
             failure = CocoaError(.fileWriteInvalidFileName).localizedDescription
             return

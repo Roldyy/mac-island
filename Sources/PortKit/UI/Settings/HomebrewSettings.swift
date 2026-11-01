@@ -762,7 +762,9 @@ struct HomebrewSettings: View {
             return l10n.s.homebrewConfirmUpdateHomebrewBody
         }
         if action.action == .upgradeAll {
-            return l10n.s.homebrewConfirmUpgradeAllBody
+            // Mac Island: the confirmation lists what the upgrade is about to change (`brew outdated`'s answer).
+            return HomebrewUpgradePreview.message(base: l10n.s.homebrewConfirmUpgradeAllBody,
+                                                  updates: Array(homebrew.outdatedPackagesByID.values))
         }
         guard let package = action.package else { return "" }
         let format: String

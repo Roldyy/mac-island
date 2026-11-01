@@ -10,12 +10,27 @@ import Foundation
 /// The login shell is asked once per launch for its exports, and only the names
 /// brew itself keeps (the filter in `bin/brew`) are handed on.
 enum HomebrewEnvironment {
-    /// The app's own environment plus the login shell's proxy and HOMEBREW_*
-    /// exports. The first read runs the login shell and may take up to twice
-    /// `loginShellTimeout`, so it belongs on a work queue; a shell that fails
-    /// or stalls contributes nothing and brew runs as before.
-    static let forBrew: [String: String] = ProcessInfo.processInfo.environment
-        .merging(exportsFromLoginShell(shellPath: HomebrewCommandBuilder.currentShellPath)) { _, shell in shell }
+    /// Mac Island: the environment `brew` runs with, built WITHOUT starting a shell. Upstream asked the login
+    /// shell (`-l -i -c`) for its exports, which runs the person's `~/.zprofile` and `~/.zshrc` in our name and
+    /// hands every variable of the app to brew and to the casks' scripts. Here only a short allowlist of the
+    /// app's own variables goes through, plus brew's own proxy and `HOMEBREW_*` names, with a fixed `PATH`.
+    /// A proxy that is only exported in a shell startup file no longer reaches brew: set it in the app's
+    /// environment or as `HOMEBREW_*` instead.
+    static let forBrew: [String: String] = environment(from: ProcessInfo.processInfo.environment)
+
+    /// The one `PATH` brew runs with: the two Homebrew prefixes, then the system directories.
+    static let fixedPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+    /// The app variables brew needs (home, user, temp folder, locale, the ssh agent for git taps).
+    static let baseNames: Set<String> = [
+        "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SSH_AUTH_SOCK", "__CF_USER_TEXT_ENCODING",
+    ]
+
+    static func environment(from base: [String: String]) -> [String: String] {
+        var result = base.filter { baseNames.contains($0.key) || isPassedThrough($0.key) }
+        result["PATH"] = fixedPath
+        return result
+    }
 
     static let loginShellTimeout: TimeInterval = 10
 

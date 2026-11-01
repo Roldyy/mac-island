@@ -35,6 +35,10 @@ enum PortLanes {
         CleanerLane.bind(into:),
         MusicLane.bind(into:),
         TimerLane.bind(into:),
+        AppUpdatesLane.bind(into:),
+        UninstallerLane.bind(into:),
+        IslandDownloadsLane.bind(into:),
+        IslandLockScreenLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

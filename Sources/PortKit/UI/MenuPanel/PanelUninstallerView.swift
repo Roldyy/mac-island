@@ -41,6 +41,7 @@ struct PanelUninstallerView: View {
             dismissHomebrewRemovalConfirmation()
             uninstaller.clearRefusal()
         }
+        .uninstallReview(uninstaller)
         .alert(l10n.s.homebrewConfirmUninstallTitle,
                isPresented: homebrewRemovalConfirmationPresented,
                presenting: pendingHomebrewRemoval) { confirmation in

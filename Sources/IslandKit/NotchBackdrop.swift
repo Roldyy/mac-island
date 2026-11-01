@@ -10,7 +10,8 @@ struct NotchBackdrop<Content: View>: View {
     var body: some View {
         content.background(alignment: .top) {
             // IslandSurface.notchBlack once IslandUI provides it.
-            Color.black.frame(width: state.notchWidth, height: state.notchHeight)
+            // The panel is not always centred on the notch (the closed island has a wing of its own per side).
+            Color.black.frame(width: state.notchWidth, height: state.notchHeight).offset(x: -state.panelOffset)
         }
     }
 }
@@ -97,10 +98,20 @@ public enum IslandRevealCurve {
 public struct IslandRevealShape: Shape {
     public var progress: Double
     public var closedSize: CGSize
+    /// How far the closed outline's centre sits to the right of the rect's centre at progress 0 (negative: left).
+    /// The open outline is centred, so the shape slides to the centre as it grows and the closed island does not
+    /// jump when it opens, whatever its wings are.
+    public var closedOffset: CGFloat
 
-    public init(progress: Double, closedSize: CGSize) {
+    public init(progress: Double, closedSize: CGSize, closedOffset: CGFloat = 0) {
         self.progress = progress
         self.closedSize = closedSize
+        self.closedOffset = closedOffset
+    }
+
+    /// Left edge of the outline: centred in the rect at progress 1, `closedOffset` off-centre at progress 0.
+    public static func originX(progress: Double, width: CGFloat, in rect: CGRect, closedOffset: CGFloat) -> CGFloat {
+        rect.midX - width / 2 + closedOffset * (1 - CGFloat(IslandRevealCurve.clamp(progress)))
     }
 
     public var animatableData: Double {
@@ -111,7 +122,8 @@ public struct IslandRevealShape: Shape {
     public func path(in rect: CGRect) -> Path {
         let size = IslandRevealCurve.shapeSize(progress: progress, closed: closedSize, open: rect.size)
         let radii = IslandRevealCurve.cornerRadii(progress: progress)
-        let frame = CGRect(x: rect.midX - size.width / 2, y: rect.minY, width: size.width, height: size.height)
+        let x = Self.originX(progress: progress, width: size.width, in: rect, closedOffset: closedOffset)
+        let frame = CGRect(x: x, y: rect.minY, width: size.width, height: size.height)
         return UnevenRoundedRectangle(
             topLeadingRadius: radii.top, bottomLeadingRadius: radii.bottom,
             bottomTrailingRadius: radii.bottom, topTrailingRadius: radii.top, style: .continuous
@@ -124,11 +136,13 @@ public struct IslandRevealShape: Shape {
 public struct IslandOpenReveal: ViewModifier, Animatable {
     public var progress: Double
     public let closedSize: CGSize
+    public let closedOffset: CGFloat
     public let translucent: Bool
 
-    public init(progress: Double, closedSize: CGSize, translucent: Bool) {
+    public init(progress: Double, closedSize: CGSize, closedOffset: CGFloat = 0, translucent: Bool) {
         self.progress = progress
         self.closedSize = closedSize
+        self.closedOffset = closedOffset
         self.translucent = translucent
     }
 
@@ -142,11 +156,11 @@ public struct IslandOpenReveal: ViewModifier, Animatable {
             .scaleEffect(IslandRevealCurve.contentScale(progress: progress), anchor: .top)
             .opacity(IslandRevealCurve.contentOpacity(progress: progress))
             .background {
-                IslandRevealShape(progress: progress, closedSize: closedSize)
+                IslandRevealShape(progress: progress, closedSize: closedSize, closedOffset: closedOffset)
                     .fill(IslandSurface.notchBlack)
                     .opacity(IslandRevealCurve.backdropOpacity(progress: progress, translucent: translucent))
             }
-            .clipShape(IslandRevealShape(progress: progress, closedSize: closedSize))
+            .clipShape(IslandRevealShape(progress: progress, closedSize: closedSize, closedOffset: closedOffset))
     }
 }
 

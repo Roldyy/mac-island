@@ -384,8 +384,10 @@ extension AppFeature {
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
-        case .uninstaller: return [.fullDiskAccess, .automationFinder]
-        case .homebrew: return [.automationTerminal, .appManagement]
+        // Mac Island: no Apple Events (no Finder trash script, no Terminal launch): the Trash moves are in-process and the
+        // commands for Terminal are copied, never run.
+        case .uninstaller: return [.fullDiskAccess]
+        case .homebrew: return [.appManagement]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]

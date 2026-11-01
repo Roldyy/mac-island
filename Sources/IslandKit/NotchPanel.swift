@@ -90,7 +90,7 @@ public final class IslandController {
         host.sizingOptions = []
         panel.contentView = host
         updateNotchMetrics()
-        panel.setFrame(closedFrame, display: false)
+        applyFrame(closedFrame, display: false)
         // Receives the current layout at once, then every change.
         layoutSubscription = (activityCenter ?? .shared).$layout.sink { [weak self] layout in
             MainActor.assumeIsolated { self?.layoutChanged(layout) }
@@ -134,10 +134,18 @@ public final class IslandController {
               idleGeometry.hasNotch ? 1 : 0, panel.isVisible ? 1 : 0)
     }
 
-    /// The notch pill with its base wings, widened by the wings of the current layout and by nothing else.
+    /// The notch with a wing on each side that has something to show, each exactly as wide as its own item, and
+    /// the notch itself left where it is (so the frame is not centred when the wings differ).
     private var closedFrame: CGRect {
-        NotchGeometry.closedFrame(
-            from: idleGeometry, wingExtent: NotchGeometry.wingExtent(for: layout), screenFrame: screen.frame)
+        NotchGeometry.closedFrame(from: idleGeometry, layout: layout, screenFrame: screen.frame)
+    }
+
+    /// The one place the panel frame is set: the panel's offset from the notch is published with it, so the
+    /// content can keep the closed island on the notch whatever frame the panel holds at that moment.
+    private func applyFrame(_ frame: CGRect, display: Bool) {
+        panel.setFrame(frame, display: display)
+        let offset = frame.midX - idleGeometry.frame.midX
+        if state.panelOffset != offset { state.panelOffset = offset }
     }
 
     private func updateNotchMetrics() {
@@ -148,9 +156,12 @@ public final class IslandController {
 
     /// The closed strip is drawn at this fixed size inside the (possibly larger) panel.
     private func updateClosedMetrics() {
-        let size = closedFrame.size
-        if state.closedWidth != size.width { state.closedWidth = size.width }
-        if state.closedHeight != size.height { state.closedHeight = size.height }
+        let frame = closedFrame
+        let wings = NotchGeometry.wings(of: frame, around: idleGeometry)
+        if state.closedWidth != frame.width { state.closedWidth = frame.width }
+        if state.closedHeight != frame.height { state.closedHeight = frame.height }
+        if state.closedLeadingWing != wings.leading { state.closedLeadingWing = wings.leading }
+        if state.closedTrailingWing != wings.trailing { state.closedTrailingWing = wings.trailing }
     }
 
     private func layoutChanged(_ new: ActivityLayout) {
@@ -167,12 +178,12 @@ public final class IslandController {
         settleTask = nil
         let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let plan = IslandFramePlan.make(current: panel.frame, target: frame, animated: animated && !reduce)
-        if panel.frame != plan.immediate { panel.setFrame(plan.immediate, display: true) }
+        if panel.frame != plan.immediate { applyFrame(plan.immediate, display: true) }
         guard let settled = plan.settled else { return }
         settleTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(IslandRevealCurve.settleDelay))
             guard !Task.isCancelled, let self else { return }
-            self.panel.setFrame(settled, display: true)
+            self.applyFrame(settled, display: true)
             self.settleTask = nil
         }
     }
@@ -285,5 +296,18 @@ public final class IslandState: ObservableObject {
     /// Size of the closed island (notch plus wings). The panel can be larger while it opens or closes.
     @Published public var closedWidth: CGFloat = NotchGeometry.pillWidth
     @Published public var closedHeight: CGFloat = NotchGeometry.pillHeight
+    /// Width of each closed wing, measured from the notch edge (they differ: each side holds only its own items).
+    /// On a screen without a notch they are the two equal halves of the pill beyond the idle pill.
+    @Published public var closedLeadingWing: CGFloat = 0
+    @Published public var closedTrailingWing: CGFloat = 0
+    /// Where the panel's centre is relative to the notch's centre right now: 0 when the panel is centred on the
+    /// notch (open), the closed island's own offset when the panel is the closed frame.
+    @Published public var panelOffset: CGFloat = 0
+
+    /// Offset of the closed island's centre from the notch centre.
+    public var closedCenterOffset: CGFloat { (closedTrailingWing - closedLeadingWing) / 2 }
+    /// Offset of the closed island's centre from the panel's centre: what the closed layer and the reveal
+    /// shape's starting point must be shifted by.
+    public var closedShift: CGFloat { closedCenterOffset - panelOffset }
 }
 

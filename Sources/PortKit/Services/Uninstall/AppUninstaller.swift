@@ -66,6 +66,10 @@ final class AppUninstaller: ObservableObject {
     /// selection or a reset clears it.
     @Published private(set) var refusal: UninstallerSupport.RefusedApp?
     @Published var items: [Leftover] = []
+    /// Mac Island: nothing moves to the Trash until the person has seen every path of the plan and confirmed
+    /// it (`UninstallReviewGate`, hand-written). `removeSelected()` only asks; `confirmReview` removes.
+    @Published private(set) var reviewGate = UninstallReviewGate()
+    var pendingReview: UninstallReviewPlan? { reviewGate.pending }
     private var allowedRemovalPaths = Set<String>()
     private var targetFileIdentity: UninstallerSupport.FileIdentity?
     private var targetInfoIdentity: UninstallerSupport.FileIdentity?
@@ -135,6 +139,7 @@ final class AppUninstaller: ObservableObject {
             return false
         }
         refusal = nil
+        reviewGate.cancel()
         let bundleID = selection.bundleID
         let selectedURL = selection.url
         let selectedIdentity = selection.identity
@@ -221,6 +226,7 @@ final class AppUninstaller: ObservableObject {
     func setInclude(_ include: Bool, for id: UUID) {
         guard !isRemoving else { return }
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        reviewGate.cancel()
         items[index].include = include
     }
 
@@ -231,6 +237,7 @@ final class AppUninstaller: ObservableObject {
 
     func reset() {
         guard !isRemoving else { return }
+        reviewGate.cancel()
         refusal = nil
         scanCancellation?.cancel()
         scanCancellation = nil
@@ -249,7 +256,33 @@ final class AppUninstaller: ObservableObject {
 
     // MARK: - Removal
 
+    /// Mac Island: puts the plan in front of the person (every path, the size, "Corbeille uniquement") and
+    /// removes nothing. The views show `pendingReview`.
     func removeSelected() {
+        guard phase == .results, !isRemoving, let target else { return }
+        let chosen = items.filter(\.include)
+        guard !chosen.isEmpty else { return }
+        reviewGate.request(UninstallReviewPlan(
+            appName: target.name,
+            rows: chosen.map {
+                UninstallReviewPlan.Row(id: $0.id, path: $0.url.standardizedFileURL.path, size: $0.size,
+                                        isAppBundle: $0.category == .app)
+            }))
+    }
+
+    func cancelReview() {
+        reviewGate.cancel()
+    }
+
+    /// The only caller of `performRemoval`: the plan the person confirmed must be the one pending, and the
+    /// selection must still be exactly its rows.
+    func confirmReview(_ plan: UninstallReviewPlan) {
+        guard phase == .results, !isRemoving,
+              reviewGate.confirm(plan, currentSelection: Set(items.filter(\.include).map(\.id))) else { return }
+        performRemoval()
+    }
+
+    private func performRemoval() {
         guard phase == .results, !isRemoving else { return }
         let chosen = items.filter(\.include)
         guard !chosen.isEmpty else { return }
@@ -367,29 +400,10 @@ final class AppUninstaller: ObservableObject {
                 }
             }
 
-            // Items we lack rights for (root-owned apps, /Library files) go
-            // through Finder, which shows the administrator prompt and moves
-            // them to the Trash exactly like a drag would. One batch, one
-            // prompt; afterwards whatever still exists counts as failed.
-            if !stubborn.isEmpty {
-                let stillSafe = stubborn.filter {
-                    Self.removalIsStillSafe($0.url,
-                                            expectedIdentity: $0.fileIdentity,
-                                            allowedPaths: allowedPaths,
-                                            targetURL: targetURL)
-                }
-                failed.append(contentsOf: stubborn.filter { item in
-                    !stillSafe.contains(where: { $0.id == item.id })
-                })
-                Self.trashViaFinder(stillSafe.map(\.url))
-                for item in stillSafe {
-                    if UninstallerSupport.isConfirmedAbsent(at: item.url) {
-                        freed += item.size
-                    } else {
-                        failed.append(item)
-                    }
-                }
-            }
+            // Mac Island: an item the person cannot trash (a root-owned app, a protected folder) is reported as
+            // failed and stays where it is. It is never handed to Finder with an administrator prompt: no Apple
+            // Events consent, no password, no privilege from this app.
+            failed.append(contentsOf: stubborn)
 
             DispatchQueue.main.async {
                 // The user may have dismissed the flow while files moved.
@@ -491,28 +505,6 @@ final class AppUninstaller: ObservableObject {
         }
     }
 
-    /// Asks Finder to trash `urls` in one batch. Finder owns the privilege
-    /// elevation (the standard administrator prompt) and the result is a
-    /// reversible move to the Trash, never a permanent delete. Waits until the
-    /// user answers the prompt; a cancel simply leaves the items in place.
-    private static func trashViaFinder(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return }
-        // In-process Apple Events (see AppleScriptRunner): the Finder Automation
-        // consent is attributed to this app and re-requested if it was lost,
-        // instead of a fragile osascript subprocess. Paths are embedded as
-        // escaped string literals (no argv).
-        let targets = urls
-            .map { "set end of targets to POSIX file \(AppleScriptRunner.literal($0.path))" }
-            .joined(separator: "\n")
-        let source = """
-        set targets to {}
-        \(targets)
-        tell application "Finder" to delete targets
-        """
-        _ = AppleScriptRunner.run(source)
-    }
-
     // MARK: - Scanning
 
     private static func collect(appURL: URL,
@@ -561,8 +553,14 @@ final class AppUninstaller: ObservableObject {
         // Last line of defense: nothing outside the scanned roots (or the app
         // bundle itself) may ever reach the removal list.
         let appPath = appURL.standardizedFileURL.path
+        let policyRoots = Self.policyRoots(home: home)
         let safe = dedupe(paths).filter { candidate in
             let path = candidate.url.standardizedFileURL.path
+            // Mac Island: only the person's own space is ever offered (`UninstallPathPolicy`): never /Library,
+            // /System, the install receipts or a protected folder; the app bundle itself, except under a system root.
+            guard UninstallPathPolicy.isRemovable(path, isAppBundle: path == appPath, userRoots: policyRoots) else {
+                return false
+            }
             if path == appPath {
                 return !UninstallerSupport.isSymbolicLink(candidate.url)
             }
@@ -902,6 +900,9 @@ final class AppUninstaller: ObservableObject {
         let path = url.standardizedFileURL.path
         guard allowedPaths.contains(path), let targetURL,
               UninstallerSupport.fileIdentity(at: url) == expectedIdentity else { return false }
+        // Mac Island: the same policy again at the moment of the move.
+        guard UninstallPathPolicy.isRemovable(path, isAppBundle: path == targetURL.standardizedFileURL.path,
+                                              userRoots: policyRoots(home: NSHomeDirectory())) else { return false }
         if path == targetURL.standardizedFileURL.path {
             return !UninstallerSupport.isSymbolicLink(url)
         }
@@ -960,14 +961,13 @@ final class AppUninstaller: ObservableObject {
     ]
 
     private static func scanRoots(home: String) -> [URL] {
+        // Mac Island: the person's own folders only. Upstream also scanned /Library, the install receipts and
+        // /Users/Shared/Library, which a user-level Trash move cannot touch anyway.
         var roots = [
             URL(fileURLWithPath: home + "/Library", isDirectory: true),
-            URL(fileURLWithPath: "/Library", isDirectory: true),
             URL(fileURLWithPath: home + "/.config", isDirectory: true),
             URL(fileURLWithPath: home + "/.cache", isDirectory: true),
             URL(fileURLWithPath: home + "/.local/share", isDirectory: true),
-            URL(fileURLWithPath: "/private/var/db/receipts", isDirectory: true),
-            URL(fileURLWithPath: "/Users/Shared/Library", isDirectory: true),
         ]
         if let cache = darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR) { roots.append(cache) }
         if let temp = darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR) { roots.append(temp) }
@@ -977,9 +977,15 @@ final class AppUninstaller: ObservableObject {
     private static func spotlightRoots(home: String) -> [URL] {
         [
             URL(fileURLWithPath: home + "/Library", isDirectory: true),
-            URL(fileURLWithPath: "/Library", isDirectory: true),
-            URL(fileURLWithPath: "/Users/Shared/Library", isDirectory: true),
         ].map(\.standardizedFileURL)
+    }
+
+    /// The roots `UninstallPathPolicy` lets a non-bundle item sit under: the home folder and the per-user
+    /// cache and temp folders of the system.
+    private static func policyRoots(home: String) -> [String] {
+        UninstallPathPolicy.userRoots(home: home,
+                                      darwinCache: darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR)?.path,
+                                      darwinTemp: darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR)?.path)
     }
 
     private static func darwinUserDirectory(_ name: Int32) -> URL? {

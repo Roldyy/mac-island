@@ -160,7 +160,7 @@ enum NotchWatchSupport {
     static let thumbnailWidth: CGFloat = 40
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchWatch.isAvailable(in: defaults)
+        NotchSupport.islandIsEnabled(in: defaults) && AppFeature.notchWatch.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchWatchEnabled)
             && NotchSupport.modules(in: defaults).contains(.watch)
     }

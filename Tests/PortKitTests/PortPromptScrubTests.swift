@@ -22,8 +22,7 @@ import Testing
         // Automation consent (`AppleScriptRunner.consentToAutomate`, the Apple Events prompt) and its definition.
         "Services/ShellSupport.swift": 1,
         "Services/Notch/NotchMusicService.swift": 1, "Services/Notch/NotchShuffleService.swift": 3,  // music lanes
-        "Services/Uninstall/AppUninstaller.swift": 1,  // apps lane (uninstaller); the cleaner's two went in patch 1502
-        // The Finder lane's three went in patch 1501: a key press reads the Automation state, the click asks.
+        // Finder, cleaner and uninstaller prompt sites all went in patches 1501, 1502 and 1554.
     ]
 
     private static func isCode(_ line: Substring) -> Bool {

@@ -1,0 +1,69 @@
+--- a/Services/Notch/NotchDownloadService.swift
++++ b/Services/Notch/NotchDownloadService.swift
+@@ -64,7 +64,7 @@ final class NotchDownloadService: ObservableObject {
+     private init() {}
+ 
+     func syncWithPreferences() {
+-        guard NotchSupport.isEnabled(), AppFeature.notchDownloads.isAvailable,
++        guard NotchSupport.islandIsEnabled(), AppFeature.notchDownloads.isAvailable,
+               PortHost.defaults.bool(forKey: DefaultsKey.notchDownloadsEnabled),
+               NotchSupport.modules().contains(.downloads) else { stop(); return }
+         guard folder == nil else { return }
+@@ -148,7 +148,7 @@ final class NotchDownloadService: ObservableObject {
+ 
+     private func canReturnToDownloads(_ window: NSWindow) -> Bool {
+         let notch = NotchService.shared
+-        return AppFeature.notchDownloads.isAvailable && NotchSupport.isEnabled()
++        return AppFeature.notchDownloads.isAvailable && NotchSupport.islandIsEnabled()
+             && NotchSupport.modules().contains(.downloads) && notch.acceptsUserInteraction
+             && notch.presentationWindow === window && window.isVisible
+             && notch.expanded && notch.selected == .downloads && !notch.showingAppPanel
+--- a/Services/Notch/NotchFileToolsService.swift
++++ b/Services/Notch/NotchFileToolsService.swift
+@@ -34,7 +34,7 @@ final class NotchFileToolsService: ObservableObject {
+     deinit { operation?.cancel(immediately: true) }
+ 
+     var offersMediaDrop: Bool {
+-        NotchSupport.showsFiles()
++        NotchSupport.islandShowsFiles()
+             && AppFeature.mediaTools.isAvailable && AppFeature.shelf.isAvailable
+             && PortHost.defaults.bool(forKey: DefaultsKey.shelfEnabled)
+     }
+@@ -75,7 +75,7 @@ final class NotchFileToolsService: ObservableObject {
+     }
+ 
+     func syncWithPreferences() {
+-        guard NotchSupport.showsFiles(),
++        guard NotchSupport.islandShowsFiles(),
+               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable else {
+             stop()
+             return
+@@ -102,7 +102,7 @@ final class NotchFileToolsService: ObservableObject {
+ 
+     @discardableResult
+     func openMedia(_ tool: MediaTool, inputs: [URL]) -> Bool {
+-        guard NotchSupport.showsFiles(),
++        guard NotchSupport.islandShowsFiles(),
+               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
+               NotchFileToolsSupport.accepts(inputs, for: tool) else { return false }
+         closeMedia()
+@@ -133,7 +133,7 @@ final class NotchFileToolsService: ObservableObject {
+ 
+     func archive(_ inputs: [URL], destination: URL, directory: Bool) {
+         guard !isRunning, AppFeature.notch.isAvailable, AppFeature.shelf.isAvailable,
+-              AppFeature.mediaTools.isAvailable, NotchSupport.showsFiles() else { return }
++              AppFeature.mediaTools.isAvailable, NotchSupport.islandShowsFiles() else { return }
+         guard destination.isFileURL, !inputs.isEmpty, inputs.allSatisfy(\.isFileURL) else {
+             failure = CocoaError(.fileWriteInvalidFileName).localizedDescription
+             return
+--- a/UI/Notch/NotchFilesView.swift
++++ b/UI/Notch/NotchFilesView.swift
+@@ -294,7 +294,7 @@ struct NotchFilesView: View {
+             outputPanel = nil
+             guard response == .OK, let destination = panel.url,
+                   AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
+-                  NotchSupport.isEnabled() else { return }
++                  NotchSupport.islandIsEnabled() else { return }
+             archives.archive(inputs, destination: destination, directory: multiple)
+             service.open(.files)
+         }

@@ -20,6 +20,12 @@ import SwiftUI
     /// Size of the closed island: what `NotchGeometry.closedFrame` gives for the wings the center asks for.
     static func closedSize(center: AmbientCenter, notched: Bool, notchWidth: CGFloat = notchWidth,
                            notchHeight: CGFloat = notchHeight) -> CGSize {
+        closedGeometry(center: center, notched: notched, notchWidth: notchWidth, notchHeight: notchHeight).frame.size
+    }
+
+    /// The closed frame, and the idle frame it grows from.
+    static func closedGeometry(center: AmbientCenter, notched: Bool, notchWidth: CGFloat = notchWidth,
+                               notchHeight: CGFloat = notchHeight) -> (frame: CGRect, idle: NotchGeometry) {
         let screen = CGRect(x: 0, y: 0, width: 1800, height: 1200)
         let idle: NotchGeometry
         if notched {
@@ -31,9 +37,8 @@ import SwiftUI
         } else {
             idle = NotchGeometry.idle(screenFrame: screen, safeAreaTop: 0, auxLeft: nil, auxRight: nil)
         }
-        let frame = NotchGeometry.closedFrame(
-            from: idle, wingExtent: NotchGeometry.wingExtent(for: center.widthProxy.layout), screenFrame: screen)
-        return frame.size
+        let frame = NotchGeometry.closedFrame(from: idle, layout: center.widthProxy.layout, screenFrame: screen)
+        return (frame, idle)
     }
 
     /// A center in a known state: only the settings and indicators of the scenario.
@@ -73,12 +78,15 @@ import SwiftUI
         var body: some View {
             let idle: CGFloat = notched ? notchWidth : NotchGeometry.pillWidth
             let size = size
+            let geometry = AmbientRender.closedGeometry(center: center, notched: notched, notchWidth: notchWidth, notchHeight: notchHeight)
+            let wings = NotchGeometry.wings(of: geometry.frame, around: geometry.idle)
             ZStack(alignment: .top) {
                 background
                 ZStack(alignment: .top) {
                     RoundedRectangle(cornerRadius: IslandRevealCurve.closedBottomRadius, style: .continuous)
                         .fill(IslandSurface.notchBlack)
                     AmbientStrip(content: center.content, notchWidth: idle, isNotched: notched, size: size,
+                                 leadingWing: wings.leading, trailingWing: wings.trailing,
                                  clock: AmbientRender.clock, pulsePreview: pulse)
                 }
                 .frame(width: size.width, height: size.height)

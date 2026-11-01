@@ -23,6 +23,7 @@ struct UninstallerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear { uninstaller.clearRefusal() }
             .onDisappear { uninstaller.clearRefusal() }
+            .uninstallReview(uninstaller)
             .alert(l10n.s.homebrewConfirmUninstallTitle,
                    isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                         set: { if !$0 { pendingHomebrewRemoval = nil } }),

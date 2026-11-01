@@ -12,7 +12,8 @@ public struct ClosedStrip: View {
     public var body: some View {
         AmbientStrip(
             content: ambient.content, notchWidth: state.notchWidth, isNotched: ambient.isNotched,
-            size: CGSize(width: state.closedWidth, height: state.closedHeight))
+            size: CGSize(width: state.closedWidth, height: state.closedHeight),
+            leadingWing: state.closedLeadingWing, trailingWing: state.closedTrailingWing)
             .onAppear { ambient.setVisible(true) }
             .onDisappear { ambient.setVisible(false) }
     }

@@ -1,0 +1,49 @@
+--- a/Services/Notch/NotchGestureSupport.swift
++++ b/Services/Notch/NotchGestureSupport.swift
+@@ -40,7 +40,7 @@ struct NotchGestureSupport {
+     }
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchGestures.isAvailable(in: defaults)
++        NotchSupport.islandIsEnabled(in: defaults) && AppFeature.notchGestures.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchGesturesEnabled)
+     }
+ 
+--- a/Services/Notch/NotchLockScreenSupport.swift
++++ b/Services/Notch/NotchLockScreenSupport.swift
+@@ -21,11 +21,11 @@ enum NotchLockScreenSupport {
+     static let spaceLevel: Int32 = 400
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
++        NotchSupport.islandIsEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
+     }
+ 
+     static func playsSounds(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
++        NotchSupport.islandIsEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
+     }
+ 
+     /// Music follows the island's Music section, not its resting choice: an
+--- a/Services/Notch/NotchMascotSupport.swift
++++ b/Services/Notch/NotchMascotSupport.swift
+@@ -1232,7 +1232,7 @@ enum NotchMascotSupport {
+ 
+     /// Installed on the Features page, switched on, and in an island that is on.
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        AppFeature.notchMascot.isAvailable(in: defaults) && NotchSupport.isEnabled(in: defaults)
++        AppFeature.notchMascot.isAvailable(in: defaults) && NotchSupport.islandIsEnabled(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchMascotEnabled)
+     }
+ 
+--- a/Services/Notch/NotchWatchSupport.swift
++++ b/Services/Notch/NotchWatchSupport.swift
+@@ -160,7 +160,7 @@ enum NotchWatchSupport {
+     static let thumbnailWidth: CGFloat = 40
+ 
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchWatch.isAvailable(in: defaults)
++        NotchSupport.islandIsEnabled(in: defaults) && AppFeature.notchWatch.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchWatchEnabled)
+             && NotchSupport.modules(in: defaults).contains(.watch)
+     }

@@ -170,11 +170,12 @@ public final class AmbientCenter: ObservableObject {
         var resolved = ClosedIslandLayout.resolve(all, settings: settings, step: step, centered: !isNotched)
         step = resolved.step
         if isNotched {
-            // Each wing is baseWing + extent wide; what does not fit loses its text, then its last element.
-            let extent = AmbientMetrics.notchedExtent(resolved, now: date)
-            let width = NotchGeometry.baseWing + extent
-            resolved.leading = AmbientMetrics.fitted(resolved.leading, width: width, now: date)
-            resolved.trailing = AmbientMetrics.fitted(resolved.trailing, width: width, now: date)
+            // Each wing is baseWing + its own extent wide; what does not fit loses its text, then its last element.
+            let extents = AmbientMetrics.notchedExtents(resolved, now: date)
+            resolved.leading = AmbientMetrics.fitted(
+                resolved.leading, width: NotchGeometry.baseWing + extents.leading, now: date)
+            resolved.trailing = AmbientMetrics.fitted(
+                resolved.trailing, width: NotchGeometry.baseWing + extents.trailing, now: date)
         } else if resolved.center != nil {
             // Beside the center clock each side has the same room, up to what the widest pill leaves.
             let room = AmbientMetrics.pillSideLimit(center: resolved.center) + 2 * AmbientMetrics.wingPadding
@@ -183,14 +184,18 @@ public final class AmbientCenter: ObservableObject {
         }
         resolved.dot = layout.dot
         if resolved != content { content = resolved }
-        publishWidth(AmbientMetrics.extent(resolved, notched: isNotched, now: date))
+        publishWidth(AmbientMetrics.extents(resolved, notched: isNotched, now: date))
         scheduleRotation()
         scheduleClockWake(date)
     }
 
-    private func publishWidth(_ extent: CGFloat) {
-        if let item = AmbientMetrics.measuringItem(forExtent: extent) {
-            widthProxy.post(IslandActivity(id: "ambient.width", source: "ambient", priority: .ambient, leading: item))
+    /// The panel measures the wings from this activity: a stand-in item per side, none for a side that needs no wing.
+    private func publishWidth(_ extents: (leading: CGFloat, trailing: CGFloat)) {
+        let lead = AmbientMetrics.measuringItem(forExtent: extents.leading)
+        let trail = AmbientMetrics.measuringItem(forExtent: extents.trailing)
+        if lead != nil || trail != nil {
+            widthProxy.post(IslandActivity(
+                id: "ambient.width", source: "ambient", priority: .ambient, leading: lead, trailing: trail))
         } else {
             widthProxy.withdraw(id: "ambient.width")
         }

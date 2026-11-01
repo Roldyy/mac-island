@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
 
+import AppKit
 import Combine
 import Darwin
 import Foundation
@@ -300,12 +301,12 @@ final class HomebrewManager: ObservableObject {
 
     func openTerminalFallback() {
         guard let command = terminalFallbackCommand else { return }
-        openTerminal(command: command)
+        copyForTerminal(command: command)
     }
 
     func openHomebrewInstaller() {
         errorMessage = nil
-        if openTerminal(command: HomebrewCommandBuilder.installerCommand) {
+        if copyForTerminal(command: HomebrewCommandBuilder.installerCommand) {
             didOpenInstaller = true
         }
     }
@@ -315,7 +316,7 @@ final class HomebrewManager: ObservableObject {
         self.brewPath = brewPath
         errorMessage = nil
         let command = HomebrewCommandBuilder.shellConfigCommand(brewPath: brewPath)
-        if openTerminal(command: command) {
+        if copyForTerminal(command: command) {
             didOpenShellConfig = true
         }
     }
@@ -330,20 +331,15 @@ final class HomebrewManager: ObservableObject {
         updateShellConfigStatus(brewPath: brewPath)
     }
 
+    /// Mac Island: never starts Terminal and never runs a script for the person. The command is put on the
+    /// pasteboard, in answer to a click, and the person pastes it into their own Terminal (no Apple Events
+    /// consent, no `osascript`, no shell started by this app). True when the pasteboard took it.
     @discardableResult
-    private func openTerminal(command: String) -> Bool {
-        let source = """
-        tell application "Terminal"
-            activate
-            do script \(appleScriptString(command))
-        end tell
-        """
-        // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
-        // consent is attributed to this app and re-requested if it was lost,
-        // instead of a fragile osascript subprocess. Same permission as before.
-        let result = AppleScriptRunner.run(source)
-        if !result.ok {
-            errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func copyForTerminal(command: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.setString(command, forType: .string) else {
+            errorMessage = L10n.shared.s.homebrewTerminalFallback
             return false
         }
         return true
@@ -675,9 +671,7 @@ final class HomebrewManager: ObservableObject {
     }
 
     private func detectBrewPath() -> String? {
-        HomebrewCommandBuilder.candidatePaths.first {
-            FileManager.default.isExecutableFile(atPath: $0)
-        }
+        HomebrewCommandBuilder.locateBrew()
     }
 
     /// Timeout for read-only Homebrew commands (info, search, outdated).
@@ -824,13 +818,6 @@ final class HomebrewManager: ObservableObject {
 
     private func appendLog(_ text: String) {
         log.append(text)
-    }
-
-    private func appleScriptString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 }
 

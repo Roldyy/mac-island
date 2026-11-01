@@ -130,6 +130,23 @@ public final class PortFeatureBinding {
         return true
     }
 
+    /// Binds a feature Mac Island adds that has NO upstream `AppFeature` (the lock-screen island: upstream makes it an option
+    /// of its island, not a feature), with a descriptor the lane wrote itself. Same guarantees as `bind`: registry
+    /// switch, kill switch, safe mode, quarantine, idempotent start, stop always reaching `stop`. False when the id is
+    /// already bound or is an `AppFeature`'s registry id (those go through `bind`).
+    @discardableResult
+    public func bind(custom descriptor: FeatureDescriptor,
+                     start: @escaping @MainActor () -> Void,
+                     stop: @escaping @MainActor () -> Void) -> Bool {
+        let id = descriptor.id
+        guard entries[id] == nil, !AppFeature.allCases.contains(where: { $0.registryID == id }) else { return false }
+        entries[id] = Entry(descriptor: descriptor, permissions: Self.gates(of: descriptor),
+                            start: start, stop: stop, page: nil, ownsDescriptor: true)
+        order.append(id)
+        state.bind(id)
+        return true
+    }
+
     /// Descriptors to append to the registry's, in binding order.
     public var descriptors: [FeatureDescriptor] {
         order.compactMap { entries[$0].flatMap { $0.ownsDescriptor ? $0.descriptor : nil } }

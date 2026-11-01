@@ -141,15 +141,19 @@ import Testing
                        AmbientMetrics.groupWidth(content.trailing, now: AmbientRender.clock))
         let extent = AmbientMetrics.notchedExtent(content, now: AmbientRender.clock)
         #expect(extent == (need + 2 * AmbientMetrics.wingPadding - NotchGeometry.baseWing).rounded(.up))
+        // The other side asks for its own need, not this one.
+        let sides = AmbientMetrics.notchedExtents(content, now: AmbientRender.clock)
+        #expect(min(sides.leading, sides.trailing) <= extent)
     }
 
     @Test func theMeasuredWidthIsTheWidthTheStripIsDrawnAt() {
         // The width proxy asks for exactly `extent` points on each side.
         let c = center(.claudeAtRest, notched: true)
-        let extent = AmbientMetrics.notchedExtent(c.content, now: AmbientRender.clock)
-        let proxy = NotchGeometry.wingExtent(for: c.widthProxy.layout)
-        #expect(proxy == extent)
-        #expect(size(.claudeAtRest, notch: 180).width == 180 + 2 * (NotchGeometry.baseWing + extent))
+        let sides = AmbientMetrics.notchedExtents(c.content, now: AmbientRender.clock)
+        let proxy = NotchGeometry.wingWidths(for: c.widthProxy.layout)
+        #expect(proxy.leading == (sides.leading > 0 ? NotchGeometry.baseWing + sides.leading : 0))
+        #expect(proxy.trailing == (sides.trailing > 0 ? NotchGeometry.baseWing + sides.trailing : 0))
+        #expect(size(.claudeAtRest, notch: 180).width == 180 + proxy.leading + proxy.trailing)
     }
 
     @Test func aNoNotchPillStaysCompactToo() {

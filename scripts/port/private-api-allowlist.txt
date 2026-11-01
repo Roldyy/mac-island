@@ -8,7 +8,6 @@ Services/Display/BrightnessService.swift
 Services/DockPreview/DockAutohideHold.swift
 Services/MiddleClick/MiddleClickService.swift
 Services/Notch/NotchLockScreenService.swift
-Services/Notch/NotchOverlaySpace.swift
 Services/QuickTools/QuickTogglesService.swift
 Services/Recorder/RecorderCursorCatalog.swift
 Services/ResponsibleProcess.swift
@@ -16,3 +15,4 @@ Services/Switcher/AXWindowResolver.swift
 Services/Switcher/SpaceWindowBridge.swift
 Services/Switcher/WindowPreviewProvider.swift
 Services/Switcher/WindowServerCaptureQueue.swift
+Bridge/PrivateOverlaySpace.swift

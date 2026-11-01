@@ -1,0 +1,10 @@
+# Upstream test files lane W7-D (uninstaller) turns on in the port harness (scripts/port/test.sh, one name per line, no
+# extension). Port plan section 4, lane 7D. Plain-Swift check scripts the harness rewrites against stub singletons: none
+# of them runs under `swift test`, and the harness is not in this tree yet: this list was NOT run.
+# 52 `expect` calls upstream. UninstallerFlowTests drives its own stub of the service (its `removeSelected()` is a
+# one-liner), so patches 1554 (no Finder administrator fallback), 1555 (user paths only) and 1556 (review before
+# removal) change nothing it asserts. Left OFF on purpose: SelfUninstallTests (Services/SelfUninstall.swift is on the
+# drop list) and UninstallSpacesTests.sh (touches real bundles; plan section 4 drops it).
+# The lane's own checks are Tests/PortKitTests/{UninstallerLane,AppsLaneSource}Tests.swift.
+UninstallerFlowTests
+UninstallerCommandBarCleanupTests

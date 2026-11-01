@@ -12,6 +12,7 @@ import SwiftUI
 struct HomeOpenReveal: ViewModifier, Animatable {
     var progress: Double
     let closedSize: CGSize
+    var closedOffset: CGFloat = 0
     let translucent: Bool
 
     var animatableData: Double {
@@ -23,10 +24,10 @@ struct HomeOpenReveal: ViewModifier, Animatable {
         content
             .opacity(IslandRevealCurve.contentOpacity(progress: progress))
             .background {
-                IslandRevealShape(progress: progress, closedSize: closedSize)
+                IslandRevealShape(progress: progress, closedSize: closedSize, closedOffset: closedOffset)
                     .fill(IslandSurface.notchBlack)
                     .opacity(IslandRevealCurve.backdropOpacity(progress: progress, translucent: translucent))
             }
-            .clipShape(IslandRevealShape(progress: progress, closedSize: closedSize))
+            .clipShape(IslandRevealShape(progress: progress, closedSize: closedSize, closedOffset: closedOffset))
     }
 }

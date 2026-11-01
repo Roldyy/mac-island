@@ -1,0 +1,65 @@
+--- a/Services/Uninstall/AppUninstaller.swift
++++ b/Services/Uninstall/AppUninstaller.swift
+@@ -367,29 +367,10 @@
+                 }
+             }
+ 
+-            // Items we lack rights for (root-owned apps, /Library files) go
+-            // through Finder, which shows the administrator prompt and moves
+-            // them to the Trash exactly like a drag would. One batch, one
+-            // prompt; afterwards whatever still exists counts as failed.
+-            if !stubborn.isEmpty {
+-                let stillSafe = stubborn.filter {
+-                    Self.removalIsStillSafe($0.url,
+-                                            expectedIdentity: $0.fileIdentity,
+-                                            allowedPaths: allowedPaths,
+-                                            targetURL: targetURL)
+-                }
+-                failed.append(contentsOf: stubborn.filter { item in
+-                    !stillSafe.contains(where: { $0.id == item.id })
+-                })
+-                Self.trashViaFinder(stillSafe.map(\.url))
+-                for item in stillSafe {
+-                    if UninstallerSupport.isConfirmedAbsent(at: item.url) {
+-                        freed += item.size
+-                    } else {
+-                        failed.append(item)
+-                    }
+-                }
+-            }
++            // Mac Island: an item the person cannot trash (a root-owned app, a protected folder) is reported as
++            // failed and stays where it is. It is never handed to Finder with an administrator prompt: no Apple
++            // Events consent, no password, no privilege from this app.
++            failed.append(contentsOf: stubborn)
+ 
+             DispatchQueue.main.async {
+                 // The user may have dismissed the flow while files moved.
+@@ -489,28 +470,6 @@
+                     bundleIDs: bundleIDs, urls: [url], remainingBundleIDs: remaining)
+             }
+         }
+-    }
+-
+-    /// Asks Finder to trash `urls` in one batch. Finder owns the privilege
+-    /// elevation (the standard administrator prompt) and the result is a
+-    /// reversible move to the Trash, never a permanent delete. Waits until the
+-    /// user answers the prompt; a cancel simply leaves the items in place.
+-    private static func trashViaFinder(_ urls: [URL]) {
+-        guard !urls.isEmpty else { return }
+-        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return }
+-        // In-process Apple Events (see AppleScriptRunner): the Finder Automation
+-        // consent is attributed to this app and re-requested if it was lost,
+-        // instead of a fragile osascript subprocess. Paths are embedded as
+-        // escaped string literals (no argv).
+-        let targets = urls
+-            .map { "set end of targets to POSIX file \(AppleScriptRunner.literal($0.path))" }
+-            .joined(separator: "\n")
+-        let source = """
+-        set targets to {}
+-        \(targets)
+-        tell application "Finder" to delete targets
+-        """
+-        _ = AppleScriptRunner.run(source)
+     }
+ 
+     // MARK: - Scanning

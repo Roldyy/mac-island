@@ -11,6 +11,9 @@ public struct AmbientStrip: View {
     public let isNotched: Bool
     /// Size of the closed island.
     public let size: CGSize
+    /// Width of each wing beyond the notch. Nil: both are half of what `size` leaves beside the notch.
+    public let leadingWing: CGFloat?
+    public let trailingWing: CGFloat?
     /// Tests freeze the clock and the pulse here.
     public var clock: Date?
     public var pulsePreview: Double?
@@ -18,11 +21,14 @@ public struct AmbientStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(content: ClosedIslandContent, notchWidth: CGFloat, isNotched: Bool, size: CGSize,
+                leadingWing: CGFloat? = nil, trailingWing: CGFloat? = nil,
                 clock: Date? = nil, pulsePreview: Double? = nil) {
         self.content = content
         self.notchWidth = notchWidth
         self.isNotched = isNotched
         self.size = size
+        self.leadingWing = leadingWing
+        self.trailingWing = trailingWing
         self.clock = clock
         self.pulsePreview = pulsePreview
     }
@@ -49,16 +55,17 @@ public struct AmbientStrip: View {
     // MARK: - Layouts
 
     private var wings: some View {
-        let wing = max(0, (size.width - notchWidth) / 2)
+        let even = max(0, (size.width - notchWidth) / 2)
+        let leadingWidth = max(0, leadingWing ?? even), trailingWidth = max(0, trailingWing ?? even)
         // Each group sits against the notch (the clock right beside it), the free end of the wing outside.
         return HStack(spacing: 0) {
             group(content.leading)
                 .padding(.trailing, AmbientMetrics.wingPadding)
-                .frame(width: wing, alignment: .trailing)
+                .frame(width: leadingWidth, alignment: .trailing)
             Color.clear.frame(width: notchWidth)
             group(content.trailing)
                 .padding(.leading, AmbientMetrics.wingPadding)
-                .frame(width: wing, alignment: .leading)
+                .frame(width: trailingWidth, alignment: .leading)
         }
     }
 

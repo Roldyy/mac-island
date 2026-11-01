@@ -99,9 +99,11 @@ final class ClosedPillRig {
     }
 
     var closedFrame: CGRect {
-        NotchGeometry.closedFrame(
-            from: idle, wingExtent: NotchGeometry.wingExtent(for: center.widthProxy.layout), screenFrame: screen)
+        NotchGeometry.closedFrame(from: idle, layout: center.widthProxy.layout, screenFrame: screen)
     }
+
+    /// Offset of the closed island's centre from the notch's: the panel holds it when it is the closed frame.
+    private var closedOffset: CGFloat { closedFrame.midX - idle.frame.midX }
 
     /// What `IslandController.updateNotchMetrics` / `layoutChanged` do after a content or screen change.
     func refreshClosed(animated: Bool = true) {
@@ -109,6 +111,9 @@ final class ClosedPillRig {
         state.notchHeight = idle.frame.height
         state.closedWidth = closedFrame.width
         state.closedHeight = closedFrame.height
+        let wings = NotchGeometry.wings(of: closedFrame, around: idle)
+        state.closedLeadingWing = wings.leading
+        state.closedTrailingWing = wings.trailing
         if !isOpen { move(to: closedFrame.size, animated: animated) }
     }
 
@@ -143,8 +148,11 @@ final class ClosedPillRig {
     }
 
     private func setFrame(_ size: CGSize) {
-        let frame = CGRect(x: Self.origin.x - size.width / 2, y: Self.origin.y - size.height, width: size.width, height: size.height)
+        // As the controller does: the closed frame is off-centre, every larger frame is centred on the notch.
+        let offset = (!isOpen && size == closedFrame.size) ? closedOffset : 0
+        let frame = CGRect(x: Self.origin.x - size.width / 2 + offset, y: Self.origin.y - size.height, width: size.width, height: size.height)
         window.setFrame(frame, display: true)
+        state.panelOffset = offset
         host.frame = CGRect(origin: .zero, size: size)
     }
 
@@ -218,7 +226,8 @@ extension NSBitmapImageRep {
         let row = closed.height / 2
         while left > 0, rep.coverage(x: left - 1, y: row, viewWidth: width) > 0.5 { left -= 1 }
         while right < width, rep.coverage(x: right + 1, y: row, viewWidth: width) > 0.5 { right += 1 }
-        #expect(right - left >= Self.minimumWidth(for: rig), "\(step): pill is \(right - left) pt wide", sourceLocation: sourceLocation)
+        // With nothing to show the pill is exactly the notch: the scan loses at most the anti-aliased end pixel.
+        #expect(right - left >= Self.minimumWidth(for: rig) - 1, "\(step): pill is \(right - left) pt wide", sourceLocation: sourceLocation)
 
         // Vertical run through the centre column, from the top edge.
         var bottom: CGFloat = 0

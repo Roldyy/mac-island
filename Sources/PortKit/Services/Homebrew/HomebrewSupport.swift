@@ -295,6 +295,10 @@ struct HomebrewPendingAction {
 
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+
+    /// Mac Island: the brew to run. Found among the known prefixes (and `HOMEBREW_PREFIX`), and only when it is a
+    /// regular executable file owned by root or this user that nobody else can write (`BrewLocator`, hand-written).
+    static func locateBrew() -> String? { BrewLocator.locate() }
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
     static var currentShellPath: String {
         if let shell = getpwuid(getuid())?.pointee.pw_shell {

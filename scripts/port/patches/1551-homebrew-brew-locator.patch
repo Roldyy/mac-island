@@ -1,0 +1,39 @@
+--- a/Services/AppUpdates/AppUpdatesService.swift
++++ b/Services/AppUpdates/AppUpdatesService.swift
+@@ -333,9 +333,7 @@
+ 
+     private func packageManagerFindings(apps: [AppUpdatesSupport.InstalledApp],
+                                         includeUpdates: Bool) -> PackageResult {
+-        guard let brewPath = HomebrewCommandBuilder.candidatePaths.first(where: {
+-            FileManager.default.isExecutableFile(atPath: $0)
+-        }) else {
++        guard let brewPath = HomebrewCommandBuilder.locateBrew() else {
+             return PackageResult(items: [], coveredPaths: [], available: !includeUpdates,
+                                  onlineCoverageAvailable: true)
+         }
+--- a/Services/Homebrew/HomebrewManager.swift
++++ b/Services/Homebrew/HomebrewManager.swift
+@@ -675,9 +675,7 @@
+     }
+ 
+     private func detectBrewPath() -> String? {
+-        HomebrewCommandBuilder.candidatePaths.first {
+-            FileManager.default.isExecutableFile(atPath: $0)
+-        }
++        HomebrewCommandBuilder.locateBrew()
+     }
+ 
+     /// Timeout for read-only Homebrew commands (info, search, outdated).
+--- a/Services/Homebrew/HomebrewSupport.swift
++++ b/Services/Homebrew/HomebrewSupport.swift
+@@ -295,6 +295,10 @@
+ 
+ enum HomebrewCommandBuilder {
+     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
++
++    /// Mac Island: the brew to run. Found among the known prefixes (and `HOMEBREW_PREFIX`), and only when it is a
++    /// regular executable file owned by root or this user that nobody else can write (`BrewLocator`, hand-written).
++    static func locateBrew() -> String? { BrewLocator.locate() }
+     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
+     static var currentShellPath: String {
+         if let shell = getpwuid(getuid())?.pointee.pw_shell {

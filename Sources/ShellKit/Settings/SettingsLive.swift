@@ -62,7 +62,8 @@ public enum SettingsLive {
         // "cutpaste" and "renameshortcut" have no live entry any more: the ported Finder page (PortKit, W7-A lane) draws
         // both pages whole, under the `finder` feature card their catalog rows carry.
         // "shelf" has no live entry any more: the ported shelf page (PortKit, Shelf lane) draws the whole page. The two
-        // Downloads switches (shelfDownloads*) return with the island downloads pane in wave 8.
+        // Downloads switches (shelfDownloads*) are back, drawn by the ported body itself (PortKit `IslandShelfDownloadsSettings`,
+        // lane W8C): a live entry here would bring the greyed noted rows of the old page back with them.
         "island": Page(
             extras: [
                 flag("notchIdleShowLimits", true, title: "Limites Claude", hint: AmbientChannel.hint("limits")),

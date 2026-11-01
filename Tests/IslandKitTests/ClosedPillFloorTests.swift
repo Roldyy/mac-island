@@ -9,8 +9,7 @@ import Testing
 
     @Test func noNotchEmptyLayoutKeepsAVisiblePill() {
         let idle = NotchGeometry.idle(screenFrame: screen, safeAreaTop: 0, auxLeft: nil, auxRight: nil)
-        let frame = NotchGeometry.closedFrame(
-            from: idle, wingExtent: NotchGeometry.wingExtent(for: ActivityLayout.empty), screenFrame: screen)
+        let frame = NotchGeometry.closedFrame(from: idle, layout: .empty, screenFrame: screen)
         #expect(!idle.hasNotch)
         #expect(frame.width >= 190)
         #expect(frame.height >= 28)
@@ -18,14 +17,15 @@ import Testing
         #expect(abs(frame.midX - screen.midX) < 0.5)
     }
 
-    @Test func notchedEmptyLayoutKeepsTheBaseWings() {
+    @Test func notchedEmptyLayoutIsExactlyTheNotch() {
         let idle = NotchGeometry.idle(
             screenFrame: screen, safeAreaTop: 34,
             auxLeft: CGRect(x: 0, y: 1406, width: 1627.5, height: 34),
             auxRight: CGRect(x: 1812.5, y: 1406, width: 1627.5, height: 34))
-        let frame = NotchGeometry.closedFrame(from: idle, wingExtent: 0, screenFrame: screen)
+        let frame = NotchGeometry.closedFrame(from: idle, layout: .empty, screenFrame: screen)
         #expect(idle.hasNotch)
-        #expect(frame.width == idle.frame.width + 2 * NotchGeometry.baseWing)
+        #expect(frame.width == idle.frame.width)
+        #expect(frame.minX == idle.frame.minX)
         #expect(frame.height == 34)
     }
 }

@@ -21,11 +21,11 @@ enum NotchLockScreenSupport {
     static let spaceLevel: Int32 = 400
 
     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
+        NotchSupport.islandIsEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
     }
 
     static func playsSounds(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
+        NotchSupport.islandIsEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
     }
 
     /// Music follows the island's Music section, not its resting choice: an

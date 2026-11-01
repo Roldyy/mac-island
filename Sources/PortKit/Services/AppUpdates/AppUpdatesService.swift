@@ -333,9 +333,7 @@ final class AppUpdatesService: ObservableObject {
 
     private func packageManagerFindings(apps: [AppUpdatesSupport.InstalledApp],
                                         includeUpdates: Bool) -> PackageResult {
-        guard let brewPath = HomebrewCommandBuilder.candidatePaths.first(where: {
-            FileManager.default.isExecutableFile(atPath: $0)
-        }) else {
+        guard let brewPath = HomebrewCommandBuilder.locateBrew() else {
             return PackageResult(items: [], coveredPaths: [], available: !includeUpdates,
                                  onlineCoverageAvailable: true)
         }

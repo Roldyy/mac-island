@@ -64,7 +64,7 @@ final class NotchDownloadService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        guard NotchSupport.isEnabled(), AppFeature.notchDownloads.isAvailable,
+        guard NotchSupport.islandIsEnabled(), AppFeature.notchDownloads.isAvailable,
               PortHost.defaults.bool(forKey: DefaultsKey.notchDownloadsEnabled),
               NotchSupport.modules().contains(.downloads) else { stop(); return }
         guard folder == nil else { return }
@@ -148,7 +148,7 @@ final class NotchDownloadService: ObservableObject {
 
     private func canReturnToDownloads(_ window: NSWindow) -> Bool {
         let notch = NotchService.shared
-        return AppFeature.notchDownloads.isAvailable && NotchSupport.isEnabled()
+        return AppFeature.notchDownloads.isAvailable && NotchSupport.islandIsEnabled()
             && NotchSupport.modules().contains(.downloads) && notch.acceptsUserInteraction
             && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .downloads && !notch.showingAppPanel

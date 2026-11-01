@@ -203,7 +203,7 @@ private final class ManualSleep: @unchecked Sendable {
         for id in ["a", "b"] {
             r.center.post(AmbientIndicator(id: id, symbol: "x", text: "Mmmmmmmmmm", wing: .leading))
         }
-        let width = NotchGeometry.baseWing + AmbientMetrics.notchedExtent(r.center.content, now: t0)
+        let width = NotchGeometry.baseWing + AmbientMetrics.notchedExtents(r.center.content, now: t0).leading
         let leading = r.center.content.leading
         // Never a bare icon: whatever stays has its value, and what stays fits.
         #expect(leading.allSatisfy { $0.isReadable })

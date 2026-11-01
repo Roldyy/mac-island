@@ -1,0 +1,12 @@
+# Upstream test files lane W7-C (app updates and Homebrew) turns on in the port harness (scripts/port/test.sh, one name
+# per line, no extension). Port plan section 4, lane 7C. Plain-Swift check scripts the harness rewrites against stub
+# singletons: none of them runs under `swift test`, and the harness is not in this tree yet: this list was NOT run.
+# 88 `expect` calls upstream. AppUpdateRulesTests and AppUpdatesTests also read the upstream sources by path
+# (Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift, UI/Settings/AppUpdatesSettings.swift,
+# UI/MenuPanel/PanelAppUpdatesView.swift, Services/AppUpdates/AppUpdatesService.swift): the harness prefix rewrite must
+# cover them. Patches 1551 (brew located through BrewLocator) and 1553 (no notification prompt, a hint view instead)
+# touch lines none of those source assertions quote. DiskImageHomebrewTests belongs to lane 7A (disk images).
+# The lane's own checks are Tests/PortKitTests/{AppUpdatesLane,HomebrewCleanup,AppsLaneSource}Tests.swift.
+AppUpdateHandoffTests
+AppUpdateRulesTests
+AppUpdatesTests

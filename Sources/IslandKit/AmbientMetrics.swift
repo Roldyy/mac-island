@@ -123,13 +123,24 @@ public enum AmbientMetrics {
     /// Wing an alert dot sits on when nothing else is shown.
     public static let dotExtent: CGFloat = 12
 
-    /// How far each wing must grow beyond `NotchGeometry.baseWing` around a hardware notch: both wings share it
-    /// so the notch stays centered. 0...`NotchGeometry.maxWingExtent`.
+    /// How far each wing must grow beyond `NotchGeometry.baseWing` around a hardware notch. Each side asks only
+    /// for what its own group needs and 0 when it is empty (no wing at all), so the island can be lopsided.
+    /// 0...`NotchGeometry.maxWingExtent`.
+    public static func notchedExtents(_ content: ClosedIslandContent, now: Date) -> (leading: CGFloat, trailing: CGFloat) {
+        func extent(_ items: [AmbientIndicator]) -> CGFloat {
+            let need = groupWidth(items, now: now)
+            return need > 0 ? clampExtent(need + 2 * wingPadding - NotchGeometry.baseWing) : 0
+        }
+        let lead = extent(content.leading), trail = extent(content.trailing)
+        // An edge dot alone still needs a little wing to sit on: the right one, where the dot is drawn.
+        if lead == 0, trail == 0, content.dot != nil { return (0, dotExtent) }
+        return (lead, trail)
+    }
+
+    /// The larger of the two sides (see `notchedExtents`).
     public static func notchedExtent(_ content: ClosedIslandContent, now: Date) -> CGFloat {
-        let need = max(groupWidth(content.leading, now: now), groupWidth(content.trailing, now: now))
-        // An edge dot alone still needs a little wing to sit on.
-        guard need > 0 else { return content.dot == nil ? 0 : dotExtent }
-        return clampExtent(need + 2 * wingPadding - NotchGeometry.baseWing)
+        let sides = notchedExtents(content, now: now)
+        return max(sides.leading, sides.trailing)
     }
 
     /// How far each side must grow beyond `NotchGeometry.baseWing` on a screen without a notch, where both groups
@@ -147,6 +158,13 @@ public enum AmbientMetrics {
         let need = lead + trail + (lead > 0 && trail > 0 ? groupGap : 0) + 2 * pillPadding
         let base = pillWidth + 2 * NotchGeometry.baseWing
         return clampExtent((need - base) / 2)
+    }
+
+    /// Extent of each wing: per side around a notch, the same on both sides of a pill.
+    public static func extents(_ content: ClosedIslandContent, notched: Bool, now: Date) -> (leading: CGFloat, trailing: CGFloat) {
+        if notched { return notchedExtents(content, now: now) }
+        let both = pillExtent(content, now: now)
+        return (both, both)
     }
 
     public static func extent(_ content: ClosedIslandContent, notched: Bool, now: Date) -> CGFloat {

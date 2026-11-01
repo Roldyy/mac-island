@@ -294,7 +294,7 @@ struct NotchFilesView: View {
             outputPanel = nil
             guard response == .OK, let destination = panel.url,
                   AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
-                  NotchSupport.isEnabled() else { return }
+                  NotchSupport.islandIsEnabled() else { return }
             archives.archive(inputs, destination: destination, directory: multiple)
             service.open(.files)
         }

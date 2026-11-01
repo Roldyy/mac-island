@@ -25,29 +25,68 @@ import Testing
         AmbientIndicator(id: "keepAwake", channel: AmbientChannel.keepAwake, symbol: "cup.and.saucer.fill", wing: .trailing)
     }
 
-    private func notchedWidth(_ content: ClosedIslandContent) -> CGFloat {
-        let idle = NotchGeometry.idle(
+    private var notchIdle: NotchGeometry {
+        NotchGeometry.idle(
             screenFrame: screen, safeAreaTop: 34,
             auxLeft: CGRect(x: 0, y: 1406, width: (screen.width - notch) / 2, height: 34),
             auxRight: CGRect(x: (screen.width + notch) / 2, y: 1406, width: (screen.width - notch) / 2, height: 34))
-        let extent = AmbientMetrics.notchedExtent(content, now: now)
-        return NotchGeometry.closedFrame(from: idle, wingExtent: extent, screenFrame: screen).width
     }
+
+    /// Wing width of a side as the panel gets it: the width proxy's stand-in item, measured by the geometry.
+    private func wing(_ extent: CGFloat) -> CGFloat {
+        extent > 0 ? NotchGeometry.baseWing + NotchGeometry.wingExtent(for: AmbientMetrics.measuringItem(forExtent: extent)) : 0
+    }
+
+    private func notchedFrame(_ content: ClosedIslandContent) -> CGRect {
+        let extents = AmbientMetrics.notchedExtents(content, now: now)
+        return NotchGeometry.closedFrame(
+            from: notchIdle, leading: wing(extents.leading), trailing: wing(extents.trailing), screenFrame: screen)
+    }
+
+    private func notchedWidth(_ content: ClosedIslandContent) -> CGFloat { notchedFrame(content).width }
 
     private func flatWidth(_ content: ClosedIslandContent) -> CGFloat {
         let idle = NotchGeometry.idle(screenFrame: screen, safeAreaTop: 0, auxLeft: nil, auxRight: nil)
         let extent = AmbientMetrics.pillExtent(content, now: now)
-        return NotchGeometry.closedFrame(from: idle, wingExtent: extent, screenFrame: screen).width
+        return NotchGeometry.closedFrame(from: idle, leading: wing(extent), trailing: wing(extent), screenFrame: screen).width
     }
 
     // MARK: Notch 184
 
-    @Test func nothingVisibleIsTheNotchPlusARim() {
-        let width = notchedWidth(.empty)
-        #expect(width == notch + 2 * NotchGeometry.baseWing)
-        #expect(width >= notch)
-        #expect(width <= notch + 8)
-        print("closed-width notch 184 nothing: \(width)")
+    @Test func nothingVisibleIsExactlyTheNotch() {
+        let frame = notchedFrame(.empty)
+        #expect(frame.width == notch)
+        #expect(frame.minX == notchIdle.frame.minX)
+        print("closed-width notch 184 nothing: \(frame.width)")
+    }
+
+    @Test func eachSideTakesOnlyWhatItsOwnItemsNeed() {
+        let both = ClosedIslandContent(leading: [claude, clock], trailing: [battery, cup])
+        let leftOnly = ClosedIslandContent(leading: [claude, clock], trailing: [])
+        let rightOnly = ClosedIslandContent(leading: [], trailing: [battery, cup])
+        let l = AmbientMetrics.groupWidth(both.leading, now: now) + 2 * AmbientMetrics.wingPadding
+        let r = AmbientMetrics.groupWidth(both.trailing, now: now) + 2 * AmbientMetrics.wingPadding
+        let frame = notchedFrame(both)
+        let idle = notchIdle.frame
+        // Each side is its own content (rounded up to a point), the notch is untouched in the middle.
+        #expect(idle.minX - frame.minX >= min(l, 67) && idle.minX - frame.minX <= min(l, 67) + 1)
+        #expect(frame.maxX - idle.maxX >= min(r, 67) && frame.maxX - idle.maxX <= min(r, 67) + 1)
+        // A side with nothing has no wing at all.
+        let left = notchedFrame(leftOnly)
+        #expect(left.maxX == idle.maxX && left.minX == frame.minX)
+        let right = notchedFrame(rightOnly)
+        #expect(right.minX == idle.minX && right.maxX == frame.maxX)
+        #expect(left.width + right.width == frame.width + notch)
+        print("closed-width notch 184 claude + clock | battery + cup: \(frame.width) (left \(idle.minX - frame.minX), right \(frame.maxX - idle.maxX))")
+    }
+
+    @Test func aSingleSidedIslandIsNotChattierThanItsContent() {
+        let clockOnly = notchedFrame(ClosedIslandContent(leading: [clock], trailing: []))
+        #expect(clockOnly.maxX == notchIdle.frame.maxX)
+        #expect(clockOnly.width < notch + 2 * NotchGeometry.baseWing + AmbientMetrics.groupWidth([clock], now: now) + 2 * AmbientMetrics.wingPadding)
+        let batteryOnly = notchedFrame(ClosedIslandContent(leading: [], trailing: [battery]))
+        #expect(batteryOnly.minX == notchIdle.frame.minX)
+        #expect(batteryOnly.width > notch)
     }
 
     @Test func aWingNeverReservesMoreThanItsContent() {
@@ -60,12 +99,14 @@ import Testing
         ]
         for (name, content) in sets {
             let width = notchedWidth(content)
-            let need = max(AmbientMetrics.groupWidth(content.leading, now: now),
-                           AmbientMetrics.groupWidth(content.trailing, now: now))
-            // Exactly the widest group plus its two paddings, on each side of the notch (rounded up to a point).
-            let wing = min(NotchGeometry.baseWing + NotchGeometry.maxWingExtent, max(NotchGeometry.baseWing, need + 2 * AmbientMetrics.wingPadding))
-            #expect(width >= notch + 2 * wing, "\(name): \(width)")
-            #expect(width <= notch + 2 * wing + 2, "\(name): \(width)")
+            // Exactly each group plus its two paddings, on its own side of the notch (rounded up to a point).
+            func side(_ items: [AmbientIndicator]) -> CGFloat {
+                let need = AmbientMetrics.groupWidth(items, now: now)
+                return need > 0 ? min(NotchGeometry.baseWing + NotchGeometry.maxWingExtent, need + 2 * AmbientMetrics.wingPadding) : 0
+            }
+            let wings = side(content.leading) + side(content.trailing)
+            #expect(width >= notch + wings, "\(name): \(width)")
+            #expect(width <= notch + wings + 2, "\(name): \(width)")
             #expect(width >= notch)
             print("closed-width notch 184 \(name): \(width)")
         }
@@ -87,7 +128,10 @@ import Testing
 
     @Test func aDotAloneAddsOnlyASmallWing() {
         let width = notchedWidth(ClosedIslandContent(leading: [], trailing: [], dot: .warning))
-        #expect(width == notch + 2 * (NotchGeometry.baseWing + AmbientMetrics.dotExtent))
+        // One small wing, on the right where the dot is drawn.
+        #expect(width == notch + NotchGeometry.baseWing + AmbientMetrics.dotExtent)
+        let frame = notchedFrame(ClosedIslandContent(leading: [], trailing: [], dot: .warning))
+        #expect(frame.minX == notchIdle.frame.minX)
     }
 
     // MARK: No notch

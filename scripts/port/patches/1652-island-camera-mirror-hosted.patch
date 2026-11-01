@@ -1,0 +1,21 @@
+--- a/Services/QuickTools/CameraPreviewSupport.swift
++++ b/Services/QuickTools/CameraPreviewSupport.swift
+@@ -15,13 +15,16 @@ final class CameraPreviewRequest: @unchecked Sendable {
+ 
+ enum NotchCameraSupport {
+     static func isEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        NotchSupport.isEnabled(in: defaults) && AppFeature.cameraPreview.isAvailable(in: defaults)
++        NotchSupport.islandIsEnabled(in: defaults) && AppFeature.cameraPreview.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.notchCameraEnabled)
+             && NotchSupport.modules(in: defaults).contains(.camera)
+     }
+ 
+     static func canPresent(expanded: Bool, selected: NotchModule, appPanel: Bool,
+                            captureControls: Bool, in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        isEnabled(in: defaults) && expanded && selected == .camera && !appPanel && !captureControls
++        // Mac Island: its own island's Mirror tab holds the "mirror" host while it is on screen and decides by itself;
++        // upstream's island state (`expanded`, `selected`...) belongs to a window that never runs here.
++        if IslandActivityHost.shared.holds(IslandMirrorTab.owner) { return isEnabled(in: defaults) }
++        return isEnabled(in: defaults) && expanded && selected == .camera && !appPanel && !captureControls
+     }
+ }

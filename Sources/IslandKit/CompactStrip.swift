@@ -16,11 +16,11 @@ public struct CompactStrip: View {
     }
 
     public var body: some View {
-        let wing = NotchGeometry.baseWing + NotchGeometry.wingExtent(for: layout)
+        let wings = NotchGeometry.wingWidths(for: layout)
         HStack(spacing: 0) {
-            wingView(layout.leading).frame(width: wing)
+            wingView(layout.leading).frame(width: wings.leading)
             Color.clear.frame(width: notchWidth)
-            wingView(layout.trailing).frame(width: wing)
+            wingView(layout.trailing).frame(width: wings.trailing)
         }
         .frame(maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
