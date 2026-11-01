@@ -1,0 +1,11 @@
+# Upstream test files lane W3-A (switcher) turns on in the port harness (scripts/port/test.sh, one name per line).
+# 8 files, 1,407 checks upstream (port plan section 4, lane 3A). Plain-Swift check scripts the harness rewrites
+# against stub singletons: none of them runs under `swift test`; the lane's own checks are Tests/PortKitTests/Switcher*Tests.swift.
+SwitcherAccessibilitySnapshotTests.swift
+SwitcherActivationTests.swift
+SwitcherFullscreenScopeTests.swift
+SwitcherModelFeatureTests.swift
+SwitcherScrollTests.swift
+WindowFocusHistoryTests.swift
+WindowServerCaptureTests.swift
+ScrollingTitleMotionTests.swift

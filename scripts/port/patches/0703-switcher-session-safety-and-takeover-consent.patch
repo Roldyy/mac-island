@@ -1,0 +1,145 @@
+--- a/Services/Switcher/AppSwitcher.swift
++++ b/Services/Switcher/AppSwitcher.swift
+@@ -47,6 +47,7 @@
+     @Published private(set) var selectedIndex = 0 {
+         didSet {
+             guard oldValue != selectedIndex else { return }
++            if sessionActive { armSessionWatchdog() }
+             cancelLetterConfirmation()
+             updateIconRowLayoutForCurrentSelection()
+             revealSelectedIconInVisibleRow()
+@@ -95,6 +96,12 @@
+     private var panel: NSPanel?
+     private var sessionItems: [SwitcherItem] = []
+ 
++    /// Closes a session nobody is driving (Bridge/Switcher.swift): idle for `SwitcherSessionSafety.idleTimeout`, or
++    /// another app became frontmost. Main thread only, like every other write to the session state.
++    private let sessionWatchdog = SwitcherSessionWatchdog()
++    private var sessionActivationObserver: NSObjectProtocol?
++    private var sessionFrontPID: pid_t?
++
+     // The tap lives on a dedicated thread: an active keyDown tap makes the
+     // window server hold every keystroke in the login session until this
+     // process answers, so the callback must never queue behind main-thread
+@@ -209,6 +216,14 @@
+         }
+     }
+ 
++    /// The ⌘Tab takeover needs both the page toggle and the consent given in THIS app (a toggle migrated from
++    /// Vorssaint is not consent here, see `SwitcherTakeoverConsent`).
++    private var takeOverWanted: Bool {
++        SwitcherTakeoverConsent.isEffective(
++            toggle: PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts),
++            defaults: PortHost.defaults)
++    }
++
+     private var tapIsWanted: Bool {
+         SessionActivitySupport.tapShouldRun(
+             featureWanted: AppFeature.switcher.isAvailable
+@@ -235,7 +250,7 @@
+             installTap()
+             // A live tap can pick up a shortcut change without rebuilding;
+             // apply here so the native hotkeys follow immediately.
+-            if !PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
++            if !takeOverWanted {
+                 secureInputWatch.stop()
+                 restoreNativeHotkeys()
+             } else {
+@@ -269,8 +284,10 @@
+         secureInputWatch.stop()
+         restoreNativeHotkeys()
+         stopObservingWake()
++        stopObservingKeyboardLayout()
+         routeLock.withLock { routeCanStartSession = false }
+         removeTap()
++        WindowPreviewProvider.shared.stopWarming()
+     }
+ 
+     /// While a shortcut field is listening, every key has to reach it, even
+@@ -465,11 +482,9 @@
+     /// does either.
+     private func applyNativeHotkeySuppression() {
+         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
+-        let takeOver = PortHost.defaults.bool(
+-            forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
+         SystemShortcutTakeover.setWanted(
+             SwitcherSupport.nativeHotkeyIDs(
+-                takeOverSystemShortcuts: takeOver,
++                takeOverSystemShortcuts: takeOverWanted,
+                 secureInputEnabled: IsSecureEventInputEnabled(),
+                 appsShortcut: apps,
+                 windowShortcut: windows,
+@@ -490,7 +505,9 @@
+                       && PortHost.defaults.bool(forKey: DefaultsKey.switcherEnabled),
+                   accessibilityGranted: AXIsProcessTrusted(),
+                   sessionIsActive: SessionActivity.shared.isActive),
+-              PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
++              SwitcherTakeoverConsent.isEffective(
++                  toggle: PortHost.defaults.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts),
++                  defaults: PortHost.defaults)
+         else { return [] }
+         return SwitcherSupport.nativeHotkeyIDs(
+             takeOverSystemShortcuts: true,
+@@ -727,6 +744,8 @@
+             if sessionActive { cancelSession() }
+             return Unmanaged.passUnretained(event)
+         }
++        // Any key, click or scroll of a live session proves someone is driving it.
++        if sessionActive { armSessionWatchdog() }
+ 
+         switch type {
+         case .scrollWheel:
+@@ -1102,6 +1121,7 @@
+             }
+         }
+ 
++        beginSessionSafety(frontPID: reportedFrontPID)
+         startObservingTermination(generation: generation)
+         if pending.commitWhenReady {
+             commitSession()
+@@ -1644,9 +1664,45 @@
+     private func cancelSession() {
+         guard sessionActive else { return }
+         endSession()
++    }
++
++    /// A session left open (a key never released, a lost event, a modal that took the keyboard) must not keep the
++    /// overlay up and the keys swallowed: it closes after `SwitcherSessionSafety.idleTimeout` without input, and the
++    /// moment another app becomes frontmost. Escape and a click outside are handled by the tap itself.
++    private func beginSessionSafety(frontPID: pid_t) {
++        sessionFrontPID = frontPID
++        armSessionWatchdog()
++        guard sessionActivationObserver == nil else { return }
++        sessionActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
++            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
++        ) { [weak self] note in
++            guard let self, self.sessionActive else { return }
++            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
++            if SwitcherSessionSafety.shouldCancelOnActivation(activatedPID: app?.processIdentifier,
++                                                              sessionFrontPID: self.sessionFrontPID) {
++                self.cancelSession()
++            }
++        }
++    }
++
++    private func armSessionWatchdog() {
++        sessionWatchdog.arm { [weak self] in
++            guard let self, self.sessionActive else { return }
++            self.cancelSession()
++        }
+     }
+ 
++    private func endSessionSafety() {
++        sessionWatchdog.disarm()
++        if let sessionActivationObserver {
++            NSWorkspace.shared.notificationCenter.removeObserver(sessionActivationObserver)
++        }
++        sessionActivationObserver = nil
++        sessionFrontPID = nil
++    }
++
+     private func endSession() {
++        endSessionSafety()
+         stopObservingTermination()
+         cancelLetterConfirmation()
+         SwitcherAppIconCache.endSession()

@@ -1,0 +1,13 @@
+--- a/Core/FeatureCatalog.swift
++++ b/Core/FeatureCatalog.swift
+@@ -370,7 +370,9 @@
+         // Only emptying the Trash asks the Finder; every other quick toggle
+         // (dark mode included) works without a permission.
+         case .quickToggles: return [.automationFinder]
+-        case .switcher: return [.accessibility, .screenRecording]
++        // Window thumbnails use Screen Recording, but the switcher works without it (cards show the app icon), so
++        // the grant must not gate its start: the page says what is missing instead.
++        case .switcher: return [.accessibility]
+         case .dockPreview: return [.accessibility, .screenRecording]
+         case .screenOCR: return [.screenRecording]
+         case .screenshot: return [.screenRecording]

@@ -1,0 +1,15 @@
+# Upstream harness files (Tests/PortHarness) that lane W3-B (window layout, snapping, maximize) turns on. One file name per line, no extension.
+# The runner (scripts/port/test.sh) reads this list; names are the upstream Tests/*.swift files. WindowLayoutFeatureTests
+# is the umbrella: it runs WindowDirectionalModifierRuntimeTests, WindowEdgeSnapRuntimeTests and
+# WindowGestureApplyRuntimeTests itself. WindowVisibilityTests, PointerDisplayLookupTests and PointerOnDisplayTests are
+# their own entry points. Patch 0750 (settings parts) and 0751 (restore clamps onto the visible frames, displaysChanged)
+# do not change anything these files assert: the pure maths, the edge zones and the history are untouched.
+# None of them is run by this repo yet (scripts/port/test.sh does not exist); the pure checks that compile as
+# swift-testing are ported by hand in Tests/PortKitTests/WindowLayout{Geometry,EdgeSnap,Lane}Tests.swift.
+WindowLayoutFeatureTests
+WindowDirectionalModifierRuntimeTests
+WindowEdgeSnapRuntimeTests
+WindowGestureApplyRuntimeTests
+WindowVisibilityTests
+PointerDisplayLookupTests
+PointerOnDisplayTests

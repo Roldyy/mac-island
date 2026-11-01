@@ -1,0 +1,31 @@
+--- a/Services/WindowLayout/WindowLayoutService.swift
++++ b/Services/WindowLayout/WindowLayoutService.swift
+@@ -195,6 +195,15 @@
+         for suspension in suspensions { suspension.resume() }
+     }
+ 
++    /// Mac Island: the display layout changed (unplug, arrangement, resolution). A drag toward an edge that was
++    /// tracked against the old layout is dropped and its preview hidden; the next press starts from the new
++    /// screens. Never touches a window, so nothing can be moved from a stale frame.
++    func displaysChanged() {
++        guard edgeSnapTap != nil || gestureTap != nil else { return }
++        cancelEdgeSnapTracking()
++        hideEdgeSnapPreview(immediately: true)
++    }
++
+     func shortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
+         shortcutConflictTitle(shortcut, excluding: nil)
+     }
+@@ -242,7 +251,11 @@
+                                                           current: target.frame) else {
+                 return finish(.failure(.noRestore))
+             }
+-            if setFrame(previous, on: target.window, windowKey: target.key) {
++            // Mac Island: the remembered frame may belong to a display that has since been unplugged, moved or
++            // resized. Pull it onto the visible frames that exist now, so Restore never leaves a window off-screen.
++            let safe = axFrame(fromAppKit: WindowLayoutVisibility.clamped(
++                appKitFrame(fromAX: previous), toVisibleFrames: NSScreen.screens.map(\.visibleFrame)))
++            if setFrame(safe, on: target.window, windowKey: target.key) {
+                 lastActions.removeValue(forKey: target.key)
+                 return finish(.success(restored: true))
+             }

@@ -24,6 +24,12 @@ enum SpaceWindowBridge {
         dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, name)
     }
 
+    /// Whether the window server exports `name` on this macOS. The one place the switcher's availability probe
+    /// (`SwitcherProbe`) asks, so every private symbol is resolved in files the private-API allowlist knows.
+    static func isSymbolAvailable(_ name: String) -> Bool {
+        symbol(name) != nil
+    }
+
     private static let connection: ConnectionID = {
         typealias Function = @convention(c) () -> ConnectionID
         guard let symbol = symbol("CGSMainConnectionID") else { return 0 }

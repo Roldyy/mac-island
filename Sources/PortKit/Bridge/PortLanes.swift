@@ -16,6 +16,8 @@ enum PortLanes {
         MixerLane.bind(into:),
         DisplayBrightnessLane.bind(into:),
         EnergyLane.bind(into:),
+        SwitcherLane.bind(into:),
+        WindowLayoutLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

@@ -1,0 +1,55 @@
+--- a/UI/Settings/WindowLayoutSettings.swift
++++ b/UI/Settings/WindowLayoutSettings.swift
+@@ -4,7 +4,29 @@
+ 
+ import SwiftUI
+ 
++/// One half of the Window Layout page. Mac Island shows each on its own Settings page.
++enum WindowLayoutSettingsPart: Hashable {
++    case layout, maximizer
++}
++
++/// Mac Island: `WindowLayoutSettings(parts:)` shows only the named half (placement for `.layout`, the green button
++/// for `.maximizer`) and shows it even while the registry holds the feature off, so its settings stay reachable
++/// (the page opens with the feature's own card and switch). nil: the whole upstream page.
+ struct WindowLayoutSettings: View {
++    let parts: Set<WindowLayoutSettingsPart>?
++
++    init(parts: Set<WindowLayoutSettingsPart>? = nil) { self.parts = parts }
++
++    private var showsLayout: Bool {
++        if let parts { return parts.contains(.layout) }
++        return AppFeature.windowLayout.isAvailable
++    }
++
++    private var showsMaximizer: Bool {
++        if let parts { return parts.contains(.maximizer) }
++        return AppFeature.windowMaximizer.isAvailable
++    }
++
+     @ObservedObject private var l10n = L10n.shared
+     @ObservedObject private var permissions = Permissions.shared
+     @ObservedObject private var features = FeatureRuntime.shared
+@@ -40,7 +62,7 @@
+ 
+     var body: some View {
+         Form {
+-            if AppFeature.windowLayout.isAvailable {
++            if showsLayout {
+                 Section {
+                     Toggle(text.showInPanel, isOn: $showInPanel)
+                     Text(text.caption)
+@@ -61,11 +83,11 @@
+             // The green button override has no page of its own; it lives here
+             // with the other window behaviors and keeps this page reachable
+             // when it is the only one of the two still switched on in the hub.
+-            if AppFeature.windowMaximizer.isAvailable {
++            if showsMaximizer {
+                 windowMaximizerSection
+             }
+ 
+-            if AppFeature.windowLayout.isAvailable {
++            if showsLayout {
+                 Section(text.gestureSection) {
+                     Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
+                         .onChange(of: edgeSnapEnabled) { _, _ in

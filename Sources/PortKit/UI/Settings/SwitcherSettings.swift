@@ -79,9 +79,14 @@ struct SwitcherSettings: View {
                     if !permissions.screenRecording,
                        SwitcherSupport.capturesPreviews(simpleMode: switcherSimpleMode) {
                         SettingsCard {
+                            Text(SwitcherProbe.screenRecordingNote)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                             PermissionRow(kind: .screenRecording)
                         }
                     }
+                    SwitcherProbeNotice()
                 }
             }
             .frame(maxWidth: 760)
@@ -163,9 +168,18 @@ struct SwitcherSettings: View {
                             caption: l10n.s.switcherTakeOverSystemShortcutsCaption) {
                     Toggle(l10n.s.switcherTakeOverSystemShortcuts, isOn: $switcherTakeOverSystemShortcuts)
                         .labelsHidden()
-                        .onChange(of: switcherTakeOverSystemShortcuts) { _, _ in
+                        .onChange(of: switcherTakeOverSystemShortcuts) { _, on in
+                            // Turning it on HERE is the consent: a value migrated from Vorssaint takes nothing over.
+                            SwitcherTakeoverConsent.set(on, defaults: PortHost.defaults)
                             AppSwitcher.shared.syncWithPreferences()
                         }
+                }
+                if switcherTakeOverSystemShortcuts, !SwitcherTakeoverConsent.isGranted(PortHost.defaults) {
+                    Text(SwitcherTakeoverConsent.pendingNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, settingsRowTextInset)
                 }
                 // Secure input hides every key from the switcher, which hands
                 // ⌘Tab back to macOS until it ends. Without a word here the
