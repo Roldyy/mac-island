@@ -19,6 +19,7 @@ struct AutoQuitPage: View {
     @ObservedObject private var idle = AutoQuitIdleMonitor.shared
     @AppStorage(DefaultsKey.autoQuitEnabled) private var enabled = false
     @AppStorage(AutoQuitIdleKeys.enabled) private var idleEnabled = false
+    @AppStorage(AutoQuitIdleKeys.lastWindowResetKey) private var lastWindowReset = false
     @AppStorage(AutoQuitIdleKeys.delayMinutes) private var delayMinutes = AutoQuitIdleKeys.defaultDelayMinutes
     @AppStorage(AutoQuitIdleKeys.dryRun) private var dryRun = true
     @State private var showingAppPicker = false
@@ -46,6 +47,12 @@ struct AutoQuitPage: View {
                 Toggle(l10n.s.autoQuitEnable, isOn: $enabled)
                     .labelsHidden()
                     .onChange(of: enabled) { _, _ in AutoQuitService.shared.syncWithPreferences() }
+            }
+            if lastWindowReset, !enabled {
+                Text("Cette option était activée avant la mise à jour : elle est restée coupée pour ne rien quitter à votre insu. Activez-la ici si vous la voulez.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if !PortShortcutOwnership.isRunning(.autoQuit) {
                 Text("La fonction « Quitter à la fermeture » est coupée (interrupteur de la carte ci-dessus, interrupteur d’arrêt ou mode sans échec) : aucune app n’est quittée.")

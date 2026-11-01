@@ -30,7 +30,7 @@ public enum PortBridge {
     private static var pageBodies: [String: () -> AnyView] = [:]
     private static var actionOverrides: [String: () -> Void] = [:]
 
-    // MARK: Foundation (called by the app delegate, in this order, before `FeatureRegistry.launch`)
+    // MARK: Foundation (called by the app delegate, in this order, before `FeatureRegistry.launch`; step 6 is the recovery)
 
     /// 1. The defaults object of the port: the one the registry and the migrator use (`AppDefaults.make()`).
     ///    Call before any ported service is touched.
@@ -95,6 +95,27 @@ public enum PortBridge {
     }
 
     private static var didRecoverAtLaunch = false
+    private(set) static var recoveryRuns = 0
+
+    /// 6. Gives back what a run that died left applied. The app delegate calls it right after `registerDefaults`
+    ///    and BEFORE `FeatureRegistry.launch`: a feature that starts first (the mouse acceleration, the gamma
+    ///    dim) writes its own journal, and a recovery that ran afterwards would read that fresh journal as a
+    ///    crash and undo the feature on every launch. Idempotent: the later `install` call finds it done.
+    public static func recoverBeforeLaunch() { recoverAtLaunch() }
+
+    /// Recovery first, then the closure that starts the features. The order is the point (see above); `recover`
+    /// is a seam for the test that records it.
+    public static func launchAfterRecovery(_ start: () -> Void) { launchAfterRecovery(recover: { recoverAtLaunch() }, start: start) }
+
+    static func launchAfterRecovery(recover: () -> Void, start: () -> Void) {
+        recover()
+        start()
+    }
+
+    static var hasRecoveredAtLaunch: Bool { didRecoverAtLaunch }
+
+    /// Test seam: makes the next `recoverAtLaunch` run again.
+    static func resetRecoveryForTesting() { didRecoverAtLaunch = false; recoveryRuns = 0 }
 
     /// Which crash-recovery steps have something to undo. A step with no marker is never entered, so a Mac
     /// where the ported services never ran gets no daemon registration, no prompt and no `shared` singleton
@@ -116,10 +137,12 @@ public enum PortBridge {
 
     /// Gives back what an earlier run of the ported services left applied (upstream ran these in `main.swift`
     /// and `applicationDidFinishLaunching`; the port had dropped them). Once per launch, only for a marker
-    /// that is actually set. Nothing is started: the features stay unbound until a lane binds them.
+    /// that is actually set. Nothing is started. Runs from the app delegate before the registry starts any
+    /// feature (`recoverBeforeLaunch`); `install` calls it again and finds it done.
     static func recoverAtLaunch(defaults: UserDefaults = PortHost.defaults) {
         guard !didRecoverAtLaunch else { return }
         didRecoverAtLaunch = true
+        recoveryRuns += 1
         let plan = RecoveryPlan(defaults: defaults)
         if plan.systemShortcuts { SystemShortcutTakeover.recoverIfNeeded(keeping: []) }
         if plan.keepAwake { KeepAwakeManager.shared.recoverIfNeeded() }

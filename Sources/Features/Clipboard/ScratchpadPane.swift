@@ -6,6 +6,20 @@ struct ScratchpadPane: View {
     @Environment(\.islandActions) private var actions
 
     var body: some View {
+        if model.scratchpadReadOnly {
+            // One writer for Scratchpad.json: the ported Scratchpad (Settings, "Brouillon") owns it while it runs.
+            Text("Le bloc-notes est géré par la fonction Brouillon : ouvrez-le avec son raccourci ou depuis les réglages.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel("Bloc-notes géré par la fonction Brouillon")
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 ScrollView(.horizontal) {
@@ -39,5 +53,7 @@ struct ScratchpadPane: View {
                 .simultaneousGesture(TapGesture().onEnded { actions.focusKeyboard() })
                 .accessibilityLabel("Texte de la note")
         }
+        // The ported Scratchpad may have rewritten the file while this pane was hidden.
+        .onAppear { model.reloadScratchpadIfChanged() }
     }
 }

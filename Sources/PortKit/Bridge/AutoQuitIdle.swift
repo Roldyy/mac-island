@@ -22,7 +22,8 @@ import os
 
 enum AutoQuitIdleKeys {
     /// New switch of this half: off until the person turns it on. (`autoQuitEnabled` is the upstream last-window
-    /// switch now; a person who had it on must not get a second behaviour they never asked for.)
+    /// switch now; `settleLegacyEnabledFlag` moves an old stored value so nobody gets the last-window behaviour
+    /// they never asked for.)
     static let enabled = "autoQuitIdleEnabled"
     static let delayMinutes = "autoQuitDelayMinutes"
     static let dryRun = "autoQuitDryRun"
@@ -43,8 +44,39 @@ enum AutoQuitIdleKeys {
         (defaults.object(forKey: dryRun) as? Bool) ?? true
     }
 
-    /// Once: the old module's exclusions join the shared never-quit list. Nothing is removed.
+    static let legacyFlagSettledKey = "migration.autoquit.enabledFlagSettled.done"
+    /// True when the settle below switched a stored `autoQuitEnabled` off: the page says so next to the toggle.
+    static let lastWindowResetKey = "migration.autoquit.lastWindowReset"
+
+    /// The old module's own keys: any of them set means `autoQuitEnabled` was written by it (a Vorssaint page never
+    /// writes these).
+    static func hasLegacyIdleSettings(in defaults: UserDefaults) -> Bool {
+        [delayMinutes, dryRun, legacyExclusions].contains { defaults.object(forKey: $0) != nil }
+    }
+
+    /// Once, at bind (before the person can touch the page, before any start): `autoQuitEnabled` is upstream's
+    /// "quit when the last window closes" switch now, but our retired Display module stored its IDLE switch under
+    /// that very name. A stored `true` is therefore never left to turn the last-window behaviour on by itself:
+    /// - written by our old module (one of its own keys is set): its choice moves to `autoQuitIdleEnabled`
+    ///   (unless that one was already chosen) and the last-window key goes off;
+    /// - otherwise (it cannot be told apart): the last-window key goes off too, and stays off until the person
+    ///   switches it on in the page, which shows the real state and a note.
+    /// A stored `false` or an absent key is left alone.
+    static func settleLegacyEnabledFlag(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: legacyFlagSettledKey) else { return }
+        defaults.set(true, forKey: legacyFlagSettledKey)
+        guard (defaults.object(forKey: DefaultsKey.autoQuitEnabled) as? Bool) == true else { return }
+        if hasLegacyIdleSettings(in: defaults), defaults.object(forKey: enabled) == nil {
+            defaults.set(true, forKey: enabled)
+        }
+        defaults.set(false, forKey: DefaultsKey.autoQuitEnabled)
+        defaults.set(true, forKey: lastWindowResetKey)
+    }
+
+    /// Once: the old module's exclusions join the shared never-quit list. Nothing is removed. Also settles the
+    /// legacy `autoQuitEnabled` flag (above), so the lane's one bind-time call covers both.
     static func adoptLegacyExclusions(in defaults: UserDefaults) {
+        settleLegacyEnabledFlag(in: defaults)  // same one-shot, run at bind
         guard !defaults.bool(forKey: legacyAdoptedKey) else { return }
         defaults.set(true, forKey: legacyAdoptedKey)
         let legacy = defaults.stringArray(forKey: legacyExclusions) ?? []

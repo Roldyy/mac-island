@@ -100,13 +100,31 @@ private struct SamplerRig {
 }
 
 @MainActor
-private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: () -> Bool) async -> Bool {
+private func waitUntil(_ what: String = "", timeout: Double = 120, _ condition: () -> Bool) async -> Bool {
+    // 120 s: a full run can queue the main actor for over a minute; the deadline only costs time when it fails.
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
     }
     return condition()
+}
+
+/// A control loop on its own visible island: it has started and asked for its first timer. Every main-actor task
+/// queued before it has run by then, so a "this sampler never ticked" assertion made after it is about the sampler,
+/// not about the loop not having had time. Replaces a fixed sleep before a negative assertion.
+@MainActor
+private func controlLoopHasTicked() async -> Bool {
+    let rig = SamplerRig(); defer { rig.cleanUp() }
+    rig.preferences.setEnabled(AmbientChannel.disk, true)
+    let sleep = HandSleep()
+    let control = DiskSampler(center: rig.center, sleep: { try await sleep.sleep($0) }, read: { 100_000_000_000 })
+    let hub = AmbientSamplerHub(center: rig.center, samplers: [control])
+    hub.start()
+    let ticked = await waitUntil { sleep.requests >= 1 }
+    hub.stop()
+    sleep.fire()
+    return ticked
 }
 
 /// The real system calls, once each: they answer, and one tick costs next to nothing (the numbers are printed).
@@ -259,7 +277,7 @@ private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: (
                                     readPressure: { .normal })
         let hub = AmbientSamplerHub(center: rig.center, samplers: [sampler])
         hub.start()
-        try? await Task.sleep(for: .milliseconds(150))
+        #expect(await controlLoopHasTicked())
         #expect(reads.value == 0 && sleep.requests == 0 && !sampler.isRunning)
     }
 
@@ -275,7 +293,7 @@ private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: (
         rig.preferences.setEnabled(AmbientChannel.disk, true)
         let hub = AmbientSamplerHub(center: rig.center, samplers: [system, disk, network])
         hub.start()
-        try? await Task.sleep(for: .milliseconds(150))
+        #expect(await controlLoopHasTicked())
         #expect(reads.value == 0 && sleep.requests == 0)
         #expect(!system.isRunning && !disk.isRunning && !network.isRunning)
     }
@@ -295,8 +313,8 @@ private func waitUntil(_ what: String = "", timeout: Double = 10, _ condition: (
         #expect(!sampler.isRunning)
         let before = reads.value
         sleep.fire()
-        try? await Task.sleep(for: .milliseconds(150))
-        #expect(reads.value == before, "the loop ticked after the island opened")
+        #expect(await controlLoopHasTicked())
+        #expect(reads.value == before,"the loop ticked after the island opened")
     }
 
     @Test func theDiskPollsOnceAMinute() async {

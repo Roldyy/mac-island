@@ -75,10 +75,26 @@ enum ShelfLane {
     /// Idempotent for the process; the import itself is idempotent across launches (its marker).
     @MainActor static func prepareStore(defaults: UserDefaults = PortHost.defaults,
                                         directory: URL? = PrivateFileStore.containerURL) {
-        guard !didPrepare else { return }
+        ShelfEnabledSeed.run(in: defaults)  // its own marker: cheap, and independent of the import below
+        guard !didPrepare, let directory else { return }  // no container: nothing to import, nothing marked done
         didPrepare = true
-        guard let directory else { return }
         _ = ShelfLegacyMigration.run(dataDirectory: directory, defaults: defaults)
+    }
+}
+
+// MARK: - The shelf stays on for whoever never touched its toggle
+
+/// Our old shelf read a missing `shelfEnabled` as ON; the ported service reads `bool(forKey:)`, so it is OFF when the
+/// key is absent and nobody registers a default. Once, an absent key is written as true; a stored choice (either way)
+/// is never touched.
+enum ShelfEnabledSeed {
+    static let seededKey = "macIslandShelfEnabledSeedV1"
+
+    static func run(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: seededKey) else { return }
+        defaults.set(true, forKey: seededKey)
+        guard defaults.object(forKey: DefaultsKey.shelfEnabled) == nil else { return }
+        defaults.set(true, forKey: DefaultsKey.shelfEnabled)
     }
 }
 

@@ -25,4 +25,12 @@ public enum ShelfFeature {
         PortFeatureBinding.shared.starters["shelf"]?()
         shared.start()
     }
+
+    /// The registry's stop (switch off, kill switch, safe mode, quarantine): the ported shelf's own stop through the
+    /// binding, then the Downloads watcher. The app delegate's `"shelf"` stopper wins over the binding's in the merge,
+    /// so it must reach the binding too.
+    @MainActor public static func stop() {
+        PortFeatureBinding.shared.stoppers["shelf"]?()
+        shared.stop()
+    }
 }

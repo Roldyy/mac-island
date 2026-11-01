@@ -22,11 +22,15 @@ final class ShelfModel {
 
     var downloadsEnabled: Bool { settings.downloadsEnabled }
 
+    private let fileSystem: DownloadsFileSystem
+
     init(settings: ShelfSettings = ShelfSettings(),
          downloadsDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Downloads", isDirectory: true)) {
+            .appendingPathComponent("Downloads", isDirectory: true),
+         fileSystem: DownloadsFileSystem = .live) {
         self.settings = settings
         self.downloadsDirectory = downloadsDirectory
+        self.fileSystem = fileSystem
     }
 
     /// Idempotent. Starts the Downloads watcher (first read may show the system permission prompt once).
@@ -35,11 +39,18 @@ final class ShelfModel {
         started = true
         guard settings.downloadsEnabled else { return }
         let limit = settings.downloadsLimit
-        let monitor = DownloadsMonitor(directory: downloadsDirectory, limit: { limit }) { [weak self] snap in
+        let monitor = DownloadsMonitor(directory: downloadsDirectory, fileSystem: fileSystem, limit: { limit }) { [weak self] snap in
             Task { @MainActor in self?.downloads = snap }
         }
         self.monitor = monitor
         monitor.start()
+    }
+
+    /// Stops the Downloads watcher (its DispatchSource) and lets the next `start()` arm it again. Idempotent.
+    func stop() {
+        monitor?.stop()
+        monitor = nil
+        started = false
     }
 
     // MARK: Actions on a downloaded file

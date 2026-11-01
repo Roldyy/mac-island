@@ -82,27 +82,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Each start() only arms what the user's settings and granted permissions allow; none prompts.
         // From here the registry also stops them: kill switch, safe mode and each switch call the stoppers.
-        // Shelf, Clipboard and Now Playing expose no stop(): their switch takes effect at the next launch
-        // and the Settings row says so.
+        // Now Playing exposes no stop(): its switch takes effect at the next launch and the Settings row says so.
         // The ported features add their own starters and stoppers (permission-gated, never prompting).
-        registry.launch(
-            starters: ported.starters.merging([
-                "clipboard": { ClipboardFeature.start() },
-                "shelf": { ShelfFeature.start() },
-                "finder": { FinderFeature.start() },
-                "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
-                "monitor": { MonitorFeature.start() },
-                "nowplaying": { NowPlayingFeature.start() },
-                "agents": { live.start() },
-            ]) { _, ours in ours },
-            stoppers: ported.stoppers.merging([
-                "finder": { FinderFeature.stop() },
-                "fans": { FansFeature.stop() },
-                "monitor": { MonitorFeature.stop() },
-                "agents": { live.stop() },  // withdraws every Claude activity through the sink
-            ]) { _, ours in ours },
-            activitySources: ["agents": ClaudeActivityMapper.source])
+        // Crash recovery runs FIRST (PortBridge.launchAfterRecovery): a feature that started before it would write
+        // its own journal and the recovery would undo it as if a crash had left it.
+        PortBridge.launchAfterRecovery {
+            registry.launch(
+                starters: ported.starters.merging([
+                    "clipboard": { ClipboardFeature.start() },
+                    "shelf": { ShelfFeature.start() },
+                    "finder": { FinderFeature.start() },
+                    "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
+                    "monitor": { MonitorFeature.start() },
+                    "nowplaying": { NowPlayingFeature.start() },
+                    "agents": { live.start() },
+                ]) { _, ours in ours },
+                stoppers: ported.stoppers.merging([
+                    "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
+                    "finder": { FinderFeature.stop() },
+                    "fans": { FansFeature.stop() },
+                    "monitor": { MonitorFeature.stop() },
+                    "agents": { live.stop() },  // withdraws every Claude activity through the sink
+                ]) { _, ours in ours },
+                activitySources: ["agents": ClaudeActivityMapper.source])
+        }
         self.registry = registry
+        // One writer for Scratchpad.json: while the ported Scratchpad runs, the Clipboard tab's pane is read-only.
+        ClipboardFeature.portedScratchpadRunning = {
+            registry.descriptor("scratchpad") != nil && registry.isEnabled("scratchpad")
+        }
         // Re-reads Accessibility, Input Monitoring and Screen Recording on activation, on the system
         // notification and on a slow poll (2.5 s, backing off) while one is missing; starts or stops the
         // features that use it. Every reading is copied to the ported code before the registry reacts.

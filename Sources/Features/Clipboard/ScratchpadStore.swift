@@ -47,7 +47,19 @@ final class ScratchpadStore {
     }
     private struct Out: Encodable { let pads: [ScratchPad]; let selectedID: String }
 
+    /// When the file was last read or written by this store (nil: it did not exist). `Scratchpad.json` has another
+    /// writer, the ported Scratchpad: a save over a file that changed since is refused.
+    private var stamp: Date?
+
+    private var fileStamp: Date? {
+        (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
+    }
+
+    /// True when someone else wrote the file after this store last read or wrote it.
+    var changedOnDisk: Bool { fileStamp != stamp }
+
     func load() {
+        stamp = fileStamp  // taken before the read: a write in between only makes the next save refuse, never lose
         var loaded: [ScratchPad] = []
         var selected: String?
         if let data = try? Data(contentsOf: fileURL), let f = try? JSONDecoder().decode(File.self, from: data) {
@@ -87,8 +99,15 @@ final class ScratchpadStore {
         if !pads.contains(where: { $0.id == selectedID }) { selectedID = pads[min(i, pads.count - 1)].id }
     }
 
-    func save() {
-        guard let data = try? JSONEncoder().encode(Out(pads: pads, selectedID: selectedID)) else { return }
+    /// Writes the pads unless the file changed on disk since the last load or save (the ported Scratchpad edited it:
+    /// our copy is stale and rewriting the whole file would drop its edits). False when nothing was written because
+    /// of that; the caller reloads.
+    @discardableResult
+    func save() -> Bool {
+        guard !changedOnDisk else { return false }
+        guard let data = try? JSONEncoder().encode(Out(pads: pads, selectedID: selectedID)) else { return true }
         try? PrivateFiles.writeAtomic(data, to: fileURL)
+        stamp = fileStamp
+        return true
     }
 }

@@ -37,7 +37,9 @@ extension VorssaintMigrator {
     /// security-scoped grant of its own identity). Carried here, a ported recovery step would "restore"
     /// state that this app never applied, or act on a stale grant. Each is machine state in upstream's own
     /// `SettingsBackup.machineStateKeys` (never exported there either). Only the ported services write
-    /// them and none is bound yet, so removing them from our domain is safe (see `purgeRuntimeKeysV2`).
+    /// them, and a marker carried from the old app's identity names a change THIS app never applied: the ported
+    /// recovery (`PortBridge.recoverAtLaunch`) would act on it as if it had. They are removed from our domain
+    /// once (see `purgeRuntimeKeysV2`), before any ported service runs.
     /// `vorssDisabledSleep` / `vorssDimmedDisplaySavedBrightness` (pmset sleep, panel dimming) are
     /// already covered by the `vorss` prefix.
     static let runtimeMarkerKeysV2: Set<String> = [

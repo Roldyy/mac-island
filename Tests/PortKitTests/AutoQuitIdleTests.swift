@@ -358,4 +358,54 @@ import Testing
         AutoQuitIdleKeys.adoptLegacyExclusions(in: bench.defaults)
         #expect(bench.defaults.stringArray(forKey: DefaultsKey.autoQuitExceptions) == ["mine.kept"])
     }
+
+    // MARK: The old `autoQuitEnabled` (our Display module's IDLE switch, upstream's LAST-WINDOW switch now)
+
+    @Test func anOldModuleFlagMovesToTheIdleSwitchAndTheLastWindowKeyGoesOff() {
+        let bench = TestDefaults.make()
+        defer { bench.cleanup() }
+        bench.defaults.set(true, forKey: DefaultsKey.autoQuitEnabled)
+        bench.defaults.set(45, forKey: AutoQuitIdleKeys.delayMinutes)  // one of the old module's own keys
+        AutoQuitIdleKeys.adoptLegacyExclusions(in: bench.defaults)  // the lane's bind-time call
+        #expect(bench.defaults.bool(forKey: AutoQuitIdleKeys.enabled), "the idle quit the person had on stays on")
+        #expect(bench.defaults.object(forKey: DefaultsKey.autoQuitEnabled) as? Bool == false,
+                "upstream's quit-when-the-last-window-closes never starts by itself")
+        #expect(bench.defaults.bool(forKey: AutoQuitIdleKeys.lastWindowResetKey), "the page says so")
+    }
+
+    @Test func aFlagNobodyCanAttributeTurnsLastWindowOffAndEnablesNothing() {
+        let bench = TestDefaults.make()
+        defer { bench.cleanup() }
+        bench.defaults.set(true, forKey: DefaultsKey.autoQuitEnabled)
+        AutoQuitIdleKeys.settleLegacyEnabledFlag(in: bench.defaults)
+        #expect(bench.defaults.object(forKey: DefaultsKey.autoQuitEnabled) as? Bool == false)
+        #expect(bench.defaults.object(forKey: AutoQuitIdleKeys.enabled) == nil)
+        #expect(bench.defaults.bool(forKey: AutoQuitIdleKeys.lastWindowResetKey))
+    }
+
+    @Test func anIdleChoiceAlreadyMadeIsNotOverridden() {
+        let bench = TestDefaults.make()
+        defer { bench.cleanup() }
+        bench.defaults.set(true, forKey: DefaultsKey.autoQuitEnabled)
+        bench.defaults.set(true, forKey: AutoQuitIdleKeys.dryRun)
+        bench.defaults.set(false, forKey: AutoQuitIdleKeys.enabled)
+        AutoQuitIdleKeys.settleLegacyEnabledFlag(in: bench.defaults)
+        #expect(bench.defaults.object(forKey: AutoQuitIdleKeys.enabled) as? Bool == false)
+    }
+
+    @Test func offOrAbsentIsLeftAloneAndASwitchOnInThePageSticks() {
+        let absent = TestDefaults.make()
+        defer { absent.cleanup() }
+        AutoQuitIdleKeys.settleLegacyEnabledFlag(in: absent.defaults)
+        #expect(absent.defaults.object(forKey: DefaultsKey.autoQuitEnabled) == nil)
+        #expect(!absent.defaults.bool(forKey: AutoQuitIdleKeys.lastWindowResetKey), "nothing was reset: no note")
+
+        let stored = TestDefaults.make()
+        defer { stored.cleanup() }
+        stored.defaults.set(true, forKey: DefaultsKey.autoQuitEnabled)
+        AutoQuitIdleKeys.settleLegacyEnabledFlag(in: stored.defaults)
+        stored.defaults.set(true, forKey: DefaultsKey.autoQuitEnabled)  // the person switches it on in the page
+        AutoQuitIdleKeys.settleLegacyEnabledFlag(in: stored.defaults)
+        #expect(stored.defaults.bool(forKey: DefaultsKey.autoQuitEnabled), "once: a later choice is never undone")
+    }
 }

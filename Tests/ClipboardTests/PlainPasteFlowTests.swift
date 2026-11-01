@@ -133,7 +133,8 @@ import Testing
         pb.clearContents(); pb.setString("co\u{00A0}py", forType: .string)
         #expect(await eventually { model.entries.count == 1 })   // the original copy is recorded once
         #expect(model.plainPasteTriggered() == .pasted)
-        try await Task.sleep(nanoseconds: 1_300_000_000)         // more than two watcher polls
+        let polls = model.watcherPollCount
+        #expect(await eventually { model.watcherPollCount >= polls + 3 })   // the loop ticked three more times
         #expect(model.entries.count == 1)
         #expect(model.entries.first?.text == "co\u{00A0}py")     // designed: history keeps the original, not the plain copy
     }

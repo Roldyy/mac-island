@@ -24,6 +24,10 @@ public enum ClipboardFeature {
     /// `Sources/PortKit/Bridge/Clipboard.swift`; a PortKit test reads both files and fails when they differ.
     public static let stopRequested = Notification.Name("be.roldy.macisland.clipboard.stop")
 
+    /// Lent by the app delegate (this target cannot see PortKit or the registry): true while the ported Scratchpad
+    /// feature is bound and running. It writes the same `Scratchpad.json`, so the Bloc-notes pane is then read-only.
+    @MainActor public static var portedScratchpadRunning: @MainActor () -> Bool = { false }
+
     /// Start the pasteboard watcher and the plain-paste hotkey. Idempotent.
     @MainActor public static func start() { shared.start() }
 

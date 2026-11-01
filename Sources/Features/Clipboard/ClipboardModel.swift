@@ -35,6 +35,7 @@ final class ClipboardModel {
     @ObservationIgnored private var started = false
     /// The files are read once, by the first start: a stop and a start never reload (and never drop) what is in memory.
     @ObservationIgnored private var loaded = false
+    @ObservationIgnored private let portedScratchpadRunning: @MainActor () -> Bool
     @ObservationIgnored private let stopCenter: NotificationCenter
     @ObservationIgnored private var stopObserver: NSObjectProtocol?
     @ObservationIgnored private var padSaveTask: Task<Void, Never>?
@@ -47,8 +48,10 @@ final class ClipboardModel {
          sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
          notify: @escaping @MainActor (PlainPasteNotice) -> Void = { PlainPasteNotice.post($0) },
          hotkey: (any PlainPasteHotkeyRegistering)? = nil,
-         stopCenter: NotificationCenter = .default) {
+         stopCenter: NotificationCenter = .default,
+         portedScratchpadRunning: @escaping @MainActor () -> Bool = { ClipboardFeature.portedScratchpadRunning() }) {
         self.stopCenter = stopCenter
+        self.portedScratchpadRunning = portedScratchpadRunning
         self.hotkey = hotkey ?? PlainPasteHotkeyService()
         self.accessibilityCheck = accessibilityTrusted
         self.accessibilityTrusted = accessibilityTrusted()
@@ -101,6 +104,9 @@ final class ClipboardModel {
 
     /// True while the pasteboard watcher runs (it is what records the history).
     var isMonitoring: Bool { watcher.isRunning }
+
+    /// Ticks of the watcher's loop so far (tests wait on it before a negative assertion).
+    var watcherPollCount: Int { watcher.pollCount }
 
     /// Stops monitoring: the watcher (nothing copied from now on is recorded), a pending auto-clear and the
     /// plain-paste hotkey. The history already recorded stays in memory and on disk. `start()` arms everything
@@ -266,9 +272,14 @@ final class ClipboardModel {
 
     // MARK: - Scratchpad
 
+    /// True while the ported Scratchpad owns `Scratchpad.json`: this pane is then read-only (it would keep a stale
+    /// copy and rewrite the whole file over the ported edits).
+    var scratchpadReadOnly: Bool { portedScratchpadRunning() }
+
     var padText: String {
         get { pads.first { $0.id == selectedPadID }?.text ?? "" }
         set {
+            guard !scratchpadReadOnly else { return }
             scratch.updateText(newValue, for: selectedPadID)
             syncPads()
             scheduleScratchSave()
@@ -276,17 +287,36 @@ final class ClipboardModel {
     }
 
     func selectPad(_ id: String) { scratch.select(id); syncPads() }
-    func addPad() { scratch.addPad(named: "Note \(pads.count + 1)"); syncPads(); scratch.save() }
-    func removeSelectedPad() { scratch.removePad(id: selectedPadID); syncPads(); scratch.save() }
+    func addPad() {
+        guard !scratchpadReadOnly else { return }
+        scratch.addPad(named: "Note \(pads.count + 1)"); syncPads(); saveScratch()
+    }
+    func removeSelectedPad() {
+        guard !scratchpadReadOnly else { return }
+        scratch.removePad(id: selectedPadID); syncPads(); saveScratch()
+    }
+
+    /// Re-reads the file (what the ported Scratchpad wrote) into the pane. A no-op while nothing changed.
+    func reloadScratchpadIfChanged() {
+        guard scratch.changedOnDisk else { return }
+        scratch.load()
+        syncPads()
+    }
 
     private func syncPads() { pads = scratch.pads; selectedPadID = scratch.selectedID }
 
+    /// Saves, unless the file changed under us: then the file wins (it holds the ported edits) and the pane reloads.
+    func saveScratch() {
+        guard !scratchpadReadOnly else { return }
+        if !scratch.save() { reloadScratchpadIfChanged() }
+    }
+
     private func scheduleScratchSave() {
         padSaveTask?.cancel()
-        padSaveTask = Task { [scratch] in
+        padSaveTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            scratch.save()
+            self?.saveScratch()
         }
     }
 }

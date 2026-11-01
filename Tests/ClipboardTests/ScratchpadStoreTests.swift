@@ -53,6 +53,40 @@ import Testing
         #expect(posix(dir.appendingPathComponent("Scratchpad.json")) == 0o600)
     }
 
+    /// The ported Scratchpad writes this very file. A rewrite from our stale copy would drop its edits.
+    @Test func aSaveOverAFileThatChangedOnDiskIsRefused() throws {
+        let dir = makeTempDir()
+        let file = dir.appendingPathComponent("Scratchpad.json")
+        try #"{"pads":[{"id":"A","name":"a","text":"ours"}],"selectedID":"A"}"#.write(to: file, atomically: true, encoding: .utf8)
+        let s = ScratchpadStore(directory: dir)
+        s.load()
+        // The other writer: two pads, newer mtime.
+        let theirs = #"{"pads":[{"id":"A","name":"a","text":"ported edit"},{"id":"B","name":"b","text":"new"}],"selectedID":"B"}"#
+        try theirs.write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(10)], ofItemAtPath: file.path)
+        s.updateText("stale local edit", for: "A")
+        #expect(s.changedOnDisk)
+        #expect(s.save() == false, "refused")
+        #expect(try String(contentsOf: file, encoding: .utf8) == theirs, "the ported edits are still on disk")
+        // Reloading takes theirs; the next save goes through.
+        s.load()
+        #expect(s.pads.map(\.id) == ["A", "B"] && s.pads[0].text == "ported edit")
+        #expect(!s.changedOnDisk)
+        s.updateText("after reload", for: "B")
+        #expect(s.save())
+        #expect(try String(contentsOf: file, encoding: .utf8).contains("after reload"))
+    }
+
+    @Test func consecutiveOwnSavesAreNotMistakenForAnotherWriter() {
+        let s = ScratchpadStore(directory: makeTempDir())
+        s.load()
+        s.updateText("one", for: s.pads[0].id)
+        #expect(s.save())
+        s.updateText("two", for: s.pads[0].id)
+        #expect(s.save(), "the stamp follows our own write")
+        #expect(!s.changedOnDisk)
+    }
+
     @Test func removeKeepsAtLeastOnePad() {
         let s = ScratchpadStore(directory: makeTempDir())
         s.load()

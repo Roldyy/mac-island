@@ -50,7 +50,12 @@ final class PasteboardWatcher {
     /// Call right after the app itself wrote to the pasteboard, so it is not recorded back.
     func syncToCurrent() { lastChangeCount = pasteboard.changeCount }
 
+    /// How many times the loop looked at the pasteboard (changed or not): lets a test wait for N ticks instead of
+    /// sleeping for a guessed time before asserting that nothing was recorded.
+    private(set) var pollCount = 0
+
     func poll() {
+        pollCount += 1
         let count = pasteboard.changeCount
         guard count != lastChangeCount else { return }
         lastChangeCount = count
