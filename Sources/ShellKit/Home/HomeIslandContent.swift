@@ -30,8 +30,9 @@ struct HomeIslandContent: View {
                 HStack(spacing: IslandSpacing.m) {
                     ForEach(bottom) { HomeCircleButton(button: $0, context: context) }
                 }
-                .frame(height: HomeGeometry.bottomRow, alignment: .bottom)
-                .padding(.bottom, IslandSpacing.xs)
+                // The row is exactly `bottomRow` tall and is the last thing in the panel: an extra bottom padding made
+                // the content 4 pt taller than the panel, so the foot of the round buttons was cut off.
+                .frame(height: HomeGeometry.bottomRow, alignment: .center)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

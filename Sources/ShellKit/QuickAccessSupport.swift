@@ -53,6 +53,9 @@ public enum ScreenshotPlan {
 public enum QuickActionNotice {
     public static func permission(_ permission: FeaturePermission) -> String { "Accès requis : \(permission.title)" }
     public static let inputMonitoring = "Accès requis : Surveillance de l'entrée"
+    /// Plain paste could not post its Cmd+V. The Clipboard feature cannot import ShellKit and keeps this same
+    /// wording in `PlainPasteNotice.needsPermission`.
+    public static let pastePlainNeedsAccess = "Autorisation requise : Surveillance de l'entrée / Accessibilité"
     public static let captureDone = "Capture copiée et enregistrée"
     public static let captureFailed = "Capture impossible"
     public static let lockFailed = "Verrouillage impossible"

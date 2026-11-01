@@ -27,7 +27,9 @@ final class ClipboardModel {
     @ObservationIgnored private let watcher: PasteboardWatcher
     @ObservationIgnored private let autoClear: AutoClearScheduler
     @ObservationIgnored private let accessibilityCheck: () -> Bool
-    @ObservationIgnored private let sendPaste: () -> Void
+    @ObservationIgnored private let postAccessCheck: () -> Bool
+    @ObservationIgnored private let sendPaste: @MainActor () async -> PasteSendResult
+    @ObservationIgnored private let notify: @MainActor (PlainPasteNotice) -> Void
     @ObservationIgnored private let hotkey: any PlainPasteHotkeyRegistering
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
     @ObservationIgnored private var started = false
@@ -37,12 +39,16 @@ final class ClipboardModel {
     init(dataDirectory: URL, pasteboard: NSPasteboard = .general,
          settings: @escaping () -> ClipboardSettings = { ClipboardSettings() },
          accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
-         sendPaste: @escaping () -> Void = { PlainPasteHotkeyService.postCommandV() },
+         postAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
+         sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
+         notify: @escaping @MainActor (PlainPasteNotice) -> Void = { PlainPasteNotice.post($0) },
          hotkey: (any PlainPasteHotkeyRegistering)? = nil) {
         self.hotkey = hotkey ?? PlainPasteHotkeyService()
         self.accessibilityCheck = accessibilityTrusted
         self.accessibilityTrusted = accessibilityTrusted()
+        self.postAccessCheck = postAccess
         self.sendPaste = sendPaste
+        self.notify = notify
         self.pasteboard = pasteboard
         self.settings = settings
         store = ClipboardHistoryStore(directory: dataDirectory, limit: settings().historyLimit)
@@ -177,15 +183,26 @@ final class ClipboardModel {
 
     @discardableResult
     func plainPasteTriggered() -> PlainPasteOutcome {
+        PasteLog.logger.notice("hotkey fired")
         refreshAccessibility()
-        return PlainPasteHotkeyService.performPlainPaste(
-            pasteboard: pasteboard, accessibilityTrusted: accessibilityCheck, sendPaste: sendPaste
+        let notify = self.notify
+        let outcome = PlainPasteHotkeyService.performPlainPaste(
+            pasteboard: pasteboard, accessibilityTrusted: accessibilityCheck, postAccess: postAccessCheck,
+            sendPaste: sendPaste,
+            didSend: { if $0 == .eventFailed { notify(.eventFailed) } }
         ) { [watcher, autoClear, pasteboard, settings] in
             // The rewrite is ours: do not record it back, and re-arm auto-clear on the NEW count
             // so the old timer (bound to the previous count) cannot fire on, or be skipped for, it.
             watcher.syncToCurrent()
             autoClear.schedule(delaySeconds: settings().autoClearDelay, expectedChangeCount: pasteboard.changeCount)
         }
+        // Never silent: the plain text is on the pasteboard in every case but "nothing to paste".
+        switch outcome {
+        case .pasted: break
+        case .copiedOnly: notify(.needsPermission)
+        case .nothingToPaste: notify(.nothingToPaste)
+        }
+        return outcome
     }
 
     private func updatePlainPasteStatus() {

@@ -77,21 +77,40 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     }
 
     /// Replace the pasteboard with its plain, normalised text, then send Cmd+V if allowed.
+    /// The plain text is on the pasteboard BEFORE `sendPaste` runs. `sendPaste` waits for the shortcut's
+    /// modifiers to be released (see `PasteKeySequencer`), so it runs on a task, not inline.
     static func performPlainPaste(pasteboard: NSPasteboard = .general,
                                   accessibilityTrusted: () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
-                                  sendPaste: @escaping () -> Void = { PlainPasteHotkeyService.postCommandV() },
+                                  postAccess: () -> Bool = { CGPreflightPostEventAccess() },
+                                  sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
+                                  didSend: @escaping @MainActor (PasteSendResult) -> Void = { _ in },
                                   afterWrite: () -> Void = {}) -> PlainPasteOutcome {
-        guard let raw = pasteboard.string(forType: .string) else { return .nothingToPaste }
+        guard let raw = pasteboard.string(forType: .string) else {
+            PasteLog.logger.notice("nothing to paste: no string flavour")
+            return .nothingToPaste
+        }
         // Rewriting drops every flavour, including the password-manager markers: carry them over
         // (empty data is how the convention is written) so the item stays unrecordable.
         let markers = blockedMarkers(on: pasteboard)
+        let before = pasteboard.types?.map(\.rawValue) ?? []
         pasteboard.clearContents()
         pasteboard.setString(PlainPaste.normalize(raw), forType: .string)
         for m in markers { pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(m)) }
+        let after = pasteboard.types?.map(\.rawValue) ?? []
+        PasteLog.logger.notice("pasteboard converted: types \(before.joined(separator: ","), privacy: .public) -> \(after.joined(separator: ","), privacy: .public)")
         afterWrite()
-        guard accessibilityTrusted() else { return .copiedOnly }
-        // Let the user release the shortcut's modifiers first.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { sendPaste() }
+        guard accessibilityTrusted() else {
+            PasteLog.logger.notice("not posted: Accessibility not granted (AXIsProcessTrusted false)")
+            return .copiedOnly
+        }
+        guard postAccess() else {
+            PasteLog.logger.notice("not posted: no post-event access (CGPreflightPostEventAccess false)")
+            return .copiedOnly
+        }
+        Task { @MainActor in
+            let result = await sendPaste()
+            didSend(result)
+        }
         return .pasted
     }
 
@@ -100,15 +119,5 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
         var all = pasteboard.types?.map(\.rawValue) ?? []
         for item in pasteboard.pasteboardItems ?? [] { all.append(contentsOf: item.types.map(\.rawValue)) }
         return all.filter { PasteboardFilter.blockedTypes.contains($0) && seen.insert($0).inserted }
-    }
-
-    nonisolated static func postCommandV() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        let v = CGKeyCode(kVK_ANSI_V)
-        for down in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: v, keyDown: down)
-            event?.flags = .maskCommand
-            event?.post(tap: .cghidEventTap)
-        }
     }
 }

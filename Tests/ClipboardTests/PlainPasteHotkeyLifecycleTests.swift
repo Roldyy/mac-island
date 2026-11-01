@@ -41,7 +41,7 @@ final class FakeHotkey: PlainPasteHotkeyRegistering {
         let sent = Counter()
         let model = ClipboardModel(dataDirectory: makeTempDir(), pasteboard: pb,
                                    settings: { ClipboardSettings(defaults: td.defaults) },
-                                   accessibilityTrusted: { trusted }, sendPaste: { sent.value += 1 },
+                                   accessibilityTrusted: { trusted }, sendPaste: { sent.value += 1; return .posted }, notify: { _ in },
                                    hotkey: hotkey)
         return Rig(model: model, hotkey: hotkey, pasteboard: pb, defaults: td, sent: sent)
     }
