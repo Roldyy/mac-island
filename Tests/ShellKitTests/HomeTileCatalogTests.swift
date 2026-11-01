@@ -26,11 +26,11 @@ import Testing
     @Test func everyFeatureAndEveryActionAppearsOnceAllEnabled() {
         let tiles = merged()
         #expect(Set(tiles.map(\.id)).count == tiles.count)
-        // 13 shortcuts of the user + the 4 features no action covers.
+        // 13 shortcuts of the user + the 3 features no action covers.
         #expect(tiles.map(\.id) == [
             "mixer", "keepawake", "agents", "commands", "capture", "lockScreen", "cleaning", "monitor",
             "shelf", "clipboard", "terminal", "nowplaying", "settings",
-            "fans", "finder", "dock", "display",
+            "fans", "finder", "dock",
         ])
         #expect(tiles.allSatisfy { $0.isEnabled })
         // Every Explorer feature is reachable from exactly one tile.
@@ -58,12 +58,12 @@ import Testing
     }
 
     @Test func theUsersOrderComesFirstThenTheOtherEnabledFeaturesInExplorerOrder() {
-        let tiles = merged(enabled: ["terminal", "agents", "audio", "fans", "finder", "display"])
+        let tiles = merged(enabled: ["terminal", "agents", "audio", "fans", "finder", "dock"])
         let ids = tiles.map(\.id)
         // Enabled, user's order: mixer (audio), agents, capture, lockScreen, cleaning, terminal, settings.
         #expect(Array(ids.prefix(7)) == ["mixer", "agents", "capture", "lockScreen", "cleaning", "terminal", "settings"])
         // Then the enabled features no action covers, in Explorer order.
-        #expect(Array(ids[7..<10]) == ["fans", "finder", "display"])
+        #expect(Array(ids[7..<10]) == ["fans", "finder", "dock"])
         #expect(tiles[7..<10].allSatisfy { $0.isEnabled })
         #expect(tiles[10...].allSatisfy { !$0.isEnabled })
     }
@@ -74,9 +74,9 @@ import Testing
         let on = tiles.filter(\.isEnabled).map(\.id)
         let off = tiles.filter { !$0.isEnabled }.map(\.id)
         #expect(on == ["agents", "capture", "lockScreen", "cleaning", "clipboard", "terminal", "settings"])
-        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "monitor", "fans", "commands", "finder", "dock", "display"])
+        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "monitor", "fans", "commands", "finder", "dock"])
         #expect(tiles.map(\.id) == on + off)
-        #expect(tiles.count == 17)
+        #expect(tiles.count == 16)
     }
 
     @Test func aFeatureWithNoTabCountsAsOff() {
@@ -93,7 +93,7 @@ import Testing
         let extra = HomeFeature(id: "switcher", title: "Sélecteur", systemImage: "rectangle.on.rectangle")
         let tiles = merged(features: features + [extra])
         #expect(tiles.last?.id == "switcher" && tiles.last?.source == .feature)
-        #expect(tiles.count == 18)
+        #expect(tiles.count == 17)
     }
 
     // MARK: hidden set
@@ -101,17 +101,17 @@ import Testing
     @Test func hiddenTilesLeaveTheHomeButStayInTheExplorerFlagged() {
         let home = merged(hidden: ["capture", "finder", "ghost"])
         #expect(!home.map(\.id).contains("capture") && !home.map(\.id).contains("finder"))
-        #expect(home.count == 15)
+        #expect(home.count == 14)
         let explorer = merged(hidden: ["capture", "finder"], showHidden: true)
-        #expect(explorer.count == 17)
+        #expect(explorer.count == 16)
         #expect(explorer.filter(\.isHidden).map(\.id) == ["capture", "finder"])
         // Same order either way: hiding never reshuffles the rest.
         #expect(explorer.filter { !$0.isHidden }.map(\.id) == home.map(\.id))
     }
 
     @Test func aHiddenDisabledTileIsGoneToo() {
-        let tiles = merged(enabled: ["terminal"], hidden: ["display", "shelf"])
-        #expect(!tiles.map(\.id).contains("display") && !tiles.map(\.id).contains("shelf"))
+        let tiles = merged(enabled: ["terminal"], hidden: ["dock", "shelf"])
+        #expect(!tiles.map(\.id).contains("dock") && !tiles.map(\.id).contains("shelf"))
     }
 
     @Test func hiddenSetPersistsAsAJSONArrayInAnIsolatedSuite() {

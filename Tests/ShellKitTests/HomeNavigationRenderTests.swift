@@ -190,7 +190,8 @@ extension NSBitmapImageRep {
         save(rep, step)
         #expect(rig.panelFrameSize == context.panelSize, "\(step): panel \(rig.panelFrameSize) expected \(context.panelSize)",
                 sourceLocation: sourceLocation)
-        let lastRowTop = context.home.homeBody.height - HomeGeometry.bottomPadding - HomeGeometry.tileRow
+        // The body shrinks to the rows the tiles need, never to the cap of the mode: ask for the real tile count.
+        let lastRowTop = context.home.homeBody(tileCount: context.tileItems().count).height - HomeGeometry.bottomPadding - HomeGeometry.tileRow
         let lowest = lowestLitRow(rep, context: context)
         #expect(lowest > lastRowTop + 20, "\(step): lowest lit row \(lowest), last tile row starts at \(lastRowTop)",
                 sourceLocation: sourceLocation)

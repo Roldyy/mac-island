@@ -70,14 +70,8 @@ public enum SettingsLive {
         // page, its default duration, automation, jiggle, display sleep, battery limit, island hold and closed lid.
         // "dockpreview" and "dockclicks" have no live entry any more: the ported Dock pages (PortKit, Dock lane) draw
         // both pages whole, under the `dock` feature card their catalog rows carry.
-        "quitonclose": Page(
-            bound: ["Quitter les apps à la fermeture de leur dernière fenêtre": flag("autoQuitEnabled", false)],
-            extras: [
-                C("autoQuitDelayMinutes", .stepper(range: 1...1440, defaultValue: 30, unit: "min"),
-                  title: "Minutes sans fenêtre visible", hint: "Délai avant qu’une app soit annoncée comme à quitter."),
-                flag("autoQuitDryRun", true, title: "Simulation",
-                     hint: "Annonce ce qui serait quitté sans rien fermer. Laissée active jusqu’à votre choix."),
-            ]),
+        // "quitonclose" has no live entry any more: the ported auto-quit page (PortKit, W3D lane) draws the whole
+        // page, last-window quit, the inactivity delay and simulation, the never-quit list.
         "clipboard": Page(
             bound: [
                 "Garder l’historique du presse-papiers": flag("clipboardHistoryEnabled", true),

@@ -22,7 +22,6 @@ import Testing
     }
 
     @Test func missingAccessibilityAndScreenRecordingAreReported() {
-        #expect(capability("display", probe(ax: false)) == .needsPermission(.accessibility))
         #expect(capability("dock", probe(ax: false)) == .needsPermission(.accessibility))
         #expect(capability("dock", probe(screen: false)) == .needsPermission(.screenRecording))
         #expect(capability("terminal", probe(ax: false, screen: false)) == .available, "needs neither")

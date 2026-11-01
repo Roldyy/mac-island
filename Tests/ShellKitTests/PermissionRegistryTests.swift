@@ -115,7 +115,6 @@ final class Counter: @unchecked Sendable { var value = 0 }
         #expect(r.monitor.isPolling)
         r.registry[feature: "finder"] = false  // nothing enabled needs Input Monitoring any more...
         r.registry[feature: "dock"] = false     // ...nor Accessibility
-        r.registry[feature: "display"] = false
         #expect(!r.monitor.isPolling)
         r.registry[feature: "finder"] = true
         #expect(r.monitor.isPolling)

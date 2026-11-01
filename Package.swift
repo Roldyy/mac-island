@@ -38,7 +38,6 @@ let package = Package(
         .target(name: "NowPlayingFeature", dependencies: ["IslandKit"], path: "Sources/Features/NowPlaying"),
         .target(name: "FinderFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/Finder"),
         .target(name: "DockFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Dock"),
-        .target(name: "DisplayFeature", dependencies: ["IslandKit"], path: "Sources/Features/Display"),
         .target(name: "AudioFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Audio"),
 
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
@@ -51,7 +50,7 @@ let package = Package(
             "IslandKit", "IslandUI", "ShellKit", "ClaudeLiveKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
             "FansFeature", "MonitorFeature", "CommandBarFeature",
-            "FinderFeature", "DockFeature", "DisplayFeature", "AudioFeature",
+            "FinderFeature", "DockFeature", "AudioFeature",
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
@@ -76,7 +75,6 @@ let package = Package(
         .testTarget(name: "NowPlayingFeatureTests", dependencies: ["NowPlayingFeature"], path: "Tests/NowPlayingTests"),
         .testTarget(name: "FinderFeatureTests", dependencies: ["FinderFeature"], path: "Tests/FinderTests"),
         .testTarget(name: "DockFeatureTests", dependencies: ["DockFeature"], path: "Tests/DockTests"),
-        .testTarget(name: "DisplayFeatureTests", dependencies: ["DisplayFeature"], path: "Tests/DisplayTests"),
         .testTarget(name: "AudioFeatureTests", dependencies: ["AudioFeature"], path: "Tests/AudioTests"),
     ]
 )

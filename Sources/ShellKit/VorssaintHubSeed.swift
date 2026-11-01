@@ -8,7 +8,7 @@ public enum VorssaintHubSeed {
 
     /// Old names seen as key prefixes in the old app's defaults, mapped to our feature ids.
     private static let aliases: [String: String] = [
-        "mixer": "audio", "keepawake": "keepawake", "brightness": "display", "dockclick": "dock",
+        "mixer": "audio", "keepawake": "keepawake", "dockclick": "dock",
         "dockpreview": "dock", "commandbar": "commandbar",
     ]
 

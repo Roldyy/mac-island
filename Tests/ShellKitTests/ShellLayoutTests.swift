@@ -19,14 +19,14 @@ import Testing
         #expect(ids.allSatisfy(known.contains))
     }
 
-    @Test func tabsOutsideGroupsAreTheFourSettingsOnlyOnes() {
+    @Test func tabsOutsideGroupsAreTheThreeSettingsOnlyOnes() {
         let outside = ShellLayout.tabsOutsideGroups(ShellDescriptors.all.compactMap(\.tabID))
-        #expect(Set(outside) == ["commandbar", "finder", "dock", "display"])
+        #expect(Set(outside) == ["commandbar", "finder", "dock"])
     }
 
     @Test func descriptorIdsAreUniqueAndTabIdsMatch() {
         let ids = ShellDescriptors.all.map(\.id)
-        #expect(ids.count == 13 && Set(ids).count == 13)
+        #expect(ids.count == 12 && Set(ids).count == 12)
         #expect(ShellDescriptors.all.allSatisfy { $0.tabID == $0.id })
     }
 
@@ -82,8 +82,8 @@ import Testing
 @Suite struct FeatureHubTests {
     @Test func groupsByCategoryInEnumOrderAndSkipsEmptyOnes() {
         let sections = FeatureHub.sections(ShellDescriptors.all, query: "")
-        #expect(sections.map(\.category) == [.daily, .claude, .display, .sound, .windows, .monitor, .files, .tools, .media])
-        #expect(sections.flatMap(\.features).count == 13)
+        #expect(sections.map(\.category) == [.daily, .claude, .sound, .windows, .monitor, .files, .tools, .media])
+        #expect(sections.flatMap(\.features).count == 12)
     }
 
     @Test func searchIgnoresCaseAndAccentsAndMatchesSummaryAndCategory() {
@@ -91,7 +91,7 @@ import Testing
         #expect(ids("etagere") == ["shelf"])
         #expect(ids("PRESSE") == ["clipboard"])
         #expect(ids("surveillance") == ["monitor", "fans"])
-        #expect(ids("inactives") == ["display"], "the Display tab is auto-quit now: brightness is the ported feature")
+        #expect(ids("inactives").isEmpty, "the Display module is gone: auto-quit is the ported feature")
         #expect(ids("luminosite").isEmpty)
         #expect(ids("zzzz").isEmpty)
     }

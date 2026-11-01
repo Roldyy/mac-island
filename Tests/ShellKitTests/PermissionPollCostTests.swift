@@ -148,7 +148,7 @@ import Testing
     }
 
     private func waitFor(_ condition: @MainActor () -> Bool) async -> Bool {
-        let end = Date().addingTimeInterval(10)
+        let end = Date().addingTimeInterval(240)  // a full run queues ~1000 main-actor tests ahead of the hop back
         while Date() < end {
             if condition() { return true }
             try? await Task.sleep(for: .milliseconds(10))

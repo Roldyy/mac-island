@@ -1,6 +1,6 @@
 import IslandKit
 
-/// The 13 existing modules. W1 moves each descriptor into its own module; ids are stable and double as tab ids.
+/// The 12 existing modules (the Display one was retired into the ported auto-quit, W3D). W1 moves each descriptor into its own module; ids are stable and double as tab ids.
 public enum ShellDescriptors {
     public static let all: [FeatureDescriptor] = [
         .init(id: "terminal", title: "Terminal", summary: "Terminal intégré dans l'île.",
@@ -31,8 +31,5 @@ public enum ShellDescriptors {
         .init(id: "dock", title: "Dock", summary: "Aperçus de fenêtres et actions au clic sur le Dock.",
               systemImage: "dock.rectangle", category: .windows, permissions: [.accessibility, .screenRecording],
               risk: .touchesInput, tabID: "dock"),
-        .init(id: "display", title: "Écran", summary: "Fermeture automatique des apps inactives.",
-              systemImage: "sun.max", category: .display, permissions: [.accessibility],
-              risk: .touchesSystem, tabID: "display"),
     ]
 }

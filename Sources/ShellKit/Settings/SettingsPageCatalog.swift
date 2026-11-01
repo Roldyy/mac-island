@@ -129,7 +129,7 @@ public enum SettingsPageCatalog {
           keywords: ["zoom", "plein écran", "bouton vert"]),
         P(id: "quitonclose", title: "Quitter à la fermeture", symbol: "xmark.square", section: .windows,
           summary: "Quitte une app quand sa dernière fenêtre se ferme.",
-          keywords: ["fermeture", "quitter", "inactif"], featureID: "display"),
+          keywords: ["fermeture", "quitter", "inactif"]),
     ]
 
     private static let input: [SettingsPage] = [

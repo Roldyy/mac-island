@@ -137,7 +137,7 @@ import Testing
         #expect(r.isEnabled("terminal") && r.isEnabled("monitor"))
         #expect(!r.isEnabled("dock") && !r.isEnabled("finder") && !r.isEnabled("fans"))
         r.apply(.productivite)
-        #expect(r.isEnabled("dock") && r.isEnabled("shelf") && !r.isEnabled("display"))
+        #expect(r.isEnabled("dock") && r.isEnabled("shelf"))
         r.apply(.tout)
         #expect(ShellDescriptors.all.allSatisfy { r.isEnabled($0.id) })
     }

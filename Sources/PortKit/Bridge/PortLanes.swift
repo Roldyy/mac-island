@@ -19,6 +19,7 @@ enum PortLanes {
         SwitcherLane.bind(into:),
         WindowLayoutLane.bind(into:),
         DockLane.bind(into:),
+        AutoQuitSpacesLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

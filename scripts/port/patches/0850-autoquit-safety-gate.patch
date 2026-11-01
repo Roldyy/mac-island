@@ -1,0 +1,12 @@
+--- a/Services/AutoQuit/AutoQuitService.swift
++++ b/Services/AutoQuit/AutoQuitService.swift
+@@ -398,6 +398,9 @@
+                                                          hasUserFacingWindow: stillHasUserFacingWindow) else { return }
+         guard !hasRunningDependentApplication(hostBundleIdentifier: app.bundleIdentifier,
+                                               excluding: pid) else { return }
++        // Mac Island: the last look, live, before the only call that ends an app. Never Finder, Mac Island, an
++        // app that plays sound or shows a Save panel or an alert, nor anything on the never-quit list.
++        guard AutoQuitGate.live.allowsLastWindowQuit(app) else { return }
+ 
+         hadWindows[pid] = false
+         recentCloseButtonRequests[pid] = nil

@@ -106,7 +106,7 @@ import Testing
         #expect(!PortFeatureIDs.isOwnedByExistingModule("brightness"))
         #expect(!PortFeatureIDs.isOwnedByExistingModule("extraBrightness"))
         #expect(AppFeature.brightness.registryID == "brightness")
-        #expect(ShellDescriptors.all.contains { $0.id == "display" }, "the Display tab stays: it hosts auto-quit")
+        #expect(!ShellDescriptors.all.contains { $0.id == "display" }, "the Display module was retired into the ported auto-quit (W3D)")
         #expect(!ShellDescriptors.all.contains { $0.id == "brightness" || $0.id == "extraBrightness" })
     }
 

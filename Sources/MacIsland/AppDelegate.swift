@@ -8,7 +8,6 @@ import FansFeature
 import MonitorFeature
 import FinderFeature
 import DockFeature
-import DisplayFeature
 import AudioFeature
 import KeepAwakeFeature
 import NowPlayingFeature
@@ -89,7 +88,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "clipboard": { ClipboardFeature.start() },
                 "shelf": { ShelfFeature.start() },
                 "finder": { FinderFeature.start() },
-                "display": { DisplayFeature.start() },
                 "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
                 "monitor": { MonitorFeature.start() },
                 "commandbar": { CommandBarFeature.start() },
@@ -98,7 +96,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ]) { _, ours in ours },
             stoppers: ported.stoppers.merging([
                 "finder": { FinderFeature.stop() },
-                "display": { DisplayFeature.stop() },
                 "fans": { FansFeature.stop() },
                 "monitor": { MonitorFeature.stop() },
                 "commandbar": { CommandBarFeature.stop() },
@@ -300,13 +297,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The 13 feature tabs, reused as sub-views of the island's four groups and of the Settings sheets.
+/// The 12 feature tabs, reused as sub-views of the island's four groups and of the Settings sheets.
 @MainActor
 enum ShellTabs {
     static let all: [IslandTab] = [
         TerminalFeature.tab(), AgentsFeature.tab(), ClipboardFeature.tab(),
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
-        FinderFeature.tab(), DockFeature.tab(), DisplayFeature.tab(), AudioFeature.tab(),
+        FinderFeature.tab(), DockFeature.tab(), AudioFeature.tab(),
         FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
     ]
 }

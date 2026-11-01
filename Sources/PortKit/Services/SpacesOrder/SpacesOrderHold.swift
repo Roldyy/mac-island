@@ -188,9 +188,9 @@ extension SpacesOrderSystem {
                                   domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
             return CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         },
-        // A terminated Dock counts as an unexpected exit, so the system
-        // starts it again at once; a clean quit would leave it closed.
-        restartDock: { Shell.run("/usr/bin/killall", ["Dock"]).status == 0 },
+        // Mac Island: the one `killall Dock` of the port lives in `SpacesDockRestartGuard`, which keeps a
+        // minimum interval between two restarts.
+        restartDock: { SpacesDockRestartGuard.shared.restart() },
         // The preference domain is the Dock's bundle identifier.
         dockPID: {
             NSRunningApplication.runningApplications(withBundleIdentifier: SpacesOrderSupport.dockDomain)

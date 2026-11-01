@@ -1,0 +1,13 @@
+# Upstream test files (Tests/ of the pinned tree) lane W3-D (auto-quit and Spaces order) turns on in the harness, one per line.
+# The harness itself (scripts/port/test.sh) is lane P0-D; it is not in this tree, so nothing here has been run: UNVERIFIED.
+AppManagementFeatureTests.swift
+SpacesOrderTests.swift
+SpacesOrderRequestContract.swift
+#
+# AppManagementFeatureTests is shared with the app-management lanes (uninstaller, disk image installer, 100 AutoQuit
+# checks among them): this lane owns only its AutoQuit and window-watch checks. Its source-text checks read
+# Services/AutoQuit/AutoQuitService.swift by line; patch 0850 only ADDS one `guard AutoQuitGate...` line before the final
+# terminate, so none of the pinned lines moves or changes.
+# SpacesOrderTests builds `SpacesOrderSystem` with its own `restartDock` closure (no killall), so patch 0851 (the live
+# system's restart routed through SpacesDockRestartGuard) is outside what it exercises: the guard's own tests are
+# Tests/PortKitTests/AutoQuitSpacesTests.
