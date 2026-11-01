@@ -49,12 +49,12 @@ struct MonitorAlertsControls: View {
             sanitizeAlertValues()
             refreshNotificationStatus()
         }
-        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
         .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }

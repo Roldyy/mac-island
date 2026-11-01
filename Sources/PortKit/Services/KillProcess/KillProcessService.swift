@@ -238,6 +238,9 @@ final class KillProcessService: ObservableObject {
     private func killBatch(_ targets: [KillTarget],
                            force: Bool,
                            adminPromptProcessName: String) -> Set<pid_t> {
+        // Mac Island: every kill path ends here, and a feature the registry switched off (switch, kill switch,
+        // safe mode) never signals a process, whatever page or row asked.
+        guard AppFeature.killProcess.isAvailable else { return [] }
         var removed = Set<pid_t>()
         var needsAdmin: [AdminKillTarget] = []
         for target in targets {
@@ -338,7 +341,7 @@ final class KillProcessService: ObservableObject {
     /// a fixed delay), then relaunches it - the same sequence
     /// `CommandBarService.restart` uses for its own restart row.
     func restart(_ entry: KillProcessEntry) {
-        guard !entry.isProtected,
+        guard AppFeature.killProcess.isAvailable, !entry.isProtected,
               let url = entry.bundleURL,
               let target = Self.target(for: entry) else { return }
         cancelPendingRestart()

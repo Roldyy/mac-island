@@ -28,6 +28,8 @@ enum PortLanes {
         ShelfLane.bind(into:),
         CommandBarLane.bind(into:),
         LauncherLane.bind(into:),
+        MonitorLane.bind(into:),
+        KillPortsLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

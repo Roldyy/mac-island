@@ -131,6 +131,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenSettings: { settings.show() },
             onQuit: { NSApp.terminate(nil) },
             onRelaunch: Self.relaunchAction)
+        // The ported menu bar metrics may hide the app's icon (their option), only while one of their items shows.
+        PortMenuBar.installAppIconVisibility { [weak self] visible in self?.menuBar?.setIconVisible(visible) }
 
         let home = HomeModel(defaults: defaults)
         let ambientCenter = ambient

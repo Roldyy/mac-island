@@ -79,7 +79,7 @@ import Testing
         let allowed: [String: Int] = [
             "Services/Audio/PreciseVolumeRollerService.swift": 1,  // com.apple.sound.beep.feedback (global domain)
             "Services/DockPreview/DockPreviewService.swift": 1,  // com.apple.dock domain
-            "Compat/BlackHoleGlyph.swift": 1, "Compat/StatusItemController.swift": 1,  // menu bar icon, not bound
+            "Compat/BlackHoleGlyph.swift": 1,  // menu bar icon, not bound
         ]
         #expect(found == allowed, "\(found)")
     }

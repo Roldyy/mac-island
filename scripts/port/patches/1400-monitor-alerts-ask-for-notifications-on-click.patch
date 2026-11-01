@@ -1,0 +1,44 @@
+--- a/Services/SystemMonitor/MonitorAlertService.swift
++++ b/Services/SystemMonitor/MonitorAlertService.swift
+@@ -21,7 +21,10 @@
+     /// Owns the whole lifecycle: the snapshot sink only exists while some
+     /// alert is on for an available metric, so the service costs nothing
+     /// otherwise. The alert toggles in Settings call this on every change.
+-    func syncWithPreferences() {
++    ///
++    /// Mac Island: the notification prompt is asked only when the person just turned an alert on
++    /// (`askForNotifications`, passed by the Settings switches). A start at launch or from the registry never asks.
++    func syncWithPreferences(askForNotifications: Bool = false) {
+         let enabled = Self.anyEnabled(in: PortHost.defaults)
+         if enabled {
+             startSinkIfNeeded()
+@@ -29,7 +32,7 @@
+             stopSink()
+         }
+         SystemMonitor.shared.setAlertsActive(enabled)
+-        if enabled {
++        if enabled, askForNotifications {
+             Notifier.requestPermission()
+         }
+     }
+--- a/UI/Settings/MonitorAlertsControls.swift
++++ b/UI/Settings/MonitorAlertsControls.swift
+@@ -49,12 +49,12 @@
+             sanitizeAlertValues()
+             refreshNotificationStatus()
+         }
+-        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+-        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+-        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+-        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+-        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+-        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
++        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
++        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
++        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
++        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
++        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
++        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(askForNotifications: true); refreshNotificationStatus() }
+         .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
+         .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
+         .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }

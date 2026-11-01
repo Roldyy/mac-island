@@ -31,23 +31,9 @@ public enum SettingsLive {
     }
 
     static let table: [String: Page] = [
-        "monitor": Page(
-            bound: [
-                "Répéter la même alerte après": C("monitorAlertCooldownMinutes", .choice(options: [
-                    .init("5 minutes", 5), .init("15 minutes", 15), .init("30 minutes", 30),
-                    .init("1 heure", 60), .init("2 heures", 120),
-                ], defaultValue: 15)),
-            ],
-            extras: [
-                flag("monitorAlertsEnabled", false, title: "Alertes de charge",
-                     hint: "Prévient quand le processeur ou la mémoire reste trop haut. Éteint tant que vous ne l’activez pas."),
-                C("monitorAlertCPUThreshold", .slider(range: 1...100, defaultValue: 90, unit: "%"), title: "Seuil du processeur"),
-                C("monitorAlertMemoryThreshold", .slider(range: 1...100, defaultValue: 90, unit: "%"), title: "Seuil de la mémoire"),
-                C("monitorAlertSustainedSeconds", .stepper(range: 0...3600, defaultValue: 30, unit: "s"),
-                  title: "Durée au-dessus du seuil", hint: "Combien de secondes la charge doit durer avant l’alerte."),
-                flag("monitorSystemNotificationsEnabled", false, title: "Notifications système",
-                     hint: "Affiche aussi l’alerte dans le centre de notifications."),
-            ]),
+        // "monitor" has no live entry any more: the ported Monitor page (PortKit, W6 lane) draws the whole page, the
+        // menu bar metrics, the panel blocks, the readings and the alerts, under the `monitor` feature card its
+        // catalog row carries. (Our island card's own alert keys stay what they were; they keep their stored value.)
         // "commandbar" has no live entry any more: the ported command bar page (PortKit, W5-C lane) draws the whole
         // page, under the `commandbar` feature card its catalog row carries.
         // "keepawake" has no live entry any more: the ported Keep Awake page (PortKit, Energy lane) draws the whole

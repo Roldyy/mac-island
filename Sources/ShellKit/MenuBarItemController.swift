@@ -21,6 +21,10 @@ public final class MenuBarItemController: NSObject {
         item.menu = Self.makeMenu(target: self, canRelaunch: onRelaunch != nil)
     }
 
+    /// Shows or hides the icon. Only the ported menu bar metrics ask (their "hide the app icon" option), and only
+    /// while a metric item of their own is on screen.
+    public func setIconVisible(_ visible: Bool) { item.isVisible = visible }
+
     /// Entry titles in order; the menu and its tests share it.
     static func titles(canRelaunch: Bool) -> [String] {
         ["Ouvrir Réglages…"] + (canRelaunch ? ["Relancer Mac Island"] : []) + ["Quitter Mac Island"]

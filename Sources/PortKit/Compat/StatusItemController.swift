@@ -20,7 +20,7 @@ enum StatusItemController {
     /// the bar does.
     static func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
         guard MenuBarMetricAppearance.current.allowsCombinedTemperatures,
-              UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
+              PortHost.defaults.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
             return metrics.map {
                 MetricStatusGroup(id: $0.rawValue, metrics: [$0], focusMetric: $0, title: $0.title(strings))
             }

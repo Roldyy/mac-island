@@ -21,7 +21,10 @@ final class MonitorAlertService {
     /// Owns the whole lifecycle: the snapshot sink only exists while some
     /// alert is on for an available metric, so the service costs nothing
     /// otherwise. The alert toggles in Settings call this on every change.
-    func syncWithPreferences() {
+    ///
+    /// Mac Island: the notification prompt is asked only when the person just turned an alert on
+    /// (`askForNotifications`, passed by the Settings switches). A start at launch or from the registry never asks.
+    func syncWithPreferences(askForNotifications: Bool = false) {
         let enabled = Self.anyEnabled(in: PortHost.defaults)
         if enabled {
             startSinkIfNeeded()
@@ -29,7 +32,7 @@ final class MonitorAlertService {
             stopSink()
         }
         SystemMonitor.shared.setAlertsActive(enabled)
-        if enabled {
+        if enabled, askForNotifications {
             Notifier.requestPermission()
         }
     }
