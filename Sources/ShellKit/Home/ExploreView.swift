@@ -1,8 +1,7 @@
-import IslandKit
 import IslandUI
 import SwiftUI
 
-/// "Explorer": every feature panel in a grid. A tap opens the panel inside the island.
+/// "Explorer": every shortcut of the home plus the hidden ones, in the same grid. A tap opens the panel in the island.
 struct ExploreView: View {
     let context: ShellContext
 
@@ -16,45 +15,12 @@ struct ExploreView: View {
         .padding(.horizontal, IslandSpacing.l - 2)
     }
 
+    /// The same tiles as the home (hidden ones too, marked, so they can be brought back), the same component.
     private var grid: some View {
-        let columns = HomeGeometry.exploreColumns
-        let items = context.exploreTabIDs.compactMap { id in context.tabs.first { $0.id == id } }
-        let rows = stride(from: 0, to: items.count, by: columns).map { Array(items[$0..<min($0 + columns, items.count)]) }
-        return VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 0) {
-                    ForEach(row) { tile($0) }
-                    ForEach(0..<(columns - row.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
-                }
-                .frame(height: HomeGeometry.exploreRow)
-            }
-        }
-    }
-
-    private func tile(_ tab: IslandTab) -> some View {
-        let enabled = context.registry.isEnabled(tab.id)
-        return Button {
-            if enabled { context.navigation.open(tabID: tab.id) } else { context.openSettings() }
-        } label: {
-            VStack(spacing: IslandSpacing.xs) {
-                Image(systemName: tab.systemImage)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(IslandPalette.textPrimary.color)
-                    .frame(width: 44, height: 44)
-                    .background(IslandPalette.textPrimary.color.opacity(0.10),
-                                in: RoundedRectangle(cornerRadius: IslandRadius.large, style: .continuous))
-                Text(tab.title)
-                    .font(.system(size: IslandType.minimumSize, weight: .medium))
-                    .foregroundStyle(IslandPalette.textPrimary.color)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .opacity(enabled ? 1 : 0.4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(HomeTapStyle())
-        .help(enabled ? tab.title : "\(tab.title) : désactivé. Ouvre les Réglages pour l'activer.")
-        .accessibilityLabel(enabled ? tab.title : "\(tab.title), désactivé")
+        let items = context.tileItems(showHidden: true)
+        let columns = context.home.tileColumns
+        return HomeTileGrid(items: items, columns: columns,
+                            visibleRows: HomeGeometry.exploreRows(itemCount: items.count, columns: columns), context: context)
     }
 }
 

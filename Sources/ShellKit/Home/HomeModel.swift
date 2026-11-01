@@ -18,6 +18,8 @@ public final class HomeModel {
         static let layout = "notchQuickAccessLayout"
         /// Set once the Claude round button has been offered to a layout stored by an older build.
         static let claudeShortcutSeeded = "notchClaudeShortcutSeeded"
+        /// JSON array of the tile ids the user hid from the home grid.
+        static let hiddenTiles = "notchHomeHiddenTiles"
     }
 
     public static let fitWidthRange: ClosedRange<Double> = -10...10
@@ -65,6 +67,11 @@ public final class HomeModel {
     }
     public var buttons: HomeButtonLayout {
         didSet { if let data = buttons.encoded() { defaults.set(data, forKey: Keys.layout) } }
+    }
+
+    /// Tile ids the user hid from the home grid (right-click "Masquer ce raccourci"). The Explorer still lists them.
+    public private(set) var hiddenTiles: Set<String> {
+        didSet { if hiddenTiles != oldValue { defaults.set(HomeHiddenTiles.encode(hiddenTiles), forKey: Keys.hiddenTiles) } }
     }
 
     public let volume: HomeLevel
@@ -117,6 +124,7 @@ public final class HomeModel {
             }
         }
         buttons = layout
+        hiddenTiles = HomeHiddenTiles.decode(defaults.object(forKey: Keys.hiddenTiles))
         self.volume = HomeLevel(title: "Volume", systemImage: "speaker.wave.2.fill", backend: volume)
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
         self.keyboardLight = HomeLevel(title: "Rétroéclairage du clavier", systemImage: "light.max", backend: keyboardLight)
@@ -158,18 +166,29 @@ public final class HomeModel {
         return max(h, 24)
     }
 
-    public var homeBody: CGSize {
-        HomeGeometry.homeBody(mode: sizeMode, customWidth: customWidth, customHeight: customHeight, band: bandHeight)
+    /// Body of the home with no limit on the tile count: the cap of the mode.
+    public var homeBody: CGSize { homeBody(tileCount: .max) }
+
+    /// Body of the home for `tileCount` tiles: the cap of the mode, without empty rows when there are few tiles.
+    public func homeBody(tileCount: Int) -> CGSize {
+        HomeGeometry.homeBody(mode: sizeMode, customWidth: customWidth, customHeight: customHeight, band: bandHeight,
+                              tileCount: tileCount)
     }
 
-    public var tileRows: Int {
-        HomeGeometry.tileRows(for: sizeMode, customHeight: customHeight, band: bandHeight)
+    /// Columns of the tile grid (and of the Explorer, which shows the same tiles): 4 when narrow, otherwise 5.
+    public var tileColumns: Int { HomeGeometry.tileColumns(for: sizeMode, width: customWidth) }
+
+    /// Rows of the tile grid shown at once for `tileCount` tiles; the grid scrolls beyond them.
+    public func tileRows(tileCount: Int) -> Int {
+        HomeGeometry.visibleTileRows(for: sizeMode, customWidth: customWidth, customHeight: customHeight,
+                                     band: bandHeight, tileCount: tileCount)
     }
 
-    /// Tiles of the home grid for the current size.
-    public var tileActions: [HomeAction] {
-        HomeActionCatalog.tileIDs.prefix(tileRows * HomeGeometry.tileColumns).compactMap(HomeActionCatalog.action)
-    }
+    // MARK: - Hidden tiles
+
+    public func hideTile(_ id: String) { hiddenTiles.insert(id) }
+    public func showTile(_ id: String) { hiddenTiles.remove(id) }
+    public func showAllTiles() { hiddenTiles = [] }
 
     public func panelSize(body: CGSize) -> CGSize {
         HomeGeometry.panel(body: body,

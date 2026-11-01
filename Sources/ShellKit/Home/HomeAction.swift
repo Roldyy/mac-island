@@ -65,10 +65,11 @@ public enum HomeActionCatalog {
         return all.first { $0.id == mapped }
     }
 
-    /// The tiles of the home grid, in order; the mode decides how many rows show.
+    /// The tiles the user's grid starts with, in order. `HomeTileCatalog` appends every other feature after them.
     public static let tileIDs = [
         "mixer", "keepawake", "agents", "commands",
         "capture", "lockScreen", "cleaning", "monitor",
         "shelf", "clipboard", "terminal", "nowplaying",
+        "settings",
     ]
 }

@@ -17,22 +17,23 @@ private final class LevelBox: @unchecked Sendable {
         HomeModel(defaults: defaults, volume: volume, brightness: LevelBackend.unsupported("x"))
     }
 
-    @Test func compactIsOneRowSpaciousTwo() {
+    @Test func compactIsTwoRowsSpaciousThree() {
         let compact = HomeGeometry.homeBody(mode: .compact, customWidth: 440, customHeight: 480, band: band)
         let spacious = HomeGeometry.homeBody(mode: .spacious, customWidth: 440, customHeight: 480, band: band)
-        #expect(compact == CGSize(width: 440, height: 238))
-        #expect(spacious == CGSize(width: 532, height: 314))
+        #expect(compact == CGSize(width: 440, height: 290))
+        #expect(spacious == CGSize(width: 532, height: 354))
     }
 
     @Test func customRowsFollowTheMaximumHeight() {
         func rows(_ h: Double) -> Int { HomeGeometry.tileRows(for: .custom, customHeight: h, band: band) }
         #expect(rows(260) == 1)
-        #expect(rows(300) == 1)
-        #expect(rows(314) == 2)
-        #expect(rows(640) == 3)
+        #expect(rows(289) == 1)
+        #expect(rows(290) == 2)
+        #expect(rows(480) == 4)
+        #expect(rows(640) == 6)
         for h in stride(from: 260.0, through: 640.0, by: 10) {
             let body = HomeGeometry.homeBody(mode: .custom, customWidth: 440, customHeight: h, band: band)
-            #expect(body.height <= max(CGFloat(h), 238))
+            #expect(body.height <= CGFloat(h))
         }
     }
 
@@ -49,34 +50,36 @@ private final class LevelBox: @unchecked Sendable {
     }
 
     @Test func panelAddsRoomOnlyWhereButtonsExist() {
-        let body = CGSize(width: 532, height: 314)
-        #expect(HomeGeometry.panel(body: body, sideButtons: true, bottomButtons: true) == CGSize(width: 660, height: 376))
-        #expect(HomeGeometry.panel(body: body, sideButtons: false, bottomButtons: true) == CGSize(width: 532, height: 376))
+        let body = CGSize(width: 532, height: 354)
+        #expect(HomeGeometry.panel(body: body, sideButtons: true, bottomButtons: true) == CGSize(width: 660, height: 416))
+        #expect(HomeGeometry.panel(body: body, sideButtons: false, bottomButtons: true) == CGSize(width: 532, height: 416))
         #expect(HomeGeometry.panel(body: body, sideButtons: false, bottomButtons: false) == body)
     }
 
     @Test func exploreKeepsHomeWidthAndFitsRows() {
-        let home = CGSize(width: 532, height: 314)
-        let nine = HomeGeometry.exploreBody(home: home, itemCount: 9, band: band)
-        let thirteen = HomeGeometry.exploreBody(home: home, itemCount: 13, band: band)
-        #expect(nine.width == 532 && thirteen.width == 532)
-        #expect(thirteen.height - nine.height == HomeGeometry.exploreRow)
-        #expect(nine.height - HomeGeometry.exploreBody(home: home, itemCount: 0, band: band).height == HomeGeometry.exploreRow)
+        let home = CGSize(width: 532, height: 354)
+        func explore(_ count: Int) -> CGSize { HomeGeometry.exploreBody(home: home, itemCount: count, columns: 5, band: band) }
+        #expect(explore(9).width == 532 && explore(13).width == 532)
+        #expect(explore(11).height - explore(10).height == HomeGeometry.tileRow)  // 10 tiles = 2 rows, 11 = 3
+        #expect(explore(10).height - explore(0).height == HomeGeometry.tileRow)
+        // Four rows at most: more tiles scroll instead of growing the island.
+        #expect(explore(20) == explore(60))
+        #expect(explore(20).height - explore(0).height == 3 * HomeGeometry.tileRow)
     }
 
     @Test func modelMapsEachSizeModeToItsPanel() {
         let bench = TestDefaults.make()
         defer { bench.cleanup() }
         let m = model(bench.defaults)
-        #expect(m.sizeMode == IslandSizeMode.spacious && m.homeBody.height == 314)
+        #expect(m.sizeMode == IslandSizeMode.spacious && m.homeBody.height == 354)
         m.sizeMode = IslandSizeMode.compact
-        #expect(m.homeBody.height == 238)
+        #expect(m.homeBody.height == 290)
         m.sizeMode = IslandSizeMode.custom
         m.customWidth = 560
         m.customHeight = 640
-        #expect(m.homeBody == CGSize(width: 560, height: 390))
-        #expect(m.tileActions.count == 12)
-        #expect(m.panelSize(body: m.homeBody) == CGSize(width: 688, height: 452))
+        #expect(m.homeBody == CGSize(width: 560, height: 546))
+        #expect(m.tileColumns == 5 && m.tileRows(tileCount: 40) == 6)
+        #expect(m.panelSize(body: m.homeBody) == CGSize(width: 688, height: 608))
     }
 
     @Test func sizeAndLookPersistClamped() {

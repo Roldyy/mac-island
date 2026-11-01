@@ -47,13 +47,12 @@ import Testing
         #expect(model(bench.defaults).buttons.contains(actionID: "agents"))
     }
 
-    @Test func theClaudeTileShowsInTheSpaciousTwoRows() {
-        let bench = TestDefaults.make()
-        defer { bench.cleanup() }
-        let home = model(bench.defaults)
-        home.sizeMode = .spacious
-        #expect(home.tileActions.map(\.id).contains("agents"))
-        #expect(home.tileActions.count == 8)
+    @Test func theClaudeTileIsOneOfTheFirstRowsOfTheGrid() {
+        let actions = HomeActionCatalog.tileIDs.compactMap(HomeActionCatalog.action)
+        let features = ShellDescriptors.all.map { HomeFeature(id: $0.id, title: $0.title, systemImage: $0.systemImage) }
+        let tiles = HomeTileCatalog.merged(actions: actions, features: features, enabled: { _ in true }, hidden: [])
+        #expect(tiles.prefix(5).map(\.id).contains("agents"))
+        #expect(tiles.filter { $0.featureID == "agents" }.count == 1)
     }
 
     @Test func statusFollowsTheClaudeWing() {

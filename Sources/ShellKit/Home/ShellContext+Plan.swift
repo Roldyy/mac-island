@@ -3,7 +3,7 @@ import CoreGraphics
 /// What size the open island needs for the page it shows. Pure reads, so the app and the tests share it.
 @MainActor
 extension ShellContext {
-    /// Tab ids the Explorer lists: every feature panel, grouped ones first. A disabled one is shown dimmed.
+    /// Tab ids of every feature panel, grouped ones first (the Explorer's tiles are `tileItems(showHidden:)`).
     public var exploreTabIDs: [String] {
         ShellLayout.exploreTabIDs(available: tabs.map(\.id)) { _ in true }
     }
@@ -13,9 +13,11 @@ extension ShellContext {
         let band = home.bandHeight
         switch navigation.route {
         case .home:
-            return home.homeBody
+            return home.homeBody(tileCount: tileItems().count)
         case .explore:
-            return HomeGeometry.exploreBody(home: home.homeBody, itemCount: exploreTabIDs.count, band: band)
+            // The Explorer lists the same tiles as the home (hidden ones too) at the home's width and columns.
+            return HomeGeometry.exploreBody(home: home.homeBody, itemCount: tileItems(showHidden: true).count,
+                                            columns: home.tileColumns, band: band)
         case .page(let id):
             return HomeGeometry.pageBody(sectionHeight: ShellLayout.openHeight(forSection: id))
         }

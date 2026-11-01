@@ -99,4 +99,37 @@ public struct ShellContext {
         case .page(let tabID): navigation.open(tabID: tabID)
         }
     }
+
+    // MARK: - Home tiles
+
+    /// The tiles of the home grid (`showHidden: false`) or of the Explorer (`true`): one merged list, so the two
+    /// screens never diverge. Reads the registry and the hidden set, so a view that calls it follows both.
+    public func tileItems(showHidden: Bool = false) -> [HomeTileItem] {
+        HomeTileCatalog.merged(
+            actions: HomeActionCatalog.tileIDs.compactMap(HomeActionCatalog.action),
+            features: tabs.map { HomeFeature(id: $0.id, title: $0.title, systemImage: $0.systemImage) },
+            enabled: { registry.isEnabled($0) },
+            hidden: home.hiddenTiles, showHidden: showHidden)
+    }
+
+    /// A tile is tappable unless it is a quick action with no handler. A switched-off feature stays tappable:
+    /// the tap opens the Settings so it can be enabled.
+    public func isAvailable(_ item: HomeTileItem) -> Bool {
+        guard item.isEnabled, let action = item.action else { return true }
+        return isAvailable(action)
+    }
+
+    public func isOn(_ item: HomeTileItem) -> Bool {
+        guard item.isEnabled, let action = item.action else { return false }
+        return isOn(action)
+    }
+
+    /// Runs a tile: opens the feature's page, fires the quick action, or opens the Settings for a switched-off one.
+    public func perform(_ item: HomeTileItem) {
+        guard item.isEnabled else { openSettings(); return }
+        switch item.source {
+        case .action(let action): perform(action)
+        case .feature: navigation.open(tabID: item.id)
+        }
+    }
 }

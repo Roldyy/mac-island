@@ -141,6 +141,8 @@ struct HomeIslandContent: View {
             }
         }
         .disabled(home.buttons.firstFreeSide == nil)
+        Button(HomeTileMenu.showAllTitle, systemImage: "eye") { home.showAllTiles() }
+            .disabled(!HomeTileMenu.showAllEnabled(hidden: home.hiddenTiles))
         Divider()
         if let relaunch = context.relaunch {
             Button("Relancer Mac Island", systemImage: "arrow.clockwise") { relaunch() }
