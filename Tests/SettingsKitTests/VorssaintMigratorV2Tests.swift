@@ -78,7 +78,7 @@ private struct BenchV2 {
 
     @Test func featureAvailableBecomesShellEnabledOnlyWhenAbsent() throws {
         let b = try BenchV2(); defer { b.cleanup() }
-        b.defaults.set(false, forKey: "shell.enabled.mixer")
+        b.defaults.set(false, forKey: "shell.enabled.audio")
         let report = try b.migrator([
             "featureAvailable.mixer": true,
             "featureAvailable.switcher": true,
@@ -86,12 +86,13 @@ private struct BenchV2 {
             "featureAvailable.bad": "yes",
             "featureAvailable.": true,
         ]).runV2()
-        #expect(b.defaults.bool(forKey: "shell.enabled.mixer") == false, "the app's own switch wins")
+        #expect(b.defaults.bool(forKey: "shell.enabled.audio") == false, "the app's own switch wins (mixer maps to audio)")
+        #expect(b.defaults.object(forKey: "shell.enabled.mixer") == nil, "no upstream-named stray key")
         #expect(b.defaults.object(forKey: "shell.enabled.switcher") as? Bool == true)
         #expect(b.defaults.object(forKey: "shell.enabled.cleaner") as? Bool == false)
         #expect(b.defaults.object(forKey: "featureAvailable.switcher") == nil, "old key is not copied")
         #expect(report.mappedSwitches == ["shell.enabled.cleaner", "shell.enabled.switcher"])
-        #expect(report.alreadyPresentKeys == ["shell.enabled.mixer"])
+        #expect(report.alreadyPresentKeys == ["shell.enabled.audio"])
         #expect(report.typeMismatchKeys == ["featureAvailable.", "featureAvailable.bad"])
     }
 
