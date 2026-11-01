@@ -52,9 +52,35 @@ public enum AmbientMetrics {
         return min(textWidth(text), maxTextWidth)
     }
 
+    /// Width of the bar between a glyph and its value (the volume).
+    public static let barWidth: CGFloat = 34
+    /// Clear space between the center clock and each side group.
+    public static let centerGap: CGFloat = 10
+    /// The center clock is drawn at body size (13 pt) so it reads at a glance; its digits are 13/11 wider.
+    public static let centerScale: CGFloat = 13.0 / 11.0
+    /// Gap between the time and the date in the center slot.
+    public static let centerDetailGap: CGFloat = 8
+
     public static func elementWidth(_ item: AmbientIndicator, now: Date) -> CGFloat {
         let slot = textSlot(item, now: now)
-        return glyphSize + (slot > 0 ? iconGap + slot : 0)
+        var width: CGFloat = item.glyph == .none ? 0 : glyphSize
+        if item.bar != nil { width += (width > 0 ? iconGap : 0) + barWidth }
+        if slot > 0 { width += (width > 0 ? iconGap : 0) + slot }
+        return width
+    }
+
+    /// What the center clock reserves: the time at 13 pt, then the date when it is shown.
+    public static func centerWidth(_ item: AmbientIndicator?) -> CGFloat {
+        guard let item else { return 0 }
+        var width = textWidth(item.text ?? "") * centerScale + 2
+        if let detail = item.detail, !detail.isEmpty { width += centerDetailGap + textWidth(detail) }
+        return width.rounded(.up)
+    }
+
+    /// Most a side group may take next to the center clock before the pill reaches its widest.
+    public static func pillSideLimit(center: AmbientIndicator?) -> CGFloat {
+        let widest = NotchGeometry.pillWidth + 2 * (NotchGeometry.baseWing + NotchGeometry.maxWingExtent)
+        return max(0, (widest - centerWidth(center) - 2 * pillPadding) / 2 - centerGap)
     }
 
     public static func groupWidth(_ items: [AmbientIndicator], now: Date) -> CGFloat {
@@ -90,6 +116,13 @@ public enum AmbientMetrics {
     /// sit side by side in the middle of the pill (so most of the time it does not grow at all).
     public static func pillExtent(_ content: ClosedIslandContent, now: Date, pillWidth: CGFloat = NotchGeometry.pillWidth) -> CGFloat {
         let lead = groupWidth(content.leading, now: now), trail = groupWidth(content.trailing, now: now)
+        if let center = content.center {
+            // Three zones, symmetric around the clock: both sides reserve the wider side's room, so the clock
+            // stays exactly in the middle even when only one side has something to show.
+            let side = max(lead, trail)
+            let need = centerWidth(center) + (side > 0 ? 2 * (side + centerGap) : 0) + 2 * pillPadding
+            return clampExtent((need - (pillWidth + 2 * NotchGeometry.baseWing)) / 2)
+        }
         guard lead + trail > 0 else { return 0 }
         let need = lead + trail + (lead > 0 && trail > 0 ? groupGap : 0) + 2 * pillPadding
         let base = pillWidth + 2 * NotchGeometry.baseWing

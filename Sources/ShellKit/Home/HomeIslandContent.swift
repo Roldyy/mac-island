@@ -55,6 +55,7 @@ struct HomeIslandContent: View {
             }
         }
         .clipShape(shape)
+        .overlay { outline }
     }
 
     private var shape: UnevenRoundedRectangle {
@@ -74,9 +75,15 @@ struct HomeIslandContent: View {
             } else {
                 shape.fill(IslandSurface.notchBlack)
             }
-            if home.showsOutline {
-                shape.strokeBorder(IslandPalette.textPrimary.color.opacity(0.28), lineWidth: 1)
-            }
+        }
+    }
+
+    /// Drawn ABOVE the page, not in the background: the fade at the foot of the scrolling tile grid is opaque black
+    /// and, painted over a background stroke, hid the bottom edge of the outline.
+    @ViewBuilder private var outline: some View {
+        if home.showsOutline {
+            shape.strokeBorder(IslandPalette.textPrimary.color.opacity(0.28), lineWidth: 1)
+                .allowsHitTesting(false)
         }
     }
 

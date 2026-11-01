@@ -2,6 +2,19 @@ import Combine
 import Foundation
 import IslandUI
 
+/// Which samplers should run: the strip must be on screen, then each channel the user switched on.
+public struct AmbientDemand: Equatable, Sendable {
+    public var visible: Bool
+    public var settings: ClosedIslandSettings
+
+    public init(visible: Bool, settings: ClosedIslandSettings) {
+        self.visible = visible
+        self.settings = settings
+    }
+
+    public func wants(_ channel: String) -> Bool { visible && settings.isEnabled(channel) }
+}
+
 /// Gathers every indicator of the closed island, applies the user's settings and the rotation, and publishes
 /// what each wing shows. Sources that are not activities (battery, keep awake) post here; the activity
 /// engine's winners (Claude, limits, music, alerts) come in through `AmbientBridge`.
@@ -35,6 +48,8 @@ public final class AmbientCenter: ObservableObject {
     private var rotation: Task<Void, Never>?
     private var clockWake: Task<Void, Never>?
     private var subscriptions: Set<AnyCancellable> = []
+    private var demandObservers: [@MainActor (AmbientDemand) -> Void] = []
+    private var lastDemand: AmbientDemand?
     private let sleep: @Sendable (Duration) async throws -> Void
     private let now: @Sendable () -> Date
 
@@ -57,6 +72,7 @@ public final class AmbientCenter: ObservableObject {
             MainActor.assumeIsolated {
                 self?.settings = settings
                 self?.recompute()
+                self?.publishDemand()
             }
         }.store(in: &subscriptions)
     }
@@ -88,6 +104,27 @@ public final class AmbientCenter: ObservableObject {
         guard on != visible else { return }
         visible = on
         scheduleRotation()
+        publishDemand()
+    }
+
+    // MARK: - Demand
+
+    /// What the samplers are asked for right now: nothing unless the closed strip is on screen, and only the
+    /// channels the user switched on. Samplers start and stop from this; the center itself does no sampling.
+    public var demand: AmbientDemand { AmbientDemand(visible: visible, settings: settings) }
+
+    /// Called now with the current demand, then on every change of it (not on every repost).
+    public func observeDemand(_ observer: @escaping @MainActor (AmbientDemand) -> Void) {
+        demandObservers.append(observer)
+        lastDemand = demand
+        observer(demand)
+    }
+
+    private func publishDemand() {
+        let now = demand
+        guard now != lastDemand else { return }
+        lastDemand = now
+        for observer in demandObservers { observer(now) }
     }
 
     private func activityChanged(_ new: ActivityLayout) {
@@ -100,7 +137,7 @@ public final class AmbientCenter: ObservableObject {
 
     private func recompute() {
         let date = now()
-        var resolved = ClosedIslandLayout.resolve(Array(posted.values) + bridged, settings: settings, step: step)
+        var resolved = ClosedIslandLayout.resolve(Array(posted.values) + bridged, settings: settings, step: step, centered: !isNotched)
         step = resolved.step
         if isNotched {
             // Each wing is baseWing + extent wide; what does not fit loses its text, then its last element.
@@ -108,6 +145,11 @@ public final class AmbientCenter: ObservableObject {
             let width = NotchGeometry.baseWing + extent
             resolved.leading = AmbientMetrics.fitted(resolved.leading, width: width, now: date)
             resolved.trailing = AmbientMetrics.fitted(resolved.trailing, width: width, now: date)
+        } else if resolved.center != nil {
+            // Beside the center clock each side has the same room, up to what the widest pill leaves.
+            let room = AmbientMetrics.pillSideLimit(center: resolved.center) + 2 * AmbientMetrics.wingPadding
+            resolved.leading = AmbientMetrics.fitted(resolved.leading, width: room, now: date)
+            resolved.trailing = AmbientMetrics.fitted(resolved.trailing, width: room, now: date)
         }
         resolved.dot = layout.dot
         if resolved != content { content = resolved }

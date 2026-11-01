@@ -8,6 +8,8 @@ public enum ClosedIslandKeys {
     public static let order = "notchIdleOrder"
     public static let rotates = "notchIdleRotates"
     public static let perWing = "notchIdlePerWing"
+    /// 0 follows the system, 12 or 24 forces the hour cycle of the clock.
+    public static let clockHours = "notchIdleClockHours"
     /// Set once the older value has been carried over.
     public static let migrated = "notchIdleIndicatorsMigrated"
 
@@ -22,7 +24,14 @@ public enum ClosedIslandKeys {
         }
     }
 
-    public static let all = [legacyContent, order, rotates, perWing, migrated] + AmbientChannel.userChoices.map(show)
+    public static let all = [legacyContent, order, rotates, perWing, clockHours, migrated] + AmbientChannel.userChoices.map(show)
+}
+
+/// Hour cycle of the clock: the system's (from the locale) unless the user forces one.
+public enum ClockHours: Int, Equatable, Sendable {
+    case system = 0
+    case h12 = 12
+    case h24 = 24
 }
 
 /// What the user chose for the closed island: which indicators, in which order, whether they rotate and
@@ -36,13 +45,16 @@ public struct ClosedIslandSettings: Equatable, Sendable {
     public var order: [String]
     public var rotates: Bool
     public var maxPerWing: Int
+    public var clockHours: ClockHours
 
-    public init(enabled: Set<String> = Set(AmbientChannel.userChoices), order: [String] = AmbientChannel.userChoices,
-                rotates: Bool = ClosedIslandSettings.defaultRotates, maxPerWing: Int = ClosedIslandSettings.defaultPerWing) {
+    public init(enabled: Set<String> = AmbientChannel.defaultOn, order: [String] = AmbientChannel.userChoices,
+                rotates: Bool = ClosedIslandSettings.defaultRotates, maxPerWing: Int = ClosedIslandSettings.defaultPerWing,
+                clockHours: ClockHours = .system) {
         self.enabled = enabled
         self.order = order
         self.rotates = rotates
         self.maxPerWing = min(max(maxPerWing, Self.perWingRange.lowerBound), Self.perWingRange.upperBound)
+        self.clockHours = clockHours
     }
 
     public static let standard = ClosedIslandSettings()
@@ -74,16 +86,18 @@ public struct ClosedIslandSettings: Equatable, Sendable {
     /// battery, keep awake) go off, the live ones (Claude, music) stay because the old build showed them too.
     public static func migrated(legacyContent: String?) -> ClosedIslandSettings {
         let live: Set<String> = [AmbientChannel.claude, AmbientChannel.music]
+        // The indicators this build added are on by default unless the old choice was "nothing at rest".
+        let added: Set<String> = [AmbientChannel.clock, AmbientChannel.system, AmbientChannel.network]
         switch legacyContent {
         case "none":
             return ClosedIslandSettings(enabled: live)
         case "battery":
             return ClosedIslandSettings(
-                enabled: live.union([AmbientChannel.battery, AmbientChannel.keepAwake]),
+                enabled: live.union([AmbientChannel.battery, AmbientChannel.keepAwake]).union(added),
                 order: [AmbientChannel.battery, AmbientChannel.claude, AmbientChannel.music, AmbientChannel.keepAwake, AmbientChannel.limits])
         case "music":
             return ClosedIslandSettings(
-                enabled: live.union([AmbientChannel.keepAwake]),
+                enabled: live.union([AmbientChannel.keepAwake]).union(added),
                 order: [AmbientChannel.music, AmbientChannel.claude, AmbientChannel.keepAwake, AmbientChannel.limits, AmbientChannel.battery])
         default:  // "agents", nil, anything else
             return .standard
@@ -109,12 +123,15 @@ public struct ClosedIslandSettings: Equatable, Sendable {
         var enabled = Set<String>()
         for channel in AmbientChannel.userChoices {
             let key = ClosedIslandKeys.show(channel)
-            if defaults.object(forKey: key) == nil || defaults.bool(forKey: key) { enabled.insert(channel) }
+            // A key never written (a channel this build added) takes the channel's default; a stored choice wins.
+            let isOn = defaults.object(forKey: key) == nil ? AmbientChannel.defaultOn.contains(channel) : defaults.bool(forKey: key)
+            if isOn { enabled.insert(channel) }
         }
         let order = (defaults.array(forKey: ClosedIslandKeys.order) as? [String]) ?? AmbientChannel.userChoices
         let rotates = defaults.object(forKey: ClosedIslandKeys.rotates) as? Bool ?? defaultRotates
         let perWing = defaults.object(forKey: ClosedIslandKeys.perWing) as? Int ?? defaultPerWing
-        return ClosedIslandSettings(enabled: enabled, order: order, rotates: rotates, maxPerWing: perWing)
+        let hours = (defaults.object(forKey: ClosedIslandKeys.clockHours) as? Int).flatMap(ClockHours.init(rawValue:)) ?? .system
+        return ClosedIslandSettings(enabled: enabled, order: order, rotates: rotates, maxPerWing: perWing, clockHours: hours)
     }
 
     public func write(to defaults: UserDefaults) {
@@ -124,6 +141,7 @@ public struct ClosedIslandSettings: Equatable, Sendable {
         defaults.set(order, forKey: ClosedIslandKeys.order)
         defaults.set(rotates, forKey: ClosedIslandKeys.rotates)
         defaults.set(maxPerWing, forKey: ClosedIslandKeys.perWing)
+        defaults.set(clockHours.rawValue, forKey: ClosedIslandKeys.clockHours)
     }
 }
 
@@ -160,7 +178,13 @@ public final class ClosedIslandPreferences: ObservableObject {
         if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 
+    /// True while `commit` writes its keys. `didChangeNotification` is delivered inline when the write happens on
+    /// the main thread, so a reload in the middle of the write would read a half-written state and publish it:
+    /// every Settings toggle would flash an intermediate state, and the samplers would start and stop for it.
+    private var isWriting = false
+
     public func reload() {
+        guard !isWriting else { return }
         let fresh = ClosedIslandSettings.read(from: defaults)
         if fresh != settings { settings = fresh }
     }
@@ -205,8 +229,16 @@ public final class ClosedIslandPreferences: ObservableObject {
         commit(next)
     }
 
+    public func setClockHours(_ hours: ClockHours) {
+        var next = settings
+        next.clockHours = hours
+        commit(next)
+    }
+
     private func commit(_ next: ClosedIslandSettings) {
         guard next != settings else { return }
+        isWriting = true
+        defer { isWriting = false }
         settings = next
         next.write(to: defaults)
     }

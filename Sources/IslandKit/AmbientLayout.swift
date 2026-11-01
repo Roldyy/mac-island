@@ -11,19 +11,23 @@ public struct ClosedIslandContent: Equatable, Sendable {
     public var pageCount: Int
     /// The page shown, `0..<pageCount`.
     public var step: Int
+    /// The clock in the fixed center slot of a pill without a notch (nil with a hardware notch, where the clock
+    /// is the first item of the leading wing, and nil while the clock is off). Never rotates.
+    public var center: AmbientIndicator?
 
     public static let empty = ClosedIslandContent(leading: [], trailing: [], dot: nil, pageCount: 1, step: 0)
 
     public init(leading: [AmbientIndicator], trailing: [AmbientIndicator], dot: IslandStatus? = nil,
-                pageCount: Int = 1, step: Int = 0) {
+                pageCount: Int = 1, step: Int = 0, center: AmbientIndicator? = nil) {
         self.leading = leading
         self.trailing = trailing
         self.dot = dot
         self.pageCount = max(pageCount, 1)
         self.step = step
+        self.center = center
     }
 
-    public var isEmpty: Bool { leading.isEmpty && trailing.isEmpty && dot == nil }
+    public var isEmpty: Bool { leading.isEmpty && trailing.isEmpty && dot == nil && center == nil }
     public var all: [AmbientIndicator] { leading + trailing }
     public var isRotating: Bool { pageCount > 1 }
     /// The step after this one; 0 when nothing rotates.
@@ -45,15 +49,25 @@ public enum ClosedIslandLayout {
         return a.id < b.id
     }
 
-    public static func resolve(_ indicators: [AmbientIndicator], settings: ClosedIslandSettings, step: Int = 0) -> ClosedIslandContent {
+    /// `centered`: a screen without a notch. The clock then takes the fixed center slot and the wings keep their
+    /// full room; with a notch the clock is the first item of the leading wing and counts against its room.
+    public static func resolve(_ indicators: [AmbientIndicator], settings: ClosedIslandSettings, step: Int = 0,
+                               centered: Bool = false) -> ClosedIslandContent {
         let perWing = min(max(settings.maxPerWing, ClosedIslandSettings.perWingRange.lowerBound), ClosedIslandSettings.perWingRange.upperBound)
         var seen = Set<String>()
-        let ranked = indicators
+        var ranked = indicators
             .filter { settings.isEnabled($0.channel) }
             .sorted { rank($0, $1, settings: settings) }
             .filter { seen.insert($0.id).inserted }
+        let clock = ranked.first { $0.channel == AmbientChannel.clock }
+        ranked.removeAll { $0.channel == AmbientChannel.clock }
 
         var pinned: (leading: [AmbientIndicator], trailing: [AmbientIndicator]) = ([], [])
+        if let clock, !centered {
+            var first = clock
+            first.detail = nil
+            pinned.leading.append(first)
+        }
         for item in ranked where item.isPinned {
             switch target(for: item, leading: pinned.leading.count, trailing: pinned.trailing.count, room: perWing) {
             case .leading: pinned.leading.append(item)
@@ -80,10 +94,15 @@ public enum ClosedIslandLayout {
         let pages = settings.rotates ? max(leadPages, trailPages, 1) : 1
         let current = pages > 1 ? ((step % pages) + pages) % pages : 0
 
-        return ClosedIslandContent(
-            leading: pinned.leading + page(flowing.leading, room: leadRoom, pages: leadPages, step: settings.rotates ? current : 0),
-            trailing: pinned.trailing + page(flowing.trailing, room: trailRoom, pages: trailPages, step: settings.rotates ? current : 0),
-            pageCount: pages, step: current)
+        let leading = pinned.leading + page(flowing.leading, room: leadRoom, pages: leadPages, step: settings.rotates ? current : 0)
+        let trailing = pinned.trailing + page(flowing.trailing, room: trailRoom, pages: trailPages, step: settings.rotates ? current : 0)
+        var center: AmbientIndicator?
+        if centered, var shown = clock {
+            // The date only shows while the wings are empty: that is when the pill has room for it.
+            if !leading.isEmpty || !trailing.isEmpty { shown.detail = nil }
+            center = shown
+        }
+        return ClosedIslandContent(leading: leading, trailing: trailing, pageCount: pages, step: current, center: center)
     }
 
     /// The wing an item goes to: its preference when there is room, else the other one, else nowhere.

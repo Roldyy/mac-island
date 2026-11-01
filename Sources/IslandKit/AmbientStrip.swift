@@ -57,7 +57,29 @@ public struct AmbientStrip: View {
         }
     }
 
+    @ViewBuilder
     private var pill: some View {
+        if let center = content.center { centeredPill(center) } else { plainPill }
+    }
+
+    /// Three zones. Both sides get the same width, so the clock sits exactly in the middle of the pill even when
+    /// only one side has something to show; the groups hug the clock.
+    private func centeredPill(_ center: AmbientIndicator) -> some View {
+        let middle = AmbientMetrics.centerWidth(center)
+        let side = max(0, (size.width - middle) / 2)
+        return HStack(spacing: 0) {
+            group(content.leading)
+                .padding(.trailing, AmbientMetrics.centerGap)
+                .frame(width: side, alignment: .trailing)
+            AmbientCenterClock(item: center)
+                .frame(width: middle)
+            group(content.trailing)
+                .padding(.leading, AmbientMetrics.centerGap)
+                .frame(width: side, alignment: .leading)
+        }
+    }
+
+    private var plainPill: some View {
         HStack(spacing: 0) {
             group(content.leading)
             if !content.leading.isEmpty, !content.trailing.isEmpty {

@@ -43,6 +43,8 @@ struct AmbientGlyphView: View {
     @ViewBuilder
     private var inner: some View {
         switch item.glyph {
+        case .none:
+            EmptyView()
         case .equalizer:
             AmbientEqualizer(color: item.status.color)
                 .scaleEffect(isRinged ? 0.85 : 1)

@@ -15,9 +15,22 @@ public enum AmbientChannel {
     public static let battery = "battery"
     public static let keepAwake = "keepawake"
     public static let alert = "alert"
+    /// The time: the fixed center of the pill on a screen without a notch, the first item of the left wing with one.
+    public static let clock = "clock"
+    /// Processor load and memory in use.
+    public static let system = "system"
+    public static let network = "network"
+    public static let disk = "disk"
+    public static let mic = "mic"
+    public static let camera = "camera"
+    /// A bar and a percentage for a second when the system volume changes.
+    public static let volume = "volume"
 
     /// Default order of the user-facing channels.
-    public static let userChoices = [limits, claude, music, battery, keepAwake]
+    public static let userChoices = [limits, claude, music, battery, keepAwake, clock, system, network, disk, mic, camera, volume]
+
+    /// On out of the box. The rest is opt-in so the pill is not cluttered.
+    public static let defaultOn: Set<String> = [limits, claude, music, battery, keepAwake, clock, system, network]
 
     public static func title(_ channel: String) -> String {
         switch channel {
@@ -26,6 +39,13 @@ public enum AmbientChannel {
         case music: "Lecture en cours"
         case battery: "Batterie"
         case keepAwake: "Maintien d’éveil"
+        case clock: "Heure au centre"
+        case system: "Processeur et mémoire"
+        case network: "Réseau"
+        case disk: "Espace disque"
+        case mic: "Micro actif"
+        case camera: "Caméra active"
+        case volume: "Volume"
         default: "Alertes"
         }
     }
@@ -37,6 +57,13 @@ public enum AmbientChannel {
         case music: "Un égaliseur et le titre pendant la lecture."
         case battery: "Le niveau, la charge et une alerte sous 20 %."
         case keepAwake: "Une tasse quand le Mac est maintenu éveillé."
+        case clock: "L’heure au centre de l’île, et la date quand il y a de la place. Avec une encoche, l’heure ouvre l’aile gauche."
+        case system: "La charge du processeur et la mémoire utilisée, avec un point de couleur pour la pression mémoire."
+        case network: "Le débit descendant et montant, le type de connexion et un repère quand un VPN est actif."
+        case disk: "L’espace libre sur le disque de démarrage."
+        case mic: "Un point orange tant qu’une application utilise le micro."
+        case camera: "Un point vert tant qu’une application utilise la caméra."
+        case volume: "Une barre et le pourcentage pendant une seconde et demie quand le volume change."
         default: "Toujours affichées."
         }
     }
@@ -48,6 +75,8 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         case symbol
         /// Three animated bars instead of a symbol (music).
         case equalizer
+        /// No glyph at all: the value stands alone (the clock).
+        case none
     }
 
     public let id: String
@@ -69,11 +98,16 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
     public var clockSince: Date?
     /// Spoken by VoiceOver when the visible text is not enough.
     public var label: String?
+    /// A second, quieter text after `text` (the short date next to the time). Only the pill's center shows it.
+    public var detail: String?
+    /// 0...1 draws a thin bar between the glyph and the text (the volume).
+    public var bar: Double?
 
     public init(id: String, channel: String? = nil, symbol: String, text: String? = nil,
                 status: IslandStatus = .neutral, progress: Double? = nil,
                 priority: ActivityPriority = .ambient, isUrgent: Bool = false, wing: AmbientWing? = nil,
-                glyph: Glyph = .symbol, isBusy: Bool = false, clockSince: Date? = nil, label: String? = nil) {
+                glyph: Glyph = .symbol, isBusy: Bool = false, clockSince: Date? = nil, label: String? = nil,
+                detail: String? = nil, bar: Double? = nil) {
         self.id = id
         self.channel = channel ?? id
         self.symbol = symbol
@@ -87,6 +121,8 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         self.isBusy = isBusy
         self.clockSince = clockSince
         self.label = label
+        self.detail = detail
+        self.bar = bar
     }
 
     /// Urgent and live items (an alert, Claude working or waiting) stay put: rotation only moves the rest.
@@ -98,6 +134,7 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         if let label, !label.isEmpty { parts.append(label) }
         let shown = clock ?? text
         if let shown, !shown.isEmpty, shown != label { parts.append(shown) }
+        if let detail, !detail.isEmpty { parts.append(detail) }
         if let word = CompactStrip.statusWord(status), !(label?.contains(word) ?? false) { parts.append(word) }
         if let progress, !(shown?.contains("%") ?? false) { parts.append("\(Int((CompactStrip.clampedProgress(progress) * 100).rounded())) %") }
         return parts.isEmpty ? "Indicateur de l’île" : parts.joined(separator: ", ")

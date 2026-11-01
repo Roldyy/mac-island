@@ -17,10 +17,13 @@ import Testing
 
     // MARK: Migration of notchIdleContent
 
-    @Test func noOldValueIsAFreshStartWithEverythingOn() {
+    @Test func noOldValueIsAFreshStartWithTheDefaultChannelsOn() {
         let s = ClosedIslandSettings.migrated(legacyContent: nil)
         #expect(s == .standard)
-        #expect(s.enabled == Set(AmbientChannel.userChoices))
+        // Everything but the opt-in indicators (disk, mic, camera, volume).
+        #expect(s.enabled == AmbientChannel.defaultOn)
+        #expect(s.enabled.isSuperset(of: [AmbientChannel.limits, AmbientChannel.claude, AmbientChannel.music,
+                                          AmbientChannel.battery, AmbientChannel.keepAwake]))
     }
 
     @Test func agentsKeepsTheLimitsAndAddsTheNewIndicators() {
@@ -102,7 +105,9 @@ import Testing
     @Test func orderedChannelsAreCompleteWithoutDuplicatesWhateverIsStored() {
         let s = ClosedIslandSettings(order: ["ghost", AmbientChannel.music, AmbientChannel.music, AmbientChannel.battery])
         #expect(s.orderedChannels == [AmbientChannel.music, AmbientChannel.battery, AmbientChannel.limits,
-                                      AmbientChannel.claude, AmbientChannel.keepAwake])
+                                      AmbientChannel.claude, AmbientChannel.keepAwake, AmbientChannel.clock, AmbientChannel.system,
+                                      AmbientChannel.network, AmbientChannel.disk, AmbientChannel.mic, AmbientChannel.camera,
+                                      AmbientChannel.volume])
     }
 
     // MARK: Preferences (the Settings-side binding)

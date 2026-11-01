@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// battery and keep awake post here directly.
     private let ambient = AmbientCenter.shared
     private var battery: BatterySource?
+    private var samplerHub: AmbientSamplerHub?
     private var screenObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -192,6 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let battery = BatterySource(center: ambient)
         battery.start()
         self.battery = battery
+        // Clock, system, network, disk, mic, camera, volume: each runs only while its channel is on and the closed
+        // strip is on screen (the hub starts and stops them from the center's demand).
+        let hub = AmbientSamplerHub(center: ambient, samplers: AmbientSamplers.standard(center: ambient))
+        hub.start()
+        samplerHub = hub
         observeKeepAwake()
         observeClaude(live)
     }

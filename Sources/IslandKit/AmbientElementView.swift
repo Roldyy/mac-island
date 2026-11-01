@@ -11,7 +11,8 @@ struct AmbientElementView: View {
 
     var body: some View {
         HStack(spacing: AmbientMetrics.iconGap) {
-            AmbientGlyphView(item: item)
+            if item.glyph != .none { AmbientGlyphView(item: item) }
+            if let bar = item.bar { AmbientBar(fill: bar, color: item.status.color) }
             value
         }
         .fixedSize()
