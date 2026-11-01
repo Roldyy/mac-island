@@ -82,7 +82,6 @@ public enum SettingsLive {
                 flag("notchKeepAwakeActivity", true, title: "Rester éveillé tant que l’île est utilisée",
                      hint: "Ouvrir ou utiliser l’île retarde la veille."),
             ]),
-        "displays": Page(bound: ["Contrôler les écrans": flag("brightnessControlEnabled", true)]),
         "dockpreview": Page(bound: [
             "Prévisualiser les fenêtres dans le Dock": flag("dockPreviewEnabled", false),
             "Délai d’ouverture": C("dockPreviewDelayMilliseconds", .stepper(range: 100...2000, defaultValue: 400, unit: "ms")),

@@ -1,25 +1,20 @@
 import IslandKit
 import SwiftUI
 
+/// The "Écran" tab and its registry feature `display`: auto-quit of idle apps. Brightness (built-in, external over
+/// DDC, keyboard light) is the ported feature `brightness` (`PortKit/Bridge/DisplayBrightness.swift`), with its
+/// own switch and Settings pages; the key `brightnessControlEnabled` is the same one it reads.
 public enum DisplayFeature {
-    /// Created on first use only, so building the tab list touches no display and no process.
-    @MainActor static let brightness: BrightnessModel = {
-        var settings = DisplaySettings()
-        return BrightnessModel(backend: DisplayServicesBackend(),
-                               controlEnabled: settings.brightnessControlEnabled,
-                               persistEnabled: { settings.brightnessControlEnabled = $0 })
-    }()
     @MainActor static let autoQuit = AutoQuitModel()
 
     @MainActor public static func tab() -> IslandTab {
         IslandTab(id: "display", title: "Écran", systemImage: "sun.max") {
-            AnyView(DisplayView(brightness: brightness, autoQuit: autoQuit))
+            AnyView(DisplayView(autoQuit: autoQuit))
         }
     }
 
     /// Start the auto-quit scan loop. Idempotent.
     @MainActor public static func start() {
-        brightness.refresh()
         autoQuit.start()
     }
 

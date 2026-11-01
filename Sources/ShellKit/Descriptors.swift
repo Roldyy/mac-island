@@ -31,7 +31,7 @@ public enum ShellDescriptors {
         .init(id: "dock", title: "Dock", summary: "Aperçus de fenêtres et actions au clic sur le Dock.",
               systemImage: "dock.rectangle", category: .windows, permissions: [.accessibility, .screenRecording],
               risk: .touchesInput, tabID: "dock"),
-        .init(id: "display", title: "Écran", summary: "Luminosité, fermeture automatique des apps inactives.",
+        .init(id: "display", title: "Écran", summary: "Fermeture automatique des apps inactives.",
               systemImage: "sun.max", category: .display, permissions: [.accessibility],
               risk: .touchesSystem, tabID: "display"),
     ]

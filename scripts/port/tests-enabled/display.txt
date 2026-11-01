@@ -1,0 +1,8 @@
+# Upstream harness files (Tests/PortHarness) that lane W2-A (display, brightness, keyboard light) turns on. One file name per line, no extension.
+# The runner (scripts/port/test.sh) reads this list; names are the upstream Tests/*.swift files.
+# FeatureCatalogTests (the 586 shared checks) pins BrightnessSupport.softwareDimFactor(0) == 0: patch 0400 puts the
+# floor one level above it (BrightnessSupport.safeSoftwareDimLevel), so that contract stays true.
+BrightnessKeyRoutingTests
+BrightnessStepTests
+DisplayRestorationTests
+SoftwareDimmingRouteTests

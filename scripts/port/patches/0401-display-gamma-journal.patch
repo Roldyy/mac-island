@@ -1,0 +1,30 @@
+--- a/Services/Display/BrightnessService.swift
++++ b/Services/Display/BrightnessService.swift
+@@ -1093,6 +1093,7 @@
+         }
+         gammaBaselines = [:]
+         dimmedDisplays = []
++        DisplayGammaJournal.note(dimmed: false)
+     }
+
+     // MARK: - Displays switched off by this app
+@@ -2458,13 +2459,18 @@
+         if value >= 0.999 {
+             let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
+                                                        baseline.green, baseline.blue) == .success
+-            if restored { dimmedDisplays.remove(id) }
++            if restored {
++                dimmedDisplays.remove(id)
++                if dimmedDisplays.isEmpty { DisplayGammaJournal.note(dimmed: false) }
++            }
+             return restored
+         }
+         let factor = BrightnessSupport.softwareDimFactor(for: value)
+         let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
+         let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
+         let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
++        // Mac Island: written down before the curve is, so a run that dies dimmed is cleaned up at the next launch.
++        DisplayGammaJournal.note(dimmed: true)
+         let applied = CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
+         if applied { dimmedDisplays.insert(id) }
+         return applied

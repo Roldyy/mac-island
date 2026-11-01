@@ -2,12 +2,11 @@ import IslandKit
 import Foundation
 
 /// Reads and writes the preference keys of the Display lane in the app's defaults suite.
-/// Migrated from the old app (names kept): `brightnessControlEnabled`, `autoQuitEnabled`.
-/// The old domain holds no auto-quit delay, no exclusion list and no brightness shortcut, so the
-/// three keys below are new and carry safe defaults.
+/// Migrated from the old app (name kept): `autoQuitEnabled`. (`brightnessControlEnabled` is read by the ported
+/// brightness feature now.) The old domain holds no auto-quit delay and no exclusion list, so the three keys
+/// below are new and carry safe defaults.
 struct DisplaySettings {
     static let suiteName = "be.roldy.macisland"
-    static let brightnessEnabledKey = "brightnessControlEnabled"
     static let autoQuitEnabledKey = "autoQuitEnabled"
     /// New key: minutes without a visible window before an app is announced for quitting.
     static let delayKey = "autoQuitDelayMinutes"
@@ -23,11 +22,6 @@ struct DisplaySettings {
 
     init(defaults: UserDefaults = AppDefaults.make() ?? .standard) {
         self.defaults = defaults
-    }
-
-    var brightnessControlEnabled: Bool {
-        get { (defaults.object(forKey: Self.brightnessEnabledKey) as? Bool) ?? true }
-        set { defaults.set(newValue, forKey: Self.brightnessEnabledKey) }
     }
 
     /// Absent means off: a fresh install never quits anything on its own.

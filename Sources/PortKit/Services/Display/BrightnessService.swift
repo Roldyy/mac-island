@@ -83,6 +83,8 @@ final class BrightnessService: ObservableObject {
     /// the panel (issue #1589).
     @Published private(set) var softwareDimmingPreferred = Set<CGDirectDisplayID>()
     @Published private(set) var extendedDimmingPreferred = Set<CGDirectDisplayID>()
+    /// Mac Island: what the last rebuild concluded about each display's DDC channel (see `DDCReports`).
+    @Published private(set) var ddcReports: [CGDirectDisplayID: DDCReport] = [:]
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
     @Published private(set) var keyboardLightEnabled: Bool?
@@ -591,6 +593,7 @@ final class BrightnessService: ObservableObject {
         brightnessOSDSupported = false
         BrightnessOSD.teardown()
         if !displays.isEmpty { displays = [] }
+        if !ddcReports.isEmpty { ddcReports = [:] }
         if !drawableDisplays.isEmpty { drawableDisplays = [] }
         // Queue on the work queue first so this lands AFTER any operation
         // already in flight, then hand the reconfigurations to the main
@@ -1093,6 +1096,7 @@ final class BrightnessService: ObservableObject {
         }
         gammaBaselines = [:]
         dimmedDisplays = []
+        DisplayGammaJournal.note(dimmed: false)
     }
 
     // MARK: - Displays switched off by this app
@@ -1935,6 +1939,7 @@ final class BrightnessService: ObservableObject {
         let activeTopology = topology.active
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
+        var reports: [CGDirectDisplayID: DDCReport] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         var virtualIDs = Set<CGDirectDisplayID>()
 
@@ -1989,6 +1994,7 @@ final class BrightnessService: ObservableObject {
                                                method: .system, isActive: true,
                                                brightness: trusted, readable: !asleep))
                 newRoutes[id] = Route(method: .system, service: nil, maximum: 100)
+                reports[id] = DDCReports.report(.systemRoute)
                 if !asleep {
                     stateLock.lock()
                     levelKnownAt[id] = Date()
@@ -2061,6 +2067,11 @@ final class BrightnessService: ObservableObject {
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
+        if !ddcCandidates.isEmpty, !BrightnessBridge.ddcAvailable {
+            for candidate in ddcCandidates {
+                reports[built[candidate.index].id] = DDCReports.report(.symbolsMissing)
+            }
+        }
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
             var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
@@ -2080,6 +2091,7 @@ final class BrightnessService: ObservableObject {
             for candidate in ddcCandidates {
                 guard let ordinal = assignment[candidate.index],
                       let matched = services.first(where: { $0.identity.ordinal == ordinal }) else {
+                    reports[built[candidate.index].id] = DDCReports.report(.noChannel)
                     continue
                 }
                 let id = built[candidate.index].id
@@ -2095,6 +2107,7 @@ final class BrightnessService: ObservableObject {
                     // probe on a channel whose answer was already rejected.
                     forcedSoftwareIDs.insert(id)
                     softwarePathKeys[id] = pathKey
+                    reports[id] = DDCReports.report(.forcedSoftware(pathKey: pathKey))
                     continue
                 }
                 let rememberedWriteOnly = !BrightnessSupport.shouldProbeDDC(
@@ -2108,6 +2121,16 @@ final class BrightnessService: ObservableObject {
                                               classifyingChannel: true)
                     Self.log.log("ddc probe display \(id): \(String(describing: probe), privacy: .public)")
                 }
+                // Mac Island: the verdict the Settings page shows, and the gate on DDC writes. A value goes out over
+                // DDC only after a read answered, or for a monitor the person chose to trust.
+                let outcome: DDCProbeOutcome
+                switch probe {
+                case .replied: outcome = .replied
+                case .writeOnly: outcome = .writeOnly
+                case .dead: outcome = .dead
+                }
+                let trusted = pathKey.map { trustedUnconfirmedDDCPaths().contains($0) } ?? false
+                reports[id] = DDCReports.report(.probed(outcome, pathKey: pathKey, trusted: trusted))
                 switch probe {
                 case .replied(let current, let maximum):
                     forgetWriteOnlyDDCPath(pathKey)
@@ -2150,6 +2173,13 @@ final class BrightnessService: ObservableObject {
                     stateLock.unlock()
                     softwareIndices.remove(candidate.index)
                 case .writeOnly:
+                    guard DDCReports.allowsDDC(outcome: .writeOnly, trusted: trusted) else {
+                        // Unconfirmed: nothing proves the monitor applies what it accepts, so the picture is dimmed
+                        // in software (below) until the person chooses DDC for this connection.
+                        rememberWriteOnlyDDCPath(pathKey)
+                        if let pathKey { softwarePathKeys[id] = pathKey }
+                        break
+                    }
                     if let pathKey, extendedDimmingPaths().contains(pathKey) {
                         extendedDimmingIDs.insert(id)
                     }
@@ -2290,6 +2320,7 @@ final class BrightnessService: ObservableObject {
             if self.extendedDimmingPreferred != extendedDimmingIDs {
                 self.extendedDimmingPreferred = extendedDimmingIDs
             }
+            if self.ddcReports != reports { self.ddcReports = reports }
             if self.drawableDisplays != drawableIDs { self.drawableDisplays = drawableIDs }
             if self.brightnessOSDSupported != supportsBrightnessOSD {
                 self.brightnessOSDSupported = supportsBrightnessOSD
@@ -2453,16 +2484,23 @@ final class BrightnessService: ObservableObject {
     private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
         guard let baseline = gammaBaselines[id],
               baseline.fingerprint == Self.displayFingerprint(id) else { return false }
+        // Mac Island: a dim never goes below the floor, so no picture can be driven to black.
+        let value = BrightnessSupport.safeSoftwareDimLevel(value)
         if value >= 0.999 {
             let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
                                                        baseline.green, baseline.blue) == .success
-            if restored { dimmedDisplays.remove(id) }
+            if restored {
+                dimmedDisplays.remove(id)
+                if dimmedDisplays.isEmpty { DisplayGammaJournal.note(dimmed: false) }
+            }
             return restored
         }
         let factor = BrightnessSupport.softwareDimFactor(for: value)
         let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
         let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
         let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
+        // Mac Island: written down before the curve is, so a run that dies dimmed is cleaned up at the next launch.
+        DisplayGammaJournal.note(dimmed: true)
         let applied = CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
         if applied { dimmedDisplays.insert(id) }
         return applied
@@ -2600,6 +2638,41 @@ final class BrightnessService: ObservableObject {
             self.applySoftwareDim(id, value: 1)
             DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }
         }
+    }
+
+    /// Mac Island: the connections the person chose to drive over DDC although the monitor never answers a read.
+    private func trustedUnconfirmedDDCPaths() -> Set<String> {
+        Set(PortHost.defaults.stringArray(forKey: DDCReports.trustedPathsKey) ?? [])
+    }
+
+    /// Mac Island: hands one unconfirmed monitor (accepts DDC commands, never answers a read) to DDC, or back to
+    /// gamma dimming. The picture goes back to its own curve before the other route takes it.
+    func setUnconfirmedDDCTrusted(_ trusted: Bool, for id: CGDirectDisplayID) {
+        stateLock.lock()
+        let pathKey = routes[id]?.ddcPathKey
+        if pathKey != nil {
+            pendingLevels.removeValue(forKey: id)
+            lastApplied[id] = nil
+            levelKnownAt[id] = nil
+        }
+        stateLock.unlock()
+        guard let pathKey else { return }
+        let defaults = PortHost.defaults
+        let stored = defaults.stringArray(forKey: DDCReports.trustedPathsKey) ?? []
+        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(stored, path: pathKey, isWriteOnly: trusted)
+        if updated != stored { defaults.set(updated, forKey: DDCReports.trustedPathsKey) }
+        Self.log.log("display \(id) unconfirmed DDC trusted \(trusted)")
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            if self.dimmedDisplays.contains(id) { self.applySoftwareDim(id, value: 1) }
+            DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }
+        }
+    }
+
+    /// Mac Island: asks every external monitor again (forgets the remembered write-only verdicts first).
+    func reprobeDDC() {
+        PortHost.defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+        refresh(force: true)
     }
 
     private func writeOnlyDDCPaths() -> Set<String> {

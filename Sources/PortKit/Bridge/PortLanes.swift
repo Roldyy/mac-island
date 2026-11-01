@@ -14,6 +14,7 @@ enum PortLanes {
         InputKeyboardLane.bind(into:),
         InputShortcutsLane.bind(into:),
         MixerLane.bind(into:),
+        DisplayBrightnessLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

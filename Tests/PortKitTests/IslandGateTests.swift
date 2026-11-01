@@ -37,9 +37,12 @@ import Testing
     }
 
     @Test @MainActor func installingTheBridgeStartsNothing() {
+        // Lanes register page bodies into the same process-wide table when a test binds them: what must hold is
+        // that installing the bridge adds none.
+        let pagesBefore = PortBridge.registeredPageIDs
         PortBridge.install(host: PortBridge.Host(openSettings: {}))
         #expect(PortBridge.vorssaintIslandEnabled == false)
-        #expect(PortBridge.registeredPageIDs.isEmpty)
+        #expect(PortBridge.registeredPageIDs == pagesBefore)
         #expect(NotchService.shared.running == false)
         #expect(appDelegate() != nil)  // the facade is wired, nothing else
     }

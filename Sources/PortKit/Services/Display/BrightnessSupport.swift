@@ -320,6 +320,20 @@ enum BrightnessSupport {
         Float(min(max(value, 0), 1))
     }
 
+    /// Mac Island never lets a gamma dim reach black: the lowest level ever applied to a picture. The upstream
+    /// policy ("zero really is black") leaves a screen dark with nothing to explain it when the slider is dragged
+    /// all the way down on a display with no backlight control, so the floor is applied where the curve is
+    /// written (`softwareDimFactor` itself keeps its upstream contract).
+    static let softwareDimFloor = 0.05
+
+    /// The level a software dim is applied at: the requested one, never below `softwareDimFloor`, a full
+    /// restore (1) for anything at or above 0.999 or not a number.
+    static func safeSoftwareDimLevel(_ value: Double) -> Double {
+        guard value.isFinite else { return 1 }
+        if value >= 0.999 { return 1 }
+        return max(value, softwareDimFloor)
+    }
+
     /// A gamma table scaled toward black. Factor one returns the input
     /// untouched so restoring is bit-exact.
     static func scaledGammaTable(_ table: [Float], factor: Float) -> [Float] {

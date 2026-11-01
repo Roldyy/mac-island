@@ -1,0 +1,34 @@
+--- a/Services/Display/BrightnessSupport.swift
++++ b/Services/Display/BrightnessSupport.swift
+@@ -318,6 +318,20 @@
+     /// bring it back.
+     static func softwareDimFactor(for value: Double) -> Float {
+         Float(min(max(value, 0), 1))
++    }
++
++    /// Mac Island never lets a gamma dim reach black: the lowest level ever applied to a picture. The upstream
++    /// policy ("zero really is black") leaves a screen dark with nothing to explain it when the slider is dragged
++    /// all the way down on a display with no backlight control, so the floor is applied where the curve is
++    /// written (`softwareDimFactor` itself keeps its upstream contract).
++    static let softwareDimFloor = 0.05
++
++    /// The level a software dim is applied at: the requested one, never below `softwareDimFloor`, a full
++    /// restore (1) for anything at or above 0.999 or not a number.
++    static func safeSoftwareDimLevel(_ value: Double) -> Double {
++        guard value.isFinite else { return 1 }
++        if value >= 0.999 { return 1 }
++        return max(value, softwareDimFloor)
+     }
+
+     /// A gamma table scaled toward black. Factor one returns the input
+--- a/Services/Display/BrightnessService.swift
++++ b/Services/Display/BrightnessService.swift
+@@ -2453,6 +2453,8 @@
+     private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
+         guard let baseline = gammaBaselines[id],
+               baseline.fingerprint == Self.displayFingerprint(id) else { return false }
++        // Mac Island: a dim never goes below the floor, so no picture can be driven to black.
++        let value = BrightnessSupport.safeSoftwareDimLevel(value)
+         if value >= 0.999 {
+             let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
+                                                        baseline.green, baseline.blue) == .success

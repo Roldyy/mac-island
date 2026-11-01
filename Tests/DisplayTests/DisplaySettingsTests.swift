@@ -12,7 +12,6 @@ import Testing
 
     @Test func defaultsWhenNothingIsStored() {
         let (s, _) = settings()
-        #expect(s.brightnessControlEnabled == true)
         #expect(s.autoQuitEnabled == false)
         #expect(s.autoQuitDelayMinutes == 30)
         #expect(s.autoQuitDryRun == true)
@@ -22,9 +21,7 @@ import Testing
     @Test func migratedKeysAreRead() {
         let (s, d) = settings()
         d.set(true, forKey: "autoQuitEnabled")
-        d.set(false, forKey: "brightnessControlEnabled")
         #expect(s.autoQuitEnabled == true)
-        #expect(s.brightnessControlEnabled == false)
     }
 
     @Test func delayIsClamped() {

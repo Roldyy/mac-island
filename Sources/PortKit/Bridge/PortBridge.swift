@@ -126,6 +126,8 @@ public enum PortBridge {
         if plan.fanControl { FanControlService.recoverIfNeeded() }
         MouseAccelerationService.recoverPendingAtLaunch()
         SpacesOrderHold.recoverIfNeeded()
+        // A gamma dim or a switched-off display left by a run that died: each step tests its own marker.
+        DisplayBrightnessLane.recoverAtLaunch(defaults: defaults)
     }
 
     // MARK: Settings page bodies

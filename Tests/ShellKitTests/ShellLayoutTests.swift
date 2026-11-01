@@ -91,7 +91,8 @@ import Testing
         #expect(ids("etagere") == ["shelf"])
         #expect(ids("PRESSE") == ["clipboard"])
         #expect(ids("surveillance") == ["monitor", "fans"])
-        #expect(ids("luminosite") == ["display"])
+        #expect(ids("inactives") == ["display"], "the Display tab is auto-quit now: brightness is the ported feature")
+        #expect(ids("luminosite").isEmpty)
         #expect(ids("zzzz").isEmpty)
     }
 

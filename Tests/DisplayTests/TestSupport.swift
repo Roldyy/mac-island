@@ -15,21 +15,6 @@ final class TempDefaults {
     }
 }
 
-/// Scripted brightness backend: records every write, never touches a real display.
-final class FakeBrightnessBackend: BrightnessBackend, @unchecked Sendable {
-    var level: Float?
-    var writeSucceeds = true
-    private(set) var writes: [Float] = []
-    init(level: Float?) { self.level = level }
-    func read() -> Float? { level }
-    func write(_ value: Float) -> Bool {
-        writes.append(value)
-        guard writeSucceeds else { return false }
-        level = value
-        return true
-    }
-}
-
 func app(_ pid: Int32, _ bundle: String? = nil, regular: Bool = true, front: Bool = false,
          audio: Bool = false, windows: Int = 0) -> AppSnapshot {
     AppSnapshot(pid: pid, bundleID: bundle ?? "test.app\(pid)", name: "App\(pid)", isRegular: regular,
