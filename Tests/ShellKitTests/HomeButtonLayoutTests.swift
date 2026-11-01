@@ -6,7 +6,7 @@ import Testing
 @Suite struct HomeButtonLayoutTests {
     @Test func defaultsFollowTheScreenshotLayout() {
         let layout = HomeButtonLayout.initial
-        #expect(layout.buttons(on: .left).map(\.actionID) == ["explore", "clipboard", "agents"])
+        #expect(layout.buttons(on: .left).map(\.actionID) == ["terminal", "clipboard", "agents"])
         #expect(layout.buttons(on: .right).map(\.actionID) == ["settings", "mixer"])
         #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake"])
         #expect(layout.sanitized() == layout)  // every default is a known action
@@ -36,14 +36,14 @@ import Testing
         let explore = layout.buttons(on: .left)[0].id
         let ok8 = layout.reorder(id: explore, by: 1)
         #expect(ok8)
-        #expect(layout.buttons(on: .left).map(\.actionID) == ["clipboard", "explore", "agents"])
+        #expect(layout.buttons(on: .left).map(\.actionID) == ["clipboard", "terminal", "agents"])
         let ok9 = layout.reorder(id: explore, by: 1)
         #expect(ok9)
         let ok9b = layout.reorder(id: explore, by: 1)
         #expect(!ok9b)
         let ok10 = layout.move(id: explore, to: .bottom)
         #expect(ok10)
-        #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake", "explore"])
+        #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake", "terminal"])
         let clipboard = layout.buttons(on: .left)[0].id
         let ok11 = layout.move(id: clipboard, to: .bottom)
         #expect(!ok11)
@@ -99,7 +99,43 @@ import Testing
 
         let reopened = HomeModel(defaults: bench.defaults, volume: .unsupported("x"), brightness: .unsupported("x"))
         #expect(reopened.buttons == expected)
-        #expect(reopened.buttons.buttons(on: .left).map(\.actionID) == ["clipboard", "explore", "agents"])
+        #expect(reopened.buttons.buttons(on: .left).map(\.actionID) == ["clipboard", "terminal", "agents"])
         #expect(reopened.buttons.buttons(on: .right).map(\.actionID) == ["mixer", "capture"])
+    }
+}
+
+
+@MainActor
+@Suite struct HomeExplorerReplacementTests {
+    @Test func theExplorerButtonBecomesTerminalInPlace() {
+        let layout = HomeButtonLayout(buttons: [
+            HomeButton(actionID: "clipboard", side: .left), HomeButton(actionID: "explore", side: .left),
+            HomeButton(actionID: "settings", side: .right),
+        ])
+        let replaced = layout.replacingExplorerWithTerminal()
+        #expect(replaced.buttons(on: .left).map(\.actionID) == ["clipboard", "terminal"])
+        #expect(replaced.buttons(on: .right).map(\.actionID) == ["settings"])
+    }
+
+    @Test func itJustDisappearsWhenTerminalIsAlreadyThere() {
+        let layout = HomeButtonLayout(buttons: [
+            HomeButton(actionID: "explore", side: .left), HomeButton(actionID: "terminal", side: .right),
+        ])
+        let replaced = layout.replacingExplorerWithTerminal()
+        #expect(replaced.buttons.map(\.actionID) == ["terminal"])
+    }
+
+    @Test func aLayoutWithoutItIsUntouchedAndTheMigrationRunsOnce() {
+        let bench = TestDefaults.make()
+        defer { bench.cleanup() }
+        let json = #"{"version":1,"buttons":[{"id":"6D0A0001-0000-4000-8000-000000000001","actionID":"explore","side":"left","label":""}]}"#
+        bench.defaults.set(Data(json.utf8), forKey: HomeModel.Keys.layout)
+        bench.defaults.set(true, forKey: HomeModel.Keys.claudeShortcutSeeded)
+        let first = HomeModel(defaults: bench.defaults, volume: .unsupported("x"), brightness: .unsupported("x"))
+        #expect(first.buttons.buttons(on: .left).map(\.actionID) == ["terminal"])
+        // The user adds Explorer back: the next launch does not remove it again.
+        first.buttons.add(actionID: "explore", side: .left)
+        let second = HomeModel(defaults: bench.defaults, volume: .unsupported("x"), brightness: .unsupported("x"))
+        #expect(second.buttons.contains(actionID: "explore"))
     }
 }

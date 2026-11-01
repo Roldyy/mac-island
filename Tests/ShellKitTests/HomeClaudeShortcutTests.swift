@@ -23,7 +23,7 @@ import Testing
         defer { bench.cleanup() }
         bench.defaults.set(Data(Self.oldLayoutJSON.utf8), forKey: HomeModel.Keys.layout)
         let first = model(bench.defaults)
-        #expect(first.buttons.buttons(on: .left).map(\.actionID) == ["explore", "clipboard", "agents"])
+        #expect(first.buttons.buttons(on: .left).map(\.actionID) == ["terminal", "clipboard", "agents"])
         #expect(first.buttons.buttons(on: .right).map(\.actionID) == ["settings"])
         // The user removes it: the next launch does not bring it back.
         first.buttons.remove(id: first.buttons.buttons(on: .left)[2].id)

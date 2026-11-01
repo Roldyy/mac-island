@@ -18,6 +18,8 @@ public final class HomeModel {
         static let layout = "notchQuickAccessLayout"
         /// Set once the Claude round button has been offered to a layout stored by an older build.
         static let claudeShortcutSeeded = "notchClaudeShortcutSeeded"
+        /// Set once the Explorer round button of an older layout has become a Terminal button.
+        static let explorerReplaced = "notchExplorerButtonReplaced"
         /// JSON array of the tile ids the user hid from the home grid.
         static let hiddenTiles = "notchHomeHiddenTiles"
     }
@@ -120,6 +122,13 @@ public final class HomeModel {
             defaults.set(true, forKey: Keys.claudeShortcutSeeded)
             if storedLayout != nil {
                 layout = layout.addingClaudeShortcut()
+                if let data = layout.encoded() { defaults.set(data, forKey: Keys.layout) }
+            }
+        }
+        if !defaults.bool(forKey: Keys.explorerReplaced) {
+            defaults.set(true, forKey: Keys.explorerReplaced)
+            if storedLayout != nil {
+                layout = layout.replacingExplorerWithTerminal()
                 if let data = layout.encoded() { defaults.set(data, forKey: Keys.layout) }
             }
         }

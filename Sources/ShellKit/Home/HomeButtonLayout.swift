@@ -38,9 +38,9 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
 
     public init(buttons: [HomeButton]) { self.buttons = buttons }
 
-    /// Left: Explorer, Presse-papiers, Claude. Right: Réglages, Mélangeur. Bottom: Commandes, Garder éveillé.
+    /// Left: Terminal, Presse-papiers, Claude. Right: Réglages, Mélangeur. Bottom: Commandes, Garder éveillé.
     public static let initial = HomeButtonLayout(buttons: [
-        HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000001")!, actionID: "explore", side: .left),
+        HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000001")!, actionID: "terminal", side: .left),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000002")!, actionID: "clipboard", side: .left),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000007")!, actionID: "agents", side: .left),
         HomeButton(id: UUID(uuidString: "6D0A0001-0000-4000-8000-000000000003")!, actionID: "settings", side: .right),
@@ -65,6 +65,19 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
               let target = side ?? firstFreeSide, hasRoom(on: target) else { return false }
         buttons.append(HomeButton(actionID: resolved, side: target))
         return true
+    }
+
+    /// The Explorer button is redundant now that the Home grid lists every shortcut: a layout saved with it gets a
+    /// Terminal button in its place (same side and position), or simply loses it when Terminal is already there.
+    public func replacingExplorerWithTerminal() -> HomeButtonLayout {
+        var copy = self
+        guard let at = copy.buttons.firstIndex(where: { $0.actionID == "explore" }) else { return self }
+        if copy.contains(actionID: "terminal") {
+            copy.buttons.remove(at: at)
+        } else {
+            copy.buttons[at].actionID = "terminal"
+        }
+        return copy
     }
 
     /// Offers the Claude shortcut to a layout that does not have it: left first, then right, then the bottom row.
