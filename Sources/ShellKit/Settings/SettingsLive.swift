@@ -118,6 +118,8 @@ public enum SettingsLive {
                 flag("notchIdleShowBattery", true, title: "Batterie", hint: AmbientChannel.hint("battery")),
                 flag("notchIdleShowKeepAwake", true, title: "Maintien d’éveil", hint: AmbientChannel.hint("keepawake")),
                 flag("notchIdleRotates", true, title: "Faire défiler les indicateurs"),
+                flag("notchRememberLastTrack", true, title: "Mémoriser la dernière lecture",
+                     hint: "Garde le dernier morceau pour le rouvrir depuis l’accueil. Reste sur ce Mac et n’est jamais envoyé. Désactivé, il est effacé."),
                 C("notchIdlePerWing", .choice(options: [.init("1", 1), .init("2", 2)], defaultValue: 2),
                   title: "Indicateurs par côté"),
             ],

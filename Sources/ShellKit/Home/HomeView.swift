@@ -19,7 +19,7 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
             .frame(height: HomeGeometry.slidersRow)
             .help(home.unavailableLevelsHelp ?? "")
-            HomeNowPlayingCard(track: home.track) { home.transport($0) }
+            HomeNowPlayingCard(track: home.track, idle: home.lastTrack) { home.transport($0) }
             HomeTileGrid(items: items, columns: home.tileColumns, visibleRows: home.tileRows(tileCount: items.count),
                          context: context)
             Spacer(minLength: 0)
@@ -31,6 +31,7 @@ struct HomeView: View {
             if isActive { try? await Task.sleep(for: .milliseconds(60)) }
             while isActive, !Task.isCancelled {
                 home.refreshLevels()
+                home.lastTrack.refresh()
                 try? await Task.sleep(for: .seconds(1))
             }
         }

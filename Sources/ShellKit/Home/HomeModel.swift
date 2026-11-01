@@ -95,6 +95,9 @@ public final class HomeModel {
     @ObservationIgnored private var storedTrack: HomeTrack?
     @ObservationIgnored public var transport: @MainActor (HomeTransport) -> Void
 
+    /// The last track kept on this Mac, shown (dimmed) by the now-playing card while nothing plays.
+    public let lastTrack: LastTrackModel
+
     /// Launches the Claude desktop app from the Claude shortcut.
     @ObservationIgnored public var claudeApp = ClaudeAppLauncher()
 
@@ -104,8 +107,10 @@ public final class HomeModel {
                 volume: LevelBackend = SystemVolume.backend,
                 brightness: LevelBackend = SystemBrightness.backend,
                 keyboardLight: LevelBackend = .unsupported("Rétroéclairage du clavier : réglage non disponible"),
-                transport: @escaping @MainActor (HomeTransport) -> Void = { MediaKeyPoster.post($0) }) {
+                transport: @escaping @MainActor (HomeTransport) -> Void = { MediaKeyPoster.post($0) },
+                lastTrack: LastTrackModel? = nil) {
         self.defaults = defaults
+        self.lastTrack = lastTrack ?? LastTrackModel(defaults: defaults)
         sizeMode = defaults.string(forKey: Keys.size).flatMap(IslandSizeMode.init(rawValue:)) ?? .spacious
         customWidth = Self.stored(defaults, Keys.customWidth, HomeGeometry.defaultCustomWidth, HomeGeometry.customWidthRange)
         customHeight = Self.stored(defaults, Keys.customHeight, HomeGeometry.defaultCustomHeight, HomeGeometry.customHeightRange)
