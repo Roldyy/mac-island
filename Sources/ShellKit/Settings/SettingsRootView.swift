@@ -12,6 +12,8 @@ struct SettingsEnvironment {
     let relaunch: (@MainActor () -> Void)?
     let login: LoginItemModel
     let backup: SettingsBackup
+    /// Opens another page of this window (About's "Revoir les nouveautés").
+    var navigate: @MainActor (String) -> Void = { _ in }
 }
 
 /// Sidebar with search, nine sections, and the page that is open.
@@ -60,8 +62,8 @@ struct SettingsPageView: View {
             case .features:
                 FeaturesHubPage(registry: env.registry, sheetTabs: env.sheetTabs,
                                 openPermission: env.openPermission, relaunch: env.relaunch)
-            case .advanced: AdvancedPage(page: page, backup: env.backup, openPermission: env.openPermission)
-            case .about: AboutPage(page: page)
+            case .advanced: AdvancedPage(page: page, backup: env.backup, openPermission: env.openPermission, login: env.login)
+            case .about: AboutPage(page: page, defaults: env.defaults, navigate: env.navigate)
             case .whatsNew: WhatsNewPage(page: page)
             case .support: SupportPage(page: page)
             case .declarative:

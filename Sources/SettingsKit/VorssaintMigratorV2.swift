@@ -63,7 +63,7 @@ public enum SettingsMachineState {
         // Consents: a click on this Mac, never inherited from a file.
         "systemShortcutTakeOverKeys.macisland", "switcherTakeOverConsent.macisland", "macIslandClosedLidConfirmed",
         // Evidence of what the system answered on this Mac.
-        "macisland.mixer.audioCaptureProbeStatus",
+        "macisland.mixer.audioCaptureProbeStatus", "macisland.updates.lastCheck",
         // Journals of a change owed back: gamma dim, Finder flags, staging folders, the wallpaper restore point.
         "macIslandDisplayGammaDimActive", "quickToggles.finderJournal.macisland",
         "quickToggles.temporaryFinderFlags.macisland", "macisland.media.stagingDirectories",

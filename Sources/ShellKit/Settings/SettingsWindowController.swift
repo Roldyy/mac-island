@@ -33,10 +33,13 @@ public final class SettingsWindowController {
             let sheetTabs = Dictionary(uniqueKeysWithValues: tabs.filter { outside.contains($0.id) }.map { ($0.id, $0) })
             let router = SettingsRouter(defaults: defaults)
             self.router = router
+            // After an update, "Nouveautés" opens once ("Afficher les nouveautés après mise à jour").
+            if WhatsNewAfterUpdate.consume(defaults: defaults, current: AboutVersion.current()) { router.open("whatsnew") }
             let env = SettingsEnvironment(
                 registry: registry, defaults: defaults, sheetTabs: sheetTabs, openPermission: openPermission,
                 relaunch: relaunch, login: LoginItemModel(defaults: defaults),
-                backup: SettingsBackup(defaults: defaults, domain: AppDefaults.identifier))
+                backup: SettingsBackup(defaults: defaults, domain: AppDefaults.identifier),
+                navigate: { [weak router] id in router?.open(id) })
             AppearancePreference.load(from: defaults).apply()
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsRootView(env: env, router: router)))
             window.title = "Réglages de Mac Island"
@@ -60,6 +63,8 @@ public final class SettingsWindowController {
             ]
         }
         startPolling()
+        let checkerDefaults = defaults
+        Task { await UpdateChecker.shared.checkIfStale(defaults: checkerDefaults) }  // "automatiquement": a day apart at most
         registry.refreshCapabilities()  // the user may have just granted something in System Settings
         registry.permissionMonitor?.recheck()
         NSApp.activate()
