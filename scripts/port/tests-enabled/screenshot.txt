@@ -1,0 +1,24 @@
+# Upstream test files lane W4-A (screenshot) turns on in the port harness (scripts/port/test.sh, one name per line).
+# Port plan section 4, lane 4A: 16 files / 999 checks upstream. Plain-Swift check scripts the harness rewrites against
+# stub singletons: none of them runs under `swift test`; the lane's own checks are Tests/PortKitTests/Screenshot*Tests.swift.
+#
+# The harness (scripts/port/test.sh) is not in this tree yet: this list was NOT run. Two files are left out on purpose:
+#   ScreenshotFeatureTests.swift         (607 checks) lines 104-106 and 1331 assert that the upload shortcut can be switched on
+#                                        and registered; Mac Island has no sharing server, `ScreenshotSharingSupport.serviceAvailable`
+#                                        is false and `uploadShortcutEnabled` follows it. Turn it on once the harness can skip those
+#                                        three checks (the other ~600 are pure logic and should be enabled then).
+#   ScreenshotShareCompletionTests.swift (56 checks)  covers the temporary-link completion flow, which is stubbed out.
+RecentCaptureStoreTests.swift
+ScreenCaptureToolPickerTests.swift
+ScreenshotAttachedCaptureTests.swift
+ScreenshotAutoShelfTests.swift
+ScreenshotCanvasModelTests.swift
+ScreenshotCanvasSupportTests.swift
+ScreenshotImageLayerTests.swift
+ScreenshotOCRControlTests.swift
+ScreenshotPreviewHoverTests.swift
+ScreenshotScrollingCaptureTests.swift
+ScreenshotSelectionRefreshTests.swift
+ScreenshotSpotlightEditingTests.swift
+ScreenshotToolShortcutTests.swift
+ScreenshotWatermarkTests.swift

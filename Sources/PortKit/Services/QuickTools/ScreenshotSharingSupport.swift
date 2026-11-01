@@ -63,8 +63,14 @@ struct ScreenshotShareResponse: Decodable {
 }
 
 enum ScreenshotSharingSupport {
+    /// Mac Island has no sharing server (`ScreenshotShareService.isAvailable` is false too). Every surface that
+    /// offers a temporary link, and the upload shortcut, answers to this one constant, so none of them shows or
+    /// registers anything while it is false.
+    static let serviceAvailable = false
+
     static func uploadShortcutEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
+        serviceAvailable
+            && defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
             && defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled)
     }
 

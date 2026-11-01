@@ -911,7 +911,7 @@ struct ScreenshotEditorView: View {
             .screenshotSafeHelp(strings.shareButton)
             .accessibilityLabel(strings.shareButton)
 
-            if sharingEnabled {
+            if ScreenshotSharingSupport.serviceAvailable, sharingEnabled {
                 shareMenu
             }
             Divider().frame(height: 16).padding(.horizontal, 3)
@@ -925,7 +925,7 @@ struct ScreenshotEditorView: View {
                     commitEditingTextIfNeeded()
                     controller.saveAs()
                 }
-                if shelfEnabled, shelfAvailable {
+                if ScreenshotShelfBridge.isHosted, shelfEnabled, shelfAvailable {
                     Button(strings.addToShelfButton) {
                         commitEditingTextIfNeeded()
                         controller.addToShelf()

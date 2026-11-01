@@ -354,7 +354,8 @@ enum ScreenshotSupport {
     /// Captures go to the shelf on their own only while the shelf is
     /// installed and on, so a switched-off shelf never fills up unseen.
     static func addsCapturesToShelf(in defaults: UserDefaults = PortHost.defaults) -> Bool {
-        defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
+        ScreenshotShelfBridge.isHosted
+            && defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
             && AppFeature.shelf.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.shelfEnabled)
     }
@@ -1155,9 +1156,12 @@ enum ScreenshotSupport {
                                   directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
         let folder = directory.appendingPathComponent("ScreenshotDrag-\(UUID().uuidString)",
                                                        isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // A capture is a picture of the person's screen: the folder and the file belong to the user alone.
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: ScreenshotPrivateFiles.folderPermissions])
         let url = folder.appendingPathComponent((name as NSString).lastPathComponent)
         try data.write(to: url, options: .atomic)
+        ScreenshotPrivateFiles.restrict(file: url)
         return url
     }
 

@@ -68,6 +68,19 @@ final class ScreenCaptureService: ObservableObject {
         selection?.protectedWindowIDs ?? []
     }
 
+    /// True while a countdown runs or the chooser is on screen.
+    var hasActiveSession: Bool {
+        selection != nil || countdown != nil
+    }
+
+    /// Takes the chooser (or its countdown) off the screen and leaves every
+    /// shortcut as it is. The screenshot lane calls it when its feature stops,
+    /// so a kill switch never leaves a full-screen overlay behind. `suspend()`
+    /// would also drop the other tools' shortcuts.
+    func cancelActiveSelection() {
+        cancelSelection()
+    }
+
     private init() {
         for (tool, hotkey) in toolHotkeys {
             hotkey.onPress = { [weak self] in self?.capture(initial: tool, fromShortcut: true) }

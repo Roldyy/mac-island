@@ -1,0 +1,104 @@
+--- a/Services/QuickTools/ScreenshotQuickPreviewController.swift
++++ b/Services/QuickTools/ScreenshotQuickPreviewController.swift
+@@ -313,7 +313,7 @@ final class ScreenshotQuickPreviewController {
+     }
+
+     private func performShare(_ duration: ScreenshotShareDuration) {
+-        guard !closed, !model.sharing else { return }
++        guard ScreenshotSharingSupport.serviceAvailable, !closed, !model.sharing else { return }
+         dismissWork?.cancel()
+         dismissWork = nil
+         model.sharing = true
+@@ -596,7 +596,7 @@ private struct ScreenshotQuickPreviewView: View {
+                 .screenshotSafeHelp(strings.shareButton)
+                 .accessibilityLabel(strings.shareButton)
+             }
+-            if sharingEnabled, model.sharedRecord == nil {
++            if ScreenshotSharingSupport.serviceAvailable, sharingEnabled, model.sharedRecord == nil {
+                 shareMenu
+             }
+             if !embedded { Spacer(minLength: 4) }
+--- a/Services/QuickTools/ScreenshotSharingSupport.swift
++++ b/Services/QuickTools/ScreenshotSharingSupport.swift
+@@ -63,8 +63,14 @@ struct ScreenshotShareResponse: Decodable {
+ }
+
+ enum ScreenshotSharingSupport {
++    /// Mac Island has no sharing server (`ScreenshotShareService.isAvailable` is false too). Every surface that
++    /// offers a temporary link, and the upload shortcut, answers to this one constant, so none of them shows or
++    /// registers anything while it is false.
++    static let serviceAvailable = false
++
+     static func uploadShortcutEnabled(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
++        serviceAvailable
++            && defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
+             && defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled)
+     }
+
+--- a/UI/Screenshot/ScreenshotEditorView.swift
++++ b/UI/Screenshot/ScreenshotEditorView.swift
+@@ -911,7 +911,7 @@ struct ScreenshotEditorView: View {
+             .screenshotSafeHelp(strings.shareButton)
+             .accessibilityLabel(strings.shareButton)
+
+-            if sharingEnabled {
++            if ScreenshotSharingSupport.serviceAvailable, sharingEnabled {
+                 shareMenu
+             }
+             Divider().frame(height: 16).padding(.horizontal, 3)
+@@ -925,7 +925,7 @@ struct ScreenshotEditorView: View {
+                     commitEditingTextIfNeeded()
+                     controller.saveAs()
+                 }
+-                if shelfEnabled, shelfAvailable {
++                if ScreenshotShelfBridge.isHosted, shelfEnabled, shelfAvailable {
+                     Button(strings.addToShelfButton) {
+                         commitEditingTextIfNeeded()
+                         controller.addToShelf()
+--- a/UI/Settings/ScreenshotSettings.swift
++++ b/UI/Settings/ScreenshotSettings.swift
+@@ -184,7 +184,7 @@ struct ScreenshotCaptureSettings: View {
+                     .foregroundStyle(.secondary)
+                 Toggle(strings.addToShelfToggle, isOn: addToShelfBinding)
+                     .disabled(!shelfIsOn)
+-                Text(strings.addToShelfCaption)
++                Text(ScreenshotShelfBridge.isHosted ? strings.addToShelfCaption : ScreenshotShelfBridge.unavailableReason)
+                     .font(.caption)
+                     .foregroundStyle(.secondary)
+                 folderRow
+@@ -204,6 +204,7 @@ struct ScreenshotCaptureSettings: View {
+                 Text(strings.toolShortcutsTitle)
+             }
+
++            if ScreenshotSharingSupport.serviceAvailable {
+             Section {
+                 Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
+                     .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
+@@ -254,6 +255,17 @@ struct ScreenshotCaptureSettings: View {
+             } header: {
+                 Text(strings.shareSectionTitle)
+             }
++            } else {
++                // Temporary links need a sharing server and Mac Island has none: the screens, the shortcut and the
++                // upload stay out, and the page says why. The system share sheet of the preview is untouched.
++                Section {
++                    Text("Les liens temporaires ne sont pas disponibles dans Mac Island : aucun serveur de partage n’est utilisé et rien n’est envoyé. Le partage du système (AirDrop, Messages, Mail) reste proposé dans l’aperçu de la capture.")
++                        .font(.caption)
++                        .foregroundStyle(.secondary)
++                } header: {
++                    Text(strings.shareSectionTitle)
++                }
++            }
+         }
+         .onAppear { sharing.refresh() }
+         .sheet(isPresented: $showingSharedLinks) {
+@@ -281,7 +293,7 @@ struct ScreenshotCaptureSettings: View {
+     }
+
+     private var shelfIsOn: Bool {
+-        shelfEnabled && shelfAvailable
++        ScreenshotShelfBridge.isHosted && shelfEnabled && shelfAvailable
+     }
+
+     /// Reads off while the shelf is off, since no capture reaches it then.

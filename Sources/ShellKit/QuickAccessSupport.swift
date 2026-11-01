@@ -49,6 +49,23 @@ public enum ScreenshotPlan {
     }
 }
 
+/// Where the Home "Capture" tile and the quick-access button go. The ported screenshot tool owns the button while
+/// the registry lets it run; while it is off, the old system tool keeps the button working (`ScreenshotPlan`).
+/// Pure, so the choice is tested without the tool.
+public enum QuickCaptureRoute: Equatable, Sendable {
+    /// The ported chooser (area, window, full screen).
+    case ported
+    /// The ported tool runs but Screen Recording is missing: open the pane, say why, start nothing.
+    case needsScreenRecording
+    /// The ported tool is off: `/usr/bin/screencapture -i`, as before.
+    case legacy
+
+    public static func route(portedRunning: Bool, screenRecording: Bool) -> QuickCaptureRoute {
+        guard portedRunning else { return .legacy }
+        return screenRecording ? .ported : .needsScreenRecording
+    }
+}
+
 /// The short French lines shown in the closed island after a quick action.
 public enum QuickActionNotice {
     public static func permission(_ permission: FeaturePermission) -> String { "Accès requis : \(permission.title)" }

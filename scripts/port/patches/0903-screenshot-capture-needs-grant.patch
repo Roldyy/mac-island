@@ -1,0 +1,82 @@
+--- a/Services/QuickTools/ScreenshotCaptureEngine.swift
++++ b/Services/QuickTools/ScreenshotCaptureEngine.swift
+@@ -14,13 +14,20 @@ import ScreenCaptureKit
+ /// tool taking them; the rest of the app follows the visibility preference.
+ enum ScreenshotCaptureEngine {
+
++    /// The one door to ScreenCaptureKit's content list. Without the Screen Recording grant the call would raise the
++    /// system prompt or answer with this app's own windows only, and nothing in Mac Island prompts from ported
++    /// code: no grant, no call. The grant is the permission monitor's reading, never a probe made here.
++    static func shareableContent() async throws -> SCShareableContent {
++        guard Permissions.shared.screenRecording else { throw CocoaError(.userCancelled) }
++        return try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
++    }
++
+     /// Full-resolution capture of one display.
+     static func captureDisplay(_ displayID: CGDirectDisplayID,
+                                includePointer: Bool,
+                                hideVorssaintWindows: Bool,
+                                protectedWindowIDs: Set<CGWindowID>) async -> CGImage? {
+-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+-            false, onScreenWindowsOnly: true)
++        guard let content = try? await shareableContent()
+         else { return nil }
+         guard let display = content.displays.first(where: { $0.displayID == displayID })
+         else { return nil }
+@@ -71,8 +78,7 @@ enum ScreenshotCaptureEngine {
+                                      hideVorssaintWindows: Bool,
+                                      protectedWindowIDs: Set<CGWindowID>,
+                                      keepsIslandOut: Bool = false) async -> RegionCapture? {
+-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+-            false, onScreenWindowsOnly: true),
++        guard let content = try? await shareableContent(),
+             let display = content.displays.first(where: { $0.displayID == displayID })
+         else { return nil }
+         let scale = screenScale(for: displayID)
+@@ -103,8 +109,7 @@ enum ScreenshotCaptureEngine {
+     static func captureAllDisplays(includePointer: Bool,
+                                    hideVorssaintWindows: Bool,
+                                    protectedWindowIDs: Set<CGWindowID>) async -> [CGDirectDisplayID: CGImage] {
+-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+-            false, onScreenWindowsOnly: true)
++        guard let content = try? await shareableContent()
+         else { return [:] }
+         let ownWindows = await excludedOwnWindows(in: content,
+                                             hideVorssaintWindows: hideVorssaintWindows,
+@@ -172,6 +177,7 @@ enum ScreenshotCaptureEngine {
+     /// at, which on mixed displays can differ from the one asked for.
+     static func captureWindow(_ windowID: CGWindowID,
+                               scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
++        guard Permissions.shared.screenRecording else { return nil }
+         // A sheet or dialog the app stacked on the window is a window of its
+         // own, and neither single-window route draws it (issue #1098). The
+         // window list answers this without waiting on shareable content, so
+@@ -221,8 +227,7 @@ enum ScreenshotCaptureEngine {
+     /// The window drawn on its own by ScreenCaptureKit, whole wherever it
+     /// sits. Watch reads a window through this as well, in its capture turn.
+     static func captureIndependentWindow(_ windowID: CGWindowID, scale: CGFloat) async -> CGImage? {
+-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+-            false, onScreenWindowsOnly: true),
++        guard let content = try? await shareableContent(),
+             let window = content.windows.first(where: { $0.windowID == windowID })
+         else { return nil }
+         let configuration = SCStreamConfiguration()
+@@ -331,8 +336,7 @@ enum ScreenshotCaptureEngine {
+     /// display's, which the crop keeps.
+     private static func captureAttached(
+         _ plan: ScreenshotCapturePolicy.AttachedCapturePlan) async -> (image: CGImage, scale: CGFloat)? {
+-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+-            false, onScreenWindowsOnly: true)
++        guard let content = try? await shareableContent()
+         else { return nil }
+         let windows = plan.windowIDs.compactMap { id in
+             content.windows.first { $0.windowID == id }
+@@ -412,7 +416,7 @@ enum ScreenshotCaptureEngine {
+         var content: SCShareableContent?
+         func independentCapture(_ id: CGWindowID, frame: CGRect, scale: CGFloat) async -> CGImage? {
+             if content == nil {
+-                content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
++                content = try? await shareableContent()
+             }
+             guard let window = content?.windows.first(where: { $0.windowID == id }) else { return nil }
+             let configuration = SCStreamConfiguration()

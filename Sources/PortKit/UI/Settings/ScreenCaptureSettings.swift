@@ -47,6 +47,18 @@ struct ScreenCaptureSettings: View {
             }
 
             selectedSettings
+
+            if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+                Section {
+                    RecentCapturesView(onClose: nil)
+                    Button {
+                        RecentCaptureService.shared.showHistoryWindow()
+                    } label: {
+                        Label(FeatureStrings.recentCaptures(l10n.language).title,
+                              systemImage: "clock.arrow.circlepath")
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear { reconcileSelection(withDestination: true) }

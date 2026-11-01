@@ -909,6 +909,10 @@ final class ScreenshotService: ObservableObject {
     private func shareDirect(_ capture: ScreenshotSelectionController.Capture,
                              duration: ScreenshotShareDuration,
                              completion: @escaping @MainActor (ScreenshotShareRecord?) -> Void) {
+        guard ScreenshotSharingSupport.serviceAvailable else {
+            Task { @MainActor in completion(nil) }
+            return
+        }
         let downscale = PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale)
         Task { @MainActor [weak self] in
             guard let self else {
@@ -954,9 +958,10 @@ final class ScreenshotService: ObservableObject {
         guard let export = flatten(capture),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (destination, consumedNumber) = Self.saveDestination(strings: strings)
         do {
-            try data.write(to: url, options: .atomic)
+            // A folder that exists but refuses the write falls back to the Desktop instead of losing the capture.
+            let url = try ScreenshotSaveFallback.write(data, to: destination)
             ScreenshotSupport.markAsScreenCapture(url)
             QuickToolHUD.show(icon: "camera.viewfinder",
                               message: String(format: strings.savedHUDFormat,
@@ -979,9 +984,10 @@ final class ScreenshotService: ObservableObject {
         guard let export = flatten(capture),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (destination, consumedNumber) = Self.saveDestination(strings: strings)
+        let url: URL
         do {
-            try data.write(to: url, options: .atomic)
+            url = try ScreenshotSaveFallback.write(data, to: destination)
             ScreenshotSupport.markAsScreenCapture(url)
         } catch {
             if let consumedNumber {
@@ -1192,7 +1198,9 @@ enum ScreenshotLastCaptureStore {
                 try FileManager.default.createDirectory(
                     at: fileURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true)
+                ScreenshotPrivateFiles.restrict(folder: fileURL.deletingLastPathComponent())
                 try data.write(to: fileURL, options: .atomic)
+                ScreenshotPrivateFiles.restrict(file: fileURL)
                 guard isCurrent(operation) else {
                     try? FileManager.default.removeItem(at: fileURL)
                     return

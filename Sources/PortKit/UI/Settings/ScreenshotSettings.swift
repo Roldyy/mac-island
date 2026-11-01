@@ -184,7 +184,7 @@ struct ScreenshotCaptureSettings: View {
                     .foregroundStyle(.secondary)
                 Toggle(strings.addToShelfToggle, isOn: addToShelfBinding)
                     .disabled(!shelfIsOn)
-                Text(strings.addToShelfCaption)
+                Text(ScreenshotShelfBridge.isHosted ? strings.addToShelfCaption : ScreenshotShelfBridge.unavailableReason)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 folderRow
@@ -204,6 +204,7 @@ struct ScreenshotCaptureSettings: View {
                 Text(strings.toolShortcutsTitle)
             }
 
+            if ScreenshotSharingSupport.serviceAvailable {
             Section {
                 Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
                     .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
@@ -254,6 +255,17 @@ struct ScreenshotCaptureSettings: View {
             } header: {
                 Text(strings.shareSectionTitle)
             }
+            } else {
+                // Temporary links need a sharing server and Mac Island has none: the screens, the shortcut and the
+                // upload stay out, and the page says why. The system share sheet of the preview is untouched.
+                Section {
+                    Text("Les liens temporaires ne sont pas disponibles dans Mac Island : aucun serveur de partage n’est utilisé et rien n’est envoyé. Le partage du système (AirDrop, Messages, Mail) reste proposé dans l’aperçu de la capture.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(strings.shareSectionTitle)
+                }
+            }
         }
         .onAppear { sharing.refresh() }
         .sheet(isPresented: $showingSharedLinks) {
@@ -281,7 +293,7 @@ struct ScreenshotCaptureSettings: View {
     }
 
     private var shelfIsOn: Bool {
-        shelfEnabled && shelfAvailable
+        ScreenshotShelfBridge.isHosted && shelfEnabled && shelfAvailable
     }
 
     /// Reads off while the shelf is off, since no capture reaches it then.

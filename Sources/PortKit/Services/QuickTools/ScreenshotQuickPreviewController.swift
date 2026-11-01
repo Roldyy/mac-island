@@ -313,7 +313,7 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func performShare(_ duration: ScreenshotShareDuration) {
-        guard !closed, !model.sharing else { return }
+        guard ScreenshotSharingSupport.serviceAvailable, !closed, !model.sharing else { return }
         dismissWork?.cancel()
         dismissWork = nil
         model.sharing = true
@@ -596,7 +596,7 @@ private struct ScreenshotQuickPreviewView: View {
                 .screenshotSafeHelp(strings.shareButton)
                 .accessibilityLabel(strings.shareButton)
             }
-            if sharingEnabled, model.sharedRecord == nil {
+            if ScreenshotSharingSupport.serviceAvailable, sharingEnabled, model.sharedRecord == nil {
                 shareMenu
             }
             if !embedded { Spacer(minLength: 4) }

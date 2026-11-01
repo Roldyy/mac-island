@@ -22,6 +22,7 @@ enum PortLanes {
         AutoQuitSpacesLane.bind(into:),
         RecorderLane.bind(into:),
         CaptureToolsLane.bind(into:),
+        ScreenshotLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

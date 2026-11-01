@@ -1,0 +1,122 @@
+--- a/Services/QuickTools/ScreenshotEditorController.swift
++++ b/Services/QuickTools/ScreenshotEditorController.swift
+@@ -1588,6 +1588,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
+     /// the editor. The view presents the owner controls after it succeeds.
+     func share(duration: ScreenshotShareDuration,
+                completion: @escaping (ScreenshotShareRecord?) -> Void) {
++        guard ScreenshotSharingSupport.serviceAvailable else {
++            completion(nil)
++            return
++        }
+         guard let export = model.exportImage() else {
+             QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
+             completion(nil)
+@@ -1678,8 +1682,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
+     }
+
+     @discardableResult
+-    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil) -> Bool {
+-        let pasteboard = NSPasteboard.general
++    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil,
++                         pasteboard: NSPasteboard = .general) -> Bool {
+         pasteboard.clearContents()
+         let item = NSPasteboardItem()
+         guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
+@@ -1711,8 +1715,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
+     }
+
+     @discardableResult
+-    static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
+-        let pasteboard = NSPasteboard.general
++    static func copyClipboardPayload(_ payload: ClipboardPayload,
++                                     pasteboard: NSPasteboard = .general) -> Bool {
+         pasteboard.clearContents()
+         let item = NSPasteboardItem()
+         if let png = payload.png {
+@@ -1730,9 +1734,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
+         guard let export = model.exportImage(),
+               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+         else { return }
+-        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
++        let (destination, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
+         do {
+-            try data.write(to: url, options: .atomic)
++            let url = try ScreenshotSaveFallback.write(data, to: destination)
+             ScreenshotSupport.markAsScreenCapture(url)
+             model.markExported()
+             QuickToolHUD.show(icon: "camera.viewfinder",
+--- a/Services/QuickTools/ScreenshotService.swift
++++ b/Services/QuickTools/ScreenshotService.swift
+@@ -909,6 +909,10 @@ final class ScreenshotService: ObservableObject {
+     private func shareDirect(_ capture: ScreenshotSelectionController.Capture,
+                              duration: ScreenshotShareDuration,
+                              completion: @escaping @MainActor (ScreenshotShareRecord?) -> Void) {
++        guard ScreenshotSharingSupport.serviceAvailable else {
++            Task { @MainActor in completion(nil) }
++            return
++        }
+         let downscale = PortHost.defaults.bool(forKey: DefaultsKey.screenshotDownscale)
+         Task { @MainActor [weak self] in
+             guard let self else {
+@@ -954,9 +958,10 @@ final class ScreenshotService: ObservableObject {
+         guard let export = flatten(capture),
+               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+         else { return nil }
+-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
++        let (destination, consumedNumber) = Self.saveDestination(strings: strings)
+         do {
+-            try data.write(to: url, options: .atomic)
++            // A folder that exists but refuses the write falls back to the Desktop instead of losing the capture.
++            let url = try ScreenshotSaveFallback.write(data, to: destination)
+             ScreenshotSupport.markAsScreenCapture(url)
+             QuickToolHUD.show(icon: "camera.viewfinder",
+                               message: String(format: strings.savedHUDFormat,
+@@ -979,9 +984,10 @@ final class ScreenshotService: ObservableObject {
+         guard let export = flatten(capture),
+               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+         else { return nil }
+-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
++        let (destination, consumedNumber) = Self.saveDestination(strings: strings)
++        let url: URL
+         do {
+-            try data.write(to: url, options: .atomic)
++            url = try ScreenshotSaveFallback.write(data, to: destination)
+             ScreenshotSupport.markAsScreenCapture(url)
+         } catch {
+             if let consumedNumber {
+@@ -1192,7 +1198,9 @@ enum ScreenshotLastCaptureStore {
+                 try FileManager.default.createDirectory(
+                     at: fileURL.deletingLastPathComponent(),
+                     withIntermediateDirectories: true)
++                ScreenshotPrivateFiles.restrict(folder: fileURL.deletingLastPathComponent())
+                 try data.write(to: fileURL, options: .atomic)
++                ScreenshotPrivateFiles.restrict(file: fileURL)
+                 guard isCurrent(operation) else {
+                     try? FileManager.default.removeItem(at: fileURL)
+                     return
+--- a/Services/QuickTools/ScreenshotSupport.swift
++++ b/Services/QuickTools/ScreenshotSupport.swift
+@@ -354,7 +354,8 @@ enum ScreenshotSupport {
+     /// Captures go to the shelf on their own only while the shelf is
+     /// installed and on, so a switched-off shelf never fills up unseen.
+     static func addsCapturesToShelf(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+-        defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
++        ScreenshotShelfBridge.isHosted
++            && defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
+             && AppFeature.shelf.isAvailable(in: defaults)
+             && defaults.bool(forKey: DefaultsKey.shelfEnabled)
+     }
+@@ -1155,9 +1156,12 @@ enum ScreenshotSupport {
+                                   directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
+         let folder = directory.appendingPathComponent("ScreenshotDrag-\(UUID().uuidString)",
+                                                        isDirectory: true)
+-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
++        // A capture is a picture of the person's screen: the folder and the file belong to the user alone.
++        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
++                                                attributes: [.posixPermissions: ScreenshotPrivateFiles.folderPermissions])
+         let url = folder.appendingPathComponent((name as NSString).lastPathComponent)
+         try data.write(to: url, options: .atomic)
++        ScreenshotPrivateFiles.restrict(file: url)
+         return url
+     }
+

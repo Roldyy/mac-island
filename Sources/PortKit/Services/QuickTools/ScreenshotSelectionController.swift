@@ -56,6 +56,8 @@ final class ScreenshotSelectionController {
     }
     private var keyMonitor: Any?
     private var globalKeyMonitor: Any?
+    /// Takes the overlay down on a display change, when the app loses the focus and after 60 s.
+    private var overlayGuard: ScreenshotOverlayGuard?
     private var completion: ((Outcome) -> Void)?
     private var freeze: Bool
     private var includePointer: Bool
@@ -220,6 +222,9 @@ final class ScreenshotSelectionController {
         Self.isSessionOnScreen = true
         Self.activeSession = self
         self.completion = completion
+        let overlayGuard = ScreenshotOverlayGuard { [weak self] _ in self?.finish(.cancelled) }
+        self.overlayGuard = overlayGuard
+        overlayGuard.start()
         screenCaptureOptions?.onSelectionChange = { [weak self] in
             self?.screenCaptureToolDidChange()
         }
@@ -287,6 +292,7 @@ final class ScreenshotSelectionController {
         guard !finished else { return }
         panels.forEach { $0.orderFrontRegardless() }
         if screenCaptureOptions?.controlsInNotch != true { keyPanelUnderMouse()?.makeKey() }
+        overlayGuard?.armDeactivation()
         if isPickingColor
             || PortHost.defaults.bool(forKey: DefaultsKey.screenshotLoupeStartsOn) {
             // Opt-in: the session opens with the magnifier already up,
@@ -842,6 +848,8 @@ final class ScreenshotSelectionController {
     private func finish(_ outcome: Outcome) {
         guard !finished else { return }
         finished = true
+        overlayGuard?.stop()
+        overlayGuard = nil
         Self.isSessionOnScreen = false
         if Self.activeSession === self { Self.activeSession = nil }
         screenCaptureOptions?.onSelectionChange = nil

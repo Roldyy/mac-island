@@ -1588,6 +1588,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// the editor. The view presents the owner controls after it succeeds.
     func share(duration: ScreenshotShareDuration,
                completion: @escaping (ScreenshotShareRecord?) -> Void) {
+        guard ScreenshotSharingSupport.serviceAvailable else {
+            completion(nil)
+            return
+        }
         guard let export = model.exportImage() else {
             QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
             completion(nil)
@@ -1678,8 +1682,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil) -> Bool {
-        let pasteboard = NSPasteboard.general
+    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil,
+                         pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
@@ -1711,8 +1715,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
-        let pasteboard = NSPasteboard.general
+    static func copyClipboardPayload(_ payload: ClipboardPayload,
+                                     pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         if let png = payload.png {
@@ -1730,9 +1734,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard let export = model.exportImage(),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return }
-        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
+        let (destination, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
-            try data.write(to: url, options: .atomic)
+            let url = try ScreenshotSaveFallback.write(data, to: destination)
             ScreenshotSupport.markAsScreenCapture(url)
             model.markExported()
             QuickToolHUD.show(icon: "camera.viewfinder",

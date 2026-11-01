@@ -51,8 +51,32 @@ final class SystemActions {
         }
     }
 
+    /// The one capture button (Home tile, quick access): the ported screenshot tool owns it while the registry
+    /// lets it run (area, window or full screen, with the HUD, the preview and the editor). While that feature is
+    /// off the old system tool keeps the button working, so it is never dead.
     func capture() {
         guard !capturing else { return }
+        switch QuickCaptureRoute.route(portedRunning: PortScreenshot.isRunning,
+                                       screenRecording: PortScreenshot.hasScreenRecording) {
+        case .ported: capturePorted()
+        case .needsScreenRecording: missing(.screenRecording)
+        case .legacy: captureWithSystemTool()
+        }
+    }
+
+    private func capturePorted() {
+        closeIsland()
+        capturing = true
+        Task { @MainActor in
+            // Let the closing animation finish so the island is not in the shot.
+            try? await Task.sleep(for: .milliseconds(400))
+            capturing = false
+            // The ported chooser re-checks the feature and the permission itself and never asks for either.
+            if PortScreenshot.beginAreaCapture() == .needsScreenRecording { missing(.screenRecording) }
+        }
+    }
+
+    private func captureWithSystemTool() {
         // Checked, never requested: a request would prompt, and a capture without the permission shows only the wallpaper.
         guard CGPreflightScreenCaptureAccess() else { missing(.screenRecording); return }
         closeIsland()
