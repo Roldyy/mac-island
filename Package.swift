@@ -43,7 +43,8 @@ let package = Package(
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
         .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),
         .systemLibrary(name: "VMStatisticsCompat", path: "Sources/VMStatisticsCompat"),
-        .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
+        // FansFeature: the Fans bridge drives the helper through its `FanDriving` door (no dependency the other way).
+        .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "FansFeature", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
 
         .executableTarget(name: "MacIsland", dependencies: [
             "PortKit",
@@ -56,7 +57,7 @@ let package = Package(
 
         // ShellKit joins here only so the foundation tests can drive a real FeatureRegistry (kill switch, permission
         // grant) through PortFeatureBinding; PortKit itself still does not depend on ShellKit.
-        .testTarget(name: "PortKitTests", dependencies: ["PortKit", "ShellKit", "IslandKit", "IslandTestSupport"]),
+        .testTarget(name: "PortKitTests", dependencies: ["PortKit", "FansFeature", "ShellKit", "IslandKit", "IslandTestSupport"]),
         .testTarget(name: "SettingsKitTests", dependencies: ["SettingsKit"]),
         .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),
         .testTarget(name: "IslandUITests", dependencies: ["IslandUI", "IslandTestSupport"]),

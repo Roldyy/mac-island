@@ -92,7 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "clipboard": { ClipboardFeature.start() },
                     "shelf": { ShelfFeature.start() },
                     "finder": { FinderFeature.start() },
-                    "fans": { FansFeature.start() },  // read-only monitoring; manual control needs the approved helper
                     "monitor": { MonitorFeature.start() },
                     "nowplaying": { NowPlayingFeature.start() },
                     "agents": { live.start() },
@@ -100,7 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
                     "finder": { FinderFeature.stop() },
-                    "fans": { FansFeature.stop() },
                     "monitor": { MonitorFeature.stop() },
                     "agents": { live.stop() },  // withdraws every Claude activity through the sink
                 ]) { _, ours in ours },

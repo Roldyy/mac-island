@@ -30,6 +30,7 @@ enum PortLanes {
         LauncherLane.bind(into:),
         MonitorLane.bind(into:),
         KillPortsLane.bind(into:),
+        FansLane.bind(into:),
     ]
 
     static func bindAll(into binding: PortFeatureBinding) {

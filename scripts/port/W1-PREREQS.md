@@ -49,6 +49,12 @@ registration, no second XPC protocol, no `restoreThenUnregister`. Until then it 
 `PortBridge.recoverAtLaunch` calls `FanControlService.recoverIfNeeded()` only when `fanControlRecoveryNeeded` is
 set, and nothing in this app writes that key now (the migrator skips it and purges it).
 
+Done by lane W6C (patch 1450, `Bridge/Fans.swift`, `FanControlBackend.swift`, `FanControlEngine.swift`): the service
+is a ~110-line shim over `FanControlBackend`, which drives our helper through `FansFeature.driver` (`FanDriving`, no
+change to `FanHelperContract` or the XPC protocol). `fanControlRecoveryNeeded` is the journal: set before the first
+speed, cleared only on a confirmed automatic. The upstream fan tests are not enabled (they exercise the replaced
+service); the lane's own tests are `FanControlEngineTests`, `FanControlBackendTests`, `FansLaneTests`, `FanDriverTests`.
+
 ## 4. `PermissionMonitor` poll cost
 
 `PermissionMonitor.pollInterval` is 1 s and the poll runs for as long as any on-by-default feature lacks its

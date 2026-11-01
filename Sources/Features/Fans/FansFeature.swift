@@ -12,6 +12,10 @@ public enum FansFeature {
     /// reads it in `body` is updated when it changes.
     @MainActor public static var isManualActive: Bool { shared.manualActive }
 
+    /// The door the ported fan policy (PortKit's `FanControlBackend`) drives the helper through. The model is the
+    /// same one the Ventilos tab shows, created on first use only.
+    @MainActor public static var driver: any FanDriving { shared }
+
     @MainActor public static func tab() -> IslandTab {
         IslandTab(id: "fans", title: "Ventilos", systemImage: "fan") {
             AnyView(FansView(model: shared))

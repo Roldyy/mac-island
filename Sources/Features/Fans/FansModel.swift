@@ -25,8 +25,8 @@ final class FansModel {
 
     @ObservationIgnored let policy = FanSafetyPolicy()
     @ObservationIgnored private(set) var connectTask: Task<Void, Never>?
-    @ObservationIgnored private let source: FanReadingSource
-    @ObservationIgnored private let client: FanHelperClient
+    @ObservationIgnored let source: FanReadingSource
+    @ObservationIgnored let client: FanHelperClient
     @ObservationIgnored private let installer: FanHelperInstalling
     @ObservationIgnored private let heartbeat: HeartbeatScheduling
     @ObservationIgnored private let releaseGuard: ManualReleaseGuard
@@ -36,7 +36,9 @@ final class FansModel {
     /// `setTarget` reply from an earlier epoch is dropped: the user already overrode it, and
     /// since one XPC connection delivers messages in order the helper ran that automatic after
     /// the target, so it is automatic too.
-    @ObservationIgnored private var automaticEpoch = 0
+    @ObservationIgnored var automaticEpoch = 0
+    /// Set by the ported fan policy (`FanDriving`): told when manual mode ended without its own command.
+    @ObservationIgnored var onManualEnded: (@MainActor (String?) -> Void)?
 
     init(source: FanReadingSource, client: FanHelperClient, installer: FanHelperInstalling,
          heartbeat: HeartbeatScheduling) {
@@ -156,7 +158,7 @@ final class FansModel {
 
     func openLoginItems() { installer.openLoginItems() }
 
-    private func refreshInstallStatus() {
+    func refreshInstallStatus() {
         installStatus = installer.status
         if installStatus != .enabled { helperReachable = false }
     }
@@ -180,15 +182,20 @@ final class FansModel {
         handle(result)
     }
 
-    func returnToAutomatic() async {
+    @discardableResult
+    func returnToAutomatic() async -> FanDriverOutcome {
         automaticEpoch += 1
         heartbeat.stop()
+        var outcome = FanDriverOutcome.unreachable
         do {
-            handle(try await client.perform(.allAutomatic))
+            let result = try await client.perform(.allAutomatic)
+            outcome = Self.outcome(of: result)
+            handle(result)
         } catch {
             statusMessage = "Helper injoignable : il repasse en automatique seul après 8 s sans signal."
         }
         endManual()
+        return outcome
     }
 
     func sendHeartbeat() async {
@@ -207,7 +214,7 @@ final class FansModel {
         for task in callbacks.takeAll() { await task.value }
     }
 
-    private func handle(_ result: FanCommandResult) {
+    func handle(_ result: FanCommandResult) {
         switch result.status {
         case .applied:
             manualActive = true
@@ -255,10 +262,15 @@ final class FansModel {
         endManual()
     }
 
+    /// After a blocking automatic went out (`FanDriving.returnAllToAutomaticNow`): the local state follows.
+    func stopManualAfterBlockingRestore() { endManual() }
+
     private func endManual() {
+        let wasActive = manualActive
         manualActive = false
         releaseGuard.manualActive = false
         heartbeat.stop()
+        if wasActive { onManualEnded?(statusMessage) }
     }
 }
 
