@@ -51,8 +51,10 @@ enum DockClickSupport {
     /// Both local and published builds may be running during development.
     /// Neither is ever a valid target for the other's global Dock click tap.
     static func isOwnBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
-        bundleIdentifier == "com.vorssaint.utils"
-            || bundleIdentifier == "be.roldy.macisland.dev"
+        guard let bundleIdentifier else { return false }
+        return bundleIdentifier == "com.vorssaint.utils"
+            || bundleIdentifier == "be.roldy.macisland"
+            || bundleIdentifier.hasPrefix("be.roldy.macisland.")
     }
 
     /// The Option-Command-M chord is not unique to Minimize All. Only the

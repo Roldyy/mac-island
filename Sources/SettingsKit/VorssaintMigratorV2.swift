@@ -27,10 +27,41 @@ extension VorssaintMigrator {
     /// Kept out of the second pass. Same spirit as the first one: secrets, bookmarks bound to the old
     /// app's identity, onboarding and what's-new markers, system keys, and the old app's runtime state
     /// (`vorss*` holds crash-recovery notes about its own sleep and brightness changes).
-    static let skippedExactV2: Set<String> = [
+    static let skippedExactV2: Set<String> = Set([
         "commandBarQueryHabitKey",
         "notchDownloadsFolderBookmark",
         "fanControlHelperVersion",
+    ]).union(runtimeMarkerKeysV2)
+
+    /// Crash and runtime markers that name a system change the old app applied and still owed back (or a
+    /// security-scoped grant of its own identity). Carried here, a ported recovery step would "restore"
+    /// state that this app never applied, or act on a stale grant. Each is machine state in upstream's own
+    /// `SettingsBackup.machineStateKeys` (never exported there either). Only the ported services write
+    /// them and none is bound yet, so removing them from our domain is safe (see `purgeRuntimeKeysV2`).
+    /// `vorssDisabledSleep` / `vorssDimmedDisplaySavedBrightness` (pmset sleep, panel dimming) are
+    /// already covered by the `vorss` prefix.
+    static let runtimeMarkerKeysV2: Set<String> = [
+        // Fans: hand-back owed to the helper, and a control to re-apply after launch.
+        "fanControlRecoveryNeeded", "fanControlResume", "fanControlResumeConfiguration",
+        // Keyboard mapping (hidutil) in place and the source to take back.
+        "superKeyMappingApplied", "superKeyMappedSource",
+        // Closed-lid mode that would re-run `pmset disablesleep` through the sudoers rule.
+        "clamshellPreferred",
+        // Security-scoped bookmark minted for the old app's identity.
+        "wallpaperOwnBookmarks",
+        // Native hotkeys switched off in the symbolic-hotkeys table, to give back.
+        "systemShortcutsSuppressed", "switcherNativeHotkeysSuppressed",
+        // Dock settings (autohide, Spaces arrangement) changed and owed back, Dock restart owed.
+        "dockPreviewRestoreAutohide", "spacesOrderRestore", "spacesOrderRestartPending",
+        // Bluetooth switched off for sleep and owed back.
+        "bluetoothSleepRestorePending",
+        // Microphone muted by lowering input volume: the volumes to put back, and who is muted.
+        "micMuteActive", "micMuteSavedVolume", "micMuteSavedVolumes", "micMuteSavedChannelVolumes",
+        "micMuteMutedDevices",
+        // Displays switched off (and their fingerprints): a ported recovery would re-enable them.
+        "displaysSwitchedOff", "displaysSwitchedOffFingerprints",
+        // A start that did not finish: would make the ported code think this app crashed.
+        "startupDidNotFinish",
     ]
     static let skippedPrefixesV2 = [
         "whatsNew", "onboarding", "migration", "vorss", "SU", "NS", "AppleLanguages",
@@ -143,5 +174,24 @@ extension VorssaintMigrator {
         }
         destDefaults.set(true, forKey: Self.doneKeyV2)
         return plan.report
+    }
+
+    // MARK: - Purge of already-carried runtime markers
+
+    public static let purgeRuntimeKeysDoneKey = "migration.v2.purgeRuntimeKeys.done"
+
+    /// One-shot clean-up for a Mac where the first v2 pass (before these keys were skipped) already copied
+    /// them. Removes exactly `runtimeMarkerKeysV2` from `defaults` (our domain, never the source) and
+    /// returns how many were present. Counts only: no key name or value is returned or logged.
+    @discardableResult
+    public static func purgeRuntimeKeysV2(in defaults: UserDefaults) -> Int {
+        guard !defaults.bool(forKey: purgeRuntimeKeysDoneKey) else { return 0 }
+        var removed = 0
+        for key in runtimeMarkerKeysV2 where defaults.object(forKey: key) != nil {
+            defaults.removeObject(forKey: key)
+            removed += 1
+        }
+        defaults.set(true, forKey: purgeRuntimeKeysDoneKey)
+        return removed
     }
 }

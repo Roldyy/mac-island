@@ -1105,7 +1105,6 @@ struct Strings {
     let discordIntroJoinButton: String
     let communityIntroTitle: String
     let communityIntroMessage: String
-    let communityIntroFollowButton: String
     let homebrewOfficialIntroTitle: String
     let homebrewOfficialIntroMessage: String
     let homebrewOfficialIntroInstallLabel: String
@@ -2222,7 +2221,6 @@ extension Strings {
         discordIntroJoinButton: "Join the Discord community",
         communityIntroTitle: "See it before everyone else",
         communityIntroMessage: "People who already followed me on X saw several changes in this update before anyone else. I post previews of what is coming and show how it works, so you already know the basics before the update ships. Follow along and see what comes next!",
-        communityIntroFollowButton: "Follow @vorssaint on X",
         homebrewOfficialIntroTitle: "Now in the official Homebrew catalog",
         homebrewOfficialIntroMessage: "Mac Island can now be installed directly from the official Homebrew catalog.",
         homebrewOfficialIntroInstallLabel: "New installation",

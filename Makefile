@@ -5,9 +5,9 @@ APP := build/Mac Island.app
 help:
 	@echo "make run        run from source (no bundle: some permissions cannot be prompted)"
 	@echo "make test       run the test suite"
-	@echo "make install    build, sign locally (ad hoc) and copy to /Applications"
+	@echo "make install    build, sign with our Developer ID when present (else ad hoc) and copy to /Applications"
 	@echo "make uninstall  remove the app from /Applications (your settings stay)"
-	@echo "make bundle     build 'build/Mac Island.app' (SIGN_IDENTITY=... for a release signature)"
+	@echo "make bundle     build 'build/Mac Island.app' (Developer ID U3TUL63HHK if present, SIGN_IDENTITY=- for ad hoc, SIGN_IDENTITY=... for a timestamped release signature)"
 	@echo "make notarize   sign, notarize and staple the app and the DMG (needs a notarytool profile)"
 	@echo "make check      personal-data guard + tests"
 

@@ -1,0 +1,56 @@
+--- a/Services/Uninstall/UninstallerSupport.swift
++++ b/Services/Uninstall/UninstallerSupport.swift
+@@ -792,6 +792,7 @@
+     private static func isOwnBundleID(_ id: String) -> Bool {
+         let lowered = id.lowercased()
+         return lowered == "com.vorssaint" || lowered.hasPrefix("com.vorssaint.")
++            || lowered == "be.roldy.macisland" || lowered.hasPrefix("be.roldy.macisland.")
+             || lowered.hasPrefix("vorss.")
+     }
+ 
+--- a/Services/Cleaner/CleanerSupport.swift
++++ b/Services/Cleaner/CleanerSupport.swift
+@@ -60,6 +60,7 @@
+         let lowered = id.lowercased()
+         let wrapped = "." + lowered + "."
+         if wrapped.contains(".com.apple.") || wrapped.contains(".com.vorssaint.")
++            || wrapped.contains(".be.roldy.macisland.")
+             || wrapped.contains(".developer.apple.") || wrapped.contains(".is.workflow.") {
+             return true
+         }
+--- a/Services/Cleaner/CleanerPolicy.swift
++++ b/Services/Cleaner/CleanerPolicy.swift
+@@ -61,7 +61,7 @@
+     /// loss, blank Settings panels, service sign outs, plugin licensing),
+     /// each learned the hard way by the cleaners that came before.
+     private static let hiddenCachePrefixes = [
+-        "com.vorssaint",
++        "com.vorssaint", "be.roldy.macisland",
+         "CloudKit", "com.apple.bird",
+         "com.apple.coreaudio", "com.apple.audio.", "coreaudiod",
+         "com.apple.systempreferences", "com.apple.controlcenter",
+--- a/Services/DockClick/DockClickSupport.swift
++++ b/Services/DockClick/DockClickSupport.swift
+@@ -51,8 +51,10 @@
+     /// Both local and published builds may be running during development.
+     /// Neither is ever a valid target for the other's global Dock click tap.
+     static func isOwnBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
+-        bundleIdentifier == "com.vorssaint.utils"
+-            || bundleIdentifier == "be.roldy.macisland.dev"
++        guard let bundleIdentifier else { return false }
++        return bundleIdentifier == "com.vorssaint.utils"
++            || bundleIdentifier == "be.roldy.macisland"
++            || bundleIdentifier.hasPrefix("be.roldy.macisland.")
+     }
+ 
+     /// The Option-Command-M chord is not unique to Minimize All. Only the
+--- a/Services/AppUpdates/AppUpdatesService.swift
++++ b/Services/AppUpdates/AppUpdatesService.swift
+@@ -869,6 +869,7 @@
+     /// exists to do safely.
+     private static func isOwnBundle(_ bundleID: String) -> Bool {
+         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
++            || bundleID == "be.roldy.macisland" || bundleID.hasPrefix("be.roldy.macisland.")
+     }
+ 
+     private static let ownPackageTokens: Set<String> = ["vorssaint", "vorssaint@beta", "vorssaint-beta"]

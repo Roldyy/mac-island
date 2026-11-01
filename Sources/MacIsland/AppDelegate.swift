@@ -264,6 +264,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // `MigrationError.partial` states what was already written (backup path, key count).
             NSLog("MacIsland: migration did not finish: %@", "\(error)")
         }
+        // A v2 pass from before the runtime markers were skipped may have carried them: remove them once.
+        let purged = VorssaintMigrator.purgeRuntimeKeysV2(in: defaults)
+        if purged > 0 { NSLog("MacIsland: removed %d carried runtime markers", purged) }
     }
 }
 

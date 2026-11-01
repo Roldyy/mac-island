@@ -38,6 +38,52 @@ public enum PortBridge {
         facade.relaunch = host.relaunch
         facade.isOverMenuBarItem = host.isOverMenuBarItem
         AppDelegate.current = facade
+        recoverAtLaunch()
+    }
+
+    // MARK: Launch
+
+    /// The re-exec'd cleanup flags of the ported guards (`--super-key-mapping-cleanup`,
+    /// `--mouse-acceleration-cleanup`). Called from `main.swift` before `NSApplication` exists: when a flag is
+    /// present the process does its cleanup and exits, so no second app ever starts.
+    /// (`KeepAwakeManager` has no such flag: only `recoverIfNeeded`, below.)
+    public static func runCleanupFlagsIfRequested() {
+        SuperKeyMappingGuard.runIfRequestedAndExit()
+        MouseAccelerationGuard.runIfRequestedAndExit()
+    }
+
+    private static var didRecoverAtLaunch = false
+
+    /// Which crash-recovery steps have something to undo. A step with no marker is never entered, so a Mac
+    /// where the ported services never ran gets no daemon registration, no prompt and no `shared` singleton
+    /// built. `MouseAccelerationService.recoverPendingAtLaunch` and `SpacesOrderHold.recoverIfNeeded` test
+    /// their own marker (a journal file, the Spaces keys) and are called unconditionally.
+    struct RecoveryPlan: Equatable {
+        var keepAwake = false
+        var systemShortcuts = false
+        var fanControl = false
+
+        init(defaults: UserDefaults) {
+            keepAwake = defaults.bool(forKey: DefaultsKey.sleepDisabledFlag)
+                || defaults.object(forKey: DefaultsKey.dimmedDisplaySavedBrightness) != nil
+            systemShortcuts = defaults.object(forKey: DefaultsKey.systemShortcutsSuppressed) != nil
+                || defaults.object(forKey: DefaultsKey.switcherNativeHotkeysSuppressed) != nil
+            fanControl = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+        }
+    }
+
+    /// Gives back what an earlier run of the ported services left applied (upstream ran these in `main.swift`
+    /// and `applicationDidFinishLaunching`; the port had dropped them). Once per launch, only for a marker
+    /// that is actually set. Nothing is started: the features stay unbound until a lane binds them.
+    static func recoverAtLaunch(defaults: UserDefaults = .standard) {
+        guard !didRecoverAtLaunch else { return }
+        didRecoverAtLaunch = true
+        let plan = RecoveryPlan(defaults: defaults)
+        if plan.systemShortcuts { SystemShortcutTakeover.recoverIfNeeded(keeping: []) }
+        if plan.keepAwake { KeepAwakeManager.shared.recoverIfNeeded() }
+        if plan.fanControl { FanControlService.recoverIfNeeded() }
+        MouseAccelerationService.recoverPendingAtLaunch()
+        SpacesOrderHold.recoverIfNeeded()
     }
 
     // MARK: Settings page bodies

@@ -62,22 +62,43 @@ import Testing
         #expect(offenders.isEmpty, "external host: \(offenders.prefix(5))")
     }
 
-    /// `com.vorssaint` survives only where the code must recognise the old app: self-exclusion lists and the
-    /// migration source. Anything else is a bundle id or queue label that should have been rewritten.
+    /// `com.vorssaint` survives only where the code must recognise the old app: the five self-exclusion checks,
+    /// one code line each (a second line in any of them, or a new file, is an identifier that should have been
+    /// rewritten). Every one of those files must also name our own id next to it (patch 0010).
     @Test func comVorssaintOnlyInLegacyRecognition() {
-        let allowed: Set<String> = [
-            "Services/DockClick/DockClickSupport.swift", "Services/Uninstall/UninstallerSupport.swift",
-            "Services/Cleaner/CleanerPolicy.swift", "Services/Cleaner/CleanerSupport.swift",
-            "Services/AppUpdates/AppUpdatesService.swift",
+        let allowed: [String: Int] = [
+            "Services/DockClick/DockClickSupport.swift": 1, "Services/Uninstall/UninstallerSupport.swift": 1,
+            "Services/Cleaner/CleanerPolicy.swift": 1, "Services/Cleaner/CleanerSupport.swift": 1,
+            "Services/AppUpdates/AppUpdatesService.swift": 1,
         ]
         var offenders: [String] = []
-        for file in Self.files where !allowed.contains(file.path) {
+        for file in Self.files {
+            var count = 0
             for (index, line) in file.lines.enumerated() where line.contains("com.vorssaint") {
                 if line.drop(while: { $0 == " " || $0 == "\t" }).hasPrefix("//") { continue }
-                offenders.append("\(file.path):\(index + 1)")
+                count += 1
+                if allowed[file.path] == nil || count > allowed[file.path]! { offenders.append("\(file.path):\(index + 1)") }
+            }
+            if let expected = allowed[file.path], count != expected {
+                offenders.append("\(file.path): expected \(expected) legacy line(s), found \(count)")
+            }
+            if allowed[file.path] != nil, !file.lines.contains(where: { $0.contains("be.roldy.macisland") }) {
+                offenders.append("\(file.path): own bundle id not protected")
             }
         }
         #expect(offenders.isEmpty, "unrewritten identifier: \(offenders.prefix(5))")
+    }
+
+    /// Case-insensitive, comments included: no handle of the old author may survive (the "Follow @vorssaint on X"
+    /// strings were removed by patch 0011).
+    @Test func noVorssaintHandleAnywhere() {
+        var offenders: [String] = []
+        for file in Self.files {
+            for (index, line) in file.lines.enumerated() where line.lowercased().contains("@vorssaint") {
+                offenders.append("\(file.path):\(index + 1)")
+            }
+        }
+        #expect(offenders.isEmpty, "old author handle: \(offenders.prefix(5))")
     }
 
     @Test func defaultsKeyNamesAreKeptVerbatim() throws {

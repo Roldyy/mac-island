@@ -9,6 +9,26 @@ import Testing
         #expect(NotchSupport.isEnabled() == false)
     }
 
+    /// With both enable keys on, only the gate (patch 0003) keeps the ported island down: without that clause
+    /// `isEnabled` would read true here and this fails. The last assertion proves the keys alone do enable it,
+    /// so the gated half cannot pass for another reason.
+    @Test func theGateAloneKeepsAnEnabledIslandDown() throws {
+        let name = "mis-tests-gate-\(UUID().uuidString)"
+        let suite = try #require(UserDefaults(suiteName: name))
+        defer { suite.removePersistentDomain(forName: name) }
+        suite.set(true, forKey: AppFeature.notch.availabilityKey)
+        suite.set(true, forKey: DefaultsKey.notchEnabled)
+        #expect(AppFeature.notch.isAvailable(in: suite))
+
+        PortHost.vorssaintIslandEnabled = false
+        #expect(NotchSupport.isEnabled(in: suite) == false)
+        #expect(NotchSupport.usesHapticFeedback(in: suite) == false)
+
+        PortHost.vorssaintIslandEnabled = true
+        defer { PortHost.vorssaintIslandEnabled = false }
+        #expect(NotchSupport.isEnabled(in: suite))
+    }
+
     @Test func syncWithPreferencesIsANoOpWhileTheGateIsOff() {
         let service = NotchService.shared
         service.syncWithPreferences()

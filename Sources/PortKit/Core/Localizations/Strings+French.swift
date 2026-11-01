@@ -922,7 +922,6 @@ extension Strings {
         discordIntroJoinButton: "Rejoindre la communauté sur Discord",
         communityIntroTitle: "Voyez tout avant tout le monde",
         communityIntroMessage: "Les personnes qui me suivaient déjà sur X ont découvert plusieurs changements de cette mise à jour avant tout le monde. J’y publie des aperçus des prochaines nouveautés et montre leur fonctionnement, pour que vous connaissiez déjà l’essentiel avant leur sortie. Suivez-moi pour voir la suite\u{00A0}!",
-        communityIntroFollowButton: "Suivre @vorssaint sur X",
         homebrewOfficialIntroTitle: "Maintenant dans le catalogue officiel de Homebrew",
         homebrewOfficialIntroMessage: "Mac Island peut maintenant être installé directement depuis le catalogue officiel de Homebrew.",
         homebrewOfficialIntroInstallLabel: "Nouvelle installation",
