@@ -68,7 +68,7 @@ struct ClaudeUsageSource: UsageSource {
             early.records = known.records
             early.malformedLines = known.malformed
             early.fileCount = known.files
-            progress(UsageProgress(result: early, missingNewest: nil))
+            progress(UsageProgress(result: early, missingNewest: nil, pendingNewest: nil, fromCache: true))
         }
 
         guard var files = scan(modifiedSince: modifiedSince, unreadable: &result.unreadableFiles) else { return result }
@@ -111,7 +111,8 @@ struct ClaudeUsageSource: UsageSource {
                 partial.malformedLines = known.malformed
                 partial.fileCount = known.files
                 partial.parsedFileCount = cache.parseCount - parsedBefore
-                progress(UsageProgress(result: partial, missingNewest: missing.first))
+                progress(UsageProgress(result: partial, missingNewest: missing.first,
+                                       pendingNewest: todo[done...].first?.key.mtime))
             }
             if let store, Date().timeIntervalSince(lastSave) >= 3 {   // a cold read survives a quit half way
                 lastSave = Date()

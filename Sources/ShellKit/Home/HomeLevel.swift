@@ -22,10 +22,17 @@ public final class HomeLevel {
 
     /// Re-reads the system. The slider calls it while the island is open, so a volume key shows up.
     public func refresh() {
-        if let level = backend.read() {
-            value = Self.clamped(level)
-            isAvailable = true
-        } else {
+        apply(backend.read())
+    }
+
+    /// Assigns only what changed: `@Observable` publishes on every assignment, even of an equal value, and the
+    /// poll runs every second while the island is open.
+    private func apply(_ level: Double?) {
+        if let level {
+            let next = Self.clamped(level)
+            if value != next { value = next }
+            if !isAvailable { isAvailable = true }
+        } else if isAvailable {
             isAvailable = false
         }
     }
@@ -34,7 +41,7 @@ public final class HomeLevel {
     public func set(_ level: Double) {
         let clamped = Self.clamped(level)
         guard isAvailable else { return }
-        value = clamped
+        if value != clamped { value = clamped }
         if !backend.write(clamped) { refresh() }
     }
 

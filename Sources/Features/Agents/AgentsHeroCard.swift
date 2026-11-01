@@ -23,7 +23,7 @@ struct AgentsHeroCard: View {
     static func tint(_ row: LimitRow) -> Color { row.level?.status.color ?? IslandPalette.accent.color }
 
     var body: some View {
-        let tint = session.map(Self.tint) ?? IslandPalette.accent.color
+        let tint = session.flatMap { $0.isPending ? nil : Self.tint($0) } ?? IslandPalette.accent.color
         VStack(alignment: .leading, spacing: IslandSpacing.m) {
             if limits.rows.isEmpty {
                 HStack(alignment: .center, spacing: IslandSpacing.m) { placeholder }
@@ -42,16 +42,48 @@ struct AgentsHeroCard: View {
         .background(LinearGradient(colors: [tint.opacity(0.20), tint.opacity(0)], startPoint: .topLeading, endPoint: .bottomTrailing)
             .clipShape(RoundedRectangle(cornerRadius: IslandRadius.medium, style: .continuous)))
         .opacity(limits.isStale ? 0.85 : 1)
+        .islandAnimation(.easeInOut(duration: 0.35), value: limits.rows)
     }
 
     private func rings(stacked: Bool) -> some View {
         HStack(alignment: .center, spacing: IslandSpacing.m) {
-            if let session { sessionColumn(session, stacked: stacked) }
+            if let session { slot(session, stacked: stacked) { sessionColumn(session, stacked: stacked) } }
             if session != nil, week != nil {
                 Rectangle().fill(IslandPalette.separator.color.opacity(0.5)).frame(width: 1, height: Self.ringSize)
             }
-            if let week { weekColumn(week, stacked: stacked) }
+            if let week { slot(week, stacked: stacked) { weekColumn(week, stacked: stacked) } }
         }
+    }
+
+    /// A meter that cannot be told yet keeps its place and size as a placeholder; the real one fades in over it.
+    @ViewBuilder
+    private func slot<Content: View>(_ row: LimitRow, stacked: Bool, @ViewBuilder content: () -> Content) -> some View {
+        Group {
+            if row.isPending {
+                pendingColumn(row, stacked: stacked)
+            } else {
+                content()
+            }
+        }
+        .transition(.opacity)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func pendingColumn(_ row: LimitRow, stacked: Bool) -> some View {
+        column(stacked: stacked,
+               ring: Circle().stroke(IslandPalette.textPrimary.color.opacity(0.10), lineWidth: 10)
+                   .frame(width: Self.ringSize, height: Self.ringSize).agentsShimmer()) { alignment in
+            VStack(alignment: alignment, spacing: IslandSpacing.xs) {
+                Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color).lineLimit(1)
+                Text(AgentsStrings.computing).font(.islandCaptionEmphasis)
+                    .foregroundStyle(IslandPalette.textSecondary.color).lineLimit(1)
+                AgentsSkeletonBar(width: 120, height: 12)
+                AgentsSkeletonBar(width: 90, height: 18)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(row.title)
+        .accessibilityValue(AgentsStrings.computing)
     }
 
     // MARK: a ring and its words
@@ -75,6 +107,10 @@ struct AgentsHeroCard: View {
             VStack(alignment: alignment, spacing: IslandSpacing.xs) {
                 Text(row.title).font(.islandBodyEmphasis).foregroundStyle(IslandPalette.textPrimary.color).lineLimit(1)
                 if let level = row.level { levelLabel(level) }
+                if row.isIdle {
+                    Text(AgentsStrings.text("noSession")).font(.islandFootnote)
+                        .foregroundStyle(IslandPalette.textTertiary.color).lineLimit(1)
+                }
                 countdown(row, alignment: alignment)
             }
         }

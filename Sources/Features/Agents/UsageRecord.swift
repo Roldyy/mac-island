@@ -63,6 +63,11 @@ struct UsageProgress: Sendable {
     /// Newest modification date among files that have no data yet. A log never holds a record newer than its
     /// own mtime, so a period starting after this instant is complete. nil = every file has data.
     var missingNewest: Date?
+    /// Newest modification date among files not read again yet, new or changed. A record of an open 5 h block
+    /// can only sit in a file modified inside it, so the block is settled once this is older than 5 h.
+    var pendingNewest: Date?
+    /// This state is the disk cache alone: the folder has not been walked yet.
+    var fromCache = false
 }
 
 protocol UsageSource: Sendable {

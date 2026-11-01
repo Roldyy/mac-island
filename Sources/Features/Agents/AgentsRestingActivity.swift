@@ -73,7 +73,7 @@ final class AgentsRestingController {
         let source = limitSource
         let sample = await Task.detached(priority: .utility) { source.load() }.value
         guard !Task.isCancelled else { return }
-        let limits = LimitsState.resolve(sample: sample, block: nil, weekTokens: 0, now: clock())
+        let limits = LimitsState.resolve(sample: sample, block: nil, blockKnown: false, weekTokens: 0, now: clock())
         if let activity = AgentsRestingActivity.activity(limits: limits, focus: settings.limitFocus, display: settings.limitDisplay) {
             poster.post(activity)
         } else {

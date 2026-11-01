@@ -71,8 +71,19 @@ public final class HomeModel {
     public let brightness: HomeLevel
     public let keyboardLight: HomeLevel
 
-    /// What is playing, fed by the app; nil shows "Aucune lecture".
-    public var track: HomeTrack?
+    /// What is playing, fed by the app; nil shows "Aucune lecture". Assigning what is already there does not
+    /// notify: the app feeds it from every layout the activity engine publishes, most of them unrelated.
+    public var track: HomeTrack? {
+        get {
+            access(keyPath: \.track)
+            return storedTrack
+        }
+        set {
+            guard newValue != storedTrack else { return }
+            withMutation(keyPath: \.track) { storedTrack = newValue }
+        }
+    }
+    @ObservationIgnored private var storedTrack: HomeTrack?
     @ObservationIgnored public var transport: @MainActor (HomeTransport) -> Void
 
     /// Launches the Claude desktop app from the Claude shortcut.

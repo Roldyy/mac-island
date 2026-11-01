@@ -115,4 +115,5 @@ enum AgentsStrings {
     static let liveHeader = "En cours"
     static let collapse = "Réduire"
     static let perDay = "par jour"
+    static let computing = "Calcul…"
 }

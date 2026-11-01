@@ -19,7 +19,8 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     func ensureRunning() -> ActivityTerminalView {
         if let view = terminalView, !exited { return view }
         let view = ActivityTerminalView(frame: NSRect(x: 0, y: 0, width: 640, height: 320))
-        view.font = NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        view.applySavedFontSize()
+        view.configureInteraction()
         view.nativeBackgroundColor = NSColor(calibratedWhite: 0.06, alpha: 1)
         view.nativeForegroundColor = NSColor(calibratedWhite: 0.88, alpha: 1)
         view.processDelegate = self
@@ -36,8 +37,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     /// Same effect as pressing Ctrl+L: a foreground program receives the keystroke too.
     func clear() {
         guard let view = terminalView, !exited else { return }
-        view.getTerminal().clearScrollback()
-        view.send(data: [0x0c][...])
+        view.clearScreen()
     }
 
     static func loginShell() -> String {

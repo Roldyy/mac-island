@@ -193,6 +193,7 @@ public final class IslandController {
 
     public func show() {
         isShown = true
+        HitchProbe.shared.startIfRequested()  // only with MIS_HITCH_LOG set; nothing is installed otherwise
         panel.orderFrontRegardless()
         installHoverMonitors()
         let g = idleGeometry

@@ -13,6 +13,12 @@ struct LimitRow: Equatable, Identifiable, Sendable {
     var renewal: Date?
     /// Tokens of the window as counted from the Claude Code logs (estimate only).
     var tokens: Int?
+    /// The reading cannot be told yet (the log records that decide it are still being read): the page draws
+    /// a neutral placeholder for this meter, never a number that may turn out to belong to another window.
+    var isPending = false
+
+    /// Settled, but nothing to show: the last plan reading predates the window and no 5 h block is open.
+    var isIdle: Bool { !isPending && usedPercent == nil && tokens == nil }
 
     var id: String { kind.rawValue }
     var title: String { AgentsStrings.text(kind == .session ? "session" : "weekly") }
@@ -85,23 +91,41 @@ struct LimitsState: Equatable, Sendable {
         return min(1, max(0, now.timeIntervalSince(start) / length))
     }
 
-    static func resolve(sample: PlanLimitSample?, block: UsageBlock?, weekTokens: Int, now: Date) -> LimitsState {
+    /// - Parameters:
+    ///   - blockKnown: the log records have been read far enough to say which 5 h block is open (or that none
+    ///     is). While false, a session reading that may belong to an earlier window stays pending.
+    ///   - weekComplete: the week's tokens are final (only the log estimate uses them).
+    static func resolve(sample: PlanLimitSample?, block: UsageBlock?, blockKnown: Bool = true, weekTokens: Int,
+                        weekComplete: Bool = true, now: Date) -> LimitsState {
+        let open = block.flatMap { $0.end > now ? $0 : nil }
         func sessionBounds() -> (elapsed: Double?, renewal: Date?) {
-            guard let block, block.end > now else { return (nil, nil) }
-            return (elapsedFraction(now: now, start: block.start, end: block.end), block.end)
+            guard let open else { return (nil, nil) }
+            return (elapsedFraction(now: now, start: open.start, end: open.end), open.end)
         }
         if let sample, sample.hasAnyValue {
             var state = LimitsState(source: .planFile, updated: sample.date, isStale: sample.isStale(at: now),
                                     extraUsage: sample.extraUsage)
             if let fiveHour = sample.fiveHour {
                 let bounds = sessionBounds()
-                // A reading taken before the open 5 h block began describes the previous window: showing
-                // it as the current one would be wrong, so the session falls back to the log estimate.
-                if let block, block.end > now, sample.date < block.start {
-                    state.rows.append(LimitRow(kind: .session, usedPercent: nil, elapsed: bounds.elapsed,
-                                               renewal: bounds.renewal, tokens: block.tokens))
-                    state.hasEstimatedRow = true
+                // A reading older than the 5 h window, or taken before the open block began, describes a
+                // previous window: it is never shown as the current session.
+                let outdated = now.timeIntervalSince(sample.date) > UsageBlocks.length
+                    || open.map { sample.date < $0.start } == true
+                if blockKnown {
+                    if outdated, let open {
+                        state.rows.append(LimitRow(kind: .session, usedPercent: nil, elapsed: bounds.elapsed,
+                                                   renewal: bounds.renewal, tokens: open.tokens))
+                        state.hasEstimatedRow = true
+                    } else if outdated {
+                        state.rows.append(LimitRow(kind: .session, usedPercent: nil))
+                    } else {
+                        state.rows.append(LimitRow(kind: .session, usedPercent: fiveHour, elapsed: bounds.elapsed,
+                                                   renewal: bounds.renewal))
+                    }
+                } else if outdated {
+                    state.rows.append(LimitRow(kind: .session, usedPercent: nil, isPending: true))
                 } else {
+                    // Within 5 h and nothing in the (partial) logs contradicts it: it can still be the current one.
                     state.rows.append(LimitRow(kind: .session, usedPercent: fiveHour, elapsed: bounds.elapsed,
                                                renewal: bounds.renewal))
                 }
@@ -109,11 +133,15 @@ struct LimitsState: Equatable, Sendable {
             if let sevenDay = sample.sevenDay { state.rows.append(LimitRow(kind: .weekly, usedPercent: sevenDay)) }
             return state
         }
-        guard let block, block.end > now else { return LimitsState() }
+        guard blockKnown else {
+            return LimitsState(rows: [LimitRow(kind: .session, usedPercent: nil, isPending: true),
+                                      LimitRow(kind: .weekly, usedPercent: nil, isPending: true)])
+        }
+        guard let open else { return LimitsState() }
         let bounds = sessionBounds()
         return LimitsState(rows: [
-            LimitRow(kind: .session, usedPercent: nil, elapsed: bounds.elapsed, renewal: bounds.renewal, tokens: block.tokens),
-            LimitRow(kind: .weekly, usedPercent: nil, tokens: weekTokens),
+            LimitRow(kind: .session, usedPercent: nil, elapsed: bounds.elapsed, renewal: bounds.renewal, tokens: open.tokens),
+            LimitRow(kind: .weekly, usedPercent: nil, tokens: weekComplete ? weekTokens : nil, isPending: !weekComplete),
         ], source: .estimatedFromLogs)
     }
 
