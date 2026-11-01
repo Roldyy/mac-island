@@ -22,11 +22,14 @@ public struct HomeNowPlayingReading: Equatable, Sendable {
     public var track: HomeTrack?
     /// The first known player that is open, whatever it plays.
     public var runningPlayer: Player?
+    /// Why the open player has no track, one short French line with the error number. Nil when nothing failed.
+    public var diagnostic: String?
 
-    public init(access: Access, track: HomeTrack? = nil, runningPlayer: Player? = nil) {
+    public init(access: Access, track: HomeTrack? = nil, runningPlayer: Player? = nil, diagnostic: String? = nil) {
         self.access = access
         self.track = track
         self.runningPlayer = runningPlayer
+        self.diagnostic = diagnostic
     }
 
     /// No feature behind the feed: the card falls back to the stored last track.
@@ -36,9 +39,10 @@ public struct HomeNowPlayingReading: Equatable, Sendable {
 /// Why the card has no track to show although a player is open.
 public enum HomeNowPlayingNotice: Equatable, Sendable {
     /// Spotify (or Music) is open but the Automation permission is missing; `denied` once the user refused it.
-    case permission(player: String, denied: Bool)
-    /// The player is open and has nothing loaded.
-    case playerEmpty(player: String)
+    case permission(player: String, denied: Bool, detail: String? = nil)
+    /// The player is open and the reading is empty. `detail` is the real cause when the reading failed
+    /// ("Spotify : pas de réponse (-1712)"); nil when the player simply has nothing loaded.
+    case playerEmpty(player: String, detail: String? = nil)
 }
 
 /// What the card shows: a live track, a notice, or neither (then the stored last track).
@@ -62,11 +66,14 @@ public struct HomeNowPlayingState: Equatable, Sendable {
         switch reading.access {
         case .ready:
             if let track = reading.track { return HomeNowPlayingState(track: track) }
-            if let player = reading.runningPlayer { return HomeNowPlayingState(notice: .playerEmpty(player: player.name)) }
+            if let player = reading.runningPlayer {
+                return HomeNowPlayingState(notice: .playerEmpty(player: player.name, detail: reading.diagnostic))
+            }
             return .idle
         case .needsAuthorization, .denied:
             guard let player = reading.runningPlayer else { return .idle }
-            return HomeNowPlayingState(notice: .permission(player: player.name, denied: reading.access == .denied))
+            return HomeNowPlayingState(notice: .permission(player: player.name, denied: reading.access == .denied,
+                                                           detail: reading.diagnostic))
         }
     }
 }

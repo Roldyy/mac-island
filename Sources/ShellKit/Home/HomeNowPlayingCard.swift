@@ -15,10 +15,18 @@ struct HomeNowPlayingCard: View {
     var authorize: () -> Void = {}
     let send: (HomeTransport) -> Void
 
-    private var isIdle: Bool { track == nil && notice == nil && idle != nil }
+    /// No live track and no permission to ask for: the card falls back to the kept last track, also when an open
+    /// player has nothing loaded or could not be read (a card saying only "Rien en lecture" while a last track
+    /// is stored would hide what the user can still use).
+    private var isIdle: Bool { track == nil && permissionNotice == nil && idle != nil }
     private var last: LastTrackRecord? { isIdle ? idle?.record : nil }
-    private var permissionNotice: (player: String, denied: Bool)? {
-        if track == nil, case .permission(let player, let denied)? = notice { return (player, denied) }
+    private var permissionNotice: (player: String, denied: Bool, detail: String?)? {
+        if track == nil, case .permission(let player, let denied, let detail)? = notice { return (player, denied, detail) }
+        return nil
+    }
+    /// The real cause of an empty reading of an open player, when there is one.
+    private var emptyDetail: String? {
+        if track == nil, case .playerEmpty(_, let detail)? = notice { return detail }
         return nil
     }
 
@@ -66,13 +74,19 @@ struct HomeNowPlayingCard: View {
     }
 
     @ViewBuilder private var texts: some View {
-        if let last {
-            TimelineView(.everyMinute) { context in
-                Text("Dernière lecture · \(LastTrackRelativeTime.text(since: last.timestamp, now: context.date))")
-                    .font(.islandFootnote)
-                    .foregroundStyle(IslandPalette.textSecondary.color)
-                    .lineLimit(1)
-            }
+        if let last, let detail = emptyDetail {
+            // The cause first, then the kept track (dimmed with the whole card) and when it was played.
+            Text(detail)
+                .font(.islandFootnote)
+                .foregroundStyle(IslandPalette.textPrimary.color)
+                .lineLimit(1)
+            Text(last.title)
+                .font(.islandBodyEmphasis)
+                .foregroundStyle(IslandPalette.textPrimary.color)
+                .lineLimit(1)
+            lastPlayedTime(last)
+        } else if let last {
+            lastPlayedTime(last)
             Text(last.title)
                 .font(.islandBodyEmphasis)
                 .foregroundStyle(IslandPalette.textPrimary.color)
@@ -88,10 +102,10 @@ struct HomeNowPlayingCard: View {
                 .font(.islandBodyEmphasis)
                 .foregroundStyle(IslandPalette.textPrimary.color)
                 .lineLimit(1)
-            Text(permission.denied ? "Accès refusé : Automatisation." : "Pour afficher la lecture.")
+            Text(permission.detail ?? (permission.denied ? "Accès refusé : Automatisation." : "Pour afficher la lecture."))
                 .font(.islandFootnote)
                 .foregroundStyle(IslandPalette.textSecondary.color)
-                .lineLimit(1)
+                .lineLimit(2)   // the cause with its error number must never be cut next to the button
         } else {
             Text(track?.title ?? (notice == nil ? "Aucune lecture" : "Rien en lecture"))
                 .font(.islandBodyEmphasis)
@@ -114,9 +128,18 @@ struct HomeNowPlayingCard: View {
         }
     }
 
+    private func lastPlayedTime(_ last: LastTrackRecord) -> some View {
+        TimelineView(.everyMinute) { context in
+            Text("Dernière lecture · \(LastTrackRelativeTime.text(since: last.timestamp, now: context.date))")
+                .font(.islandFootnote)
+                .foregroundStyle(IslandPalette.textSecondary.color)
+                .lineLimit(1)
+        }
+    }
+
     private var subtitle: String {
         guard let track else {
-            if case .playerEmpty(let player)? = notice { return "\(player) est ouvert. Lancez un morceau." }
+            if case .playerEmpty(let player, let detail)? = notice { return detail ?? "\(player) est ouvert. Lancez un morceau." }
             return "Votre musique et ses commandes apparaîtront ici."
         }
         if track.isPlaying { return track.artist.isEmpty ? "En lecture" : track.artist }
@@ -132,7 +155,7 @@ struct HomeNowPlayingCard: View {
             .background(IslandPalette.textPrimary.color.opacity(0.16), in: Capsule())
     }
 
-    private func permissionAccessibilityLabel(_ permission: (player: String, denied: Bool)) -> String {
+    private func permissionAccessibilityLabel(_ permission: (player: String, denied: Bool, detail: String?)) -> String {
         permission.denied
             ? "Accès à \(permission.player) refusé. Ouvrir les réglages d’automatisation."
             : "Autoriser le contrôle de \(permission.player)"
@@ -141,7 +164,8 @@ struct HomeNowPlayingCard: View {
     private func idleAccessibilityLabel(_ idle: LastTrackModel) -> String {
         guard let last else { return "Aucune lecture. \(idle.callToAction)" }
         let artist = last.artist.isEmpty ? "" : ", \(last.artist)"
-        return "Dernière lecture : \(last.title)\(artist). \(idle.callToAction)"
+        let cause = emptyDetail.map { "\($0). " } ?? ""
+        return "\(cause)Dernière lecture : \(last.title)\(artist). \(idle.callToAction)"
     }
 
     private var artwork: some View {

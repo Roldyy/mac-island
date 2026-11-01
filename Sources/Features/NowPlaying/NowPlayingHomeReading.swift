@@ -27,6 +27,17 @@ public struct NowPlayingHomeReading: Equatable, Sendable {
     public var access: NowPlayingHomeAccess
     public var track: NowPlayingHomeTrack?
     public var runningPlayer: NowPlayingHomePlayer?
+    /// Why a player that is open has no track, in one short French line with the AppleScript error number
+    /// ("Spotify : autorisation refusée (-1743)"). Nil when nothing went wrong, and always nil with a track.
+    public var diagnostic: String?
+
+    public init(access: NowPlayingHomeAccess, track: NowPlayingHomeTrack?, runningPlayer: NowPlayingHomePlayer?,
+                diagnostic: String? = nil) {
+        self.access = access
+        self.track = track
+        self.runningPlayer = runningPlayer
+        self.diagnostic = diagnostic
+    }
 }
 
 enum PlayerNames {
@@ -54,6 +65,8 @@ extension NowPlayingModel {
                 playerBundleID: s.sourceBundleID, playerName: PlayerNames.name(for: s.sourceBundleID))
         }
         let player = runningPlayerBundleID.map { NowPlayingHomePlayer(bundleID: $0, name: PlayerNames.name(for: $0)) }
-        return NowPlayingHomeReading(access: access, track: track, runningPlayer: player)
+        // Only a player that is open and unreadable has something to explain.
+        let diagnostic = track == nil && player != nil ? fault?.line : nil
+        return NowPlayingHomeReading(access: access, track: track, runningPlayer: player, diagnostic: diagnostic)
     }
 }

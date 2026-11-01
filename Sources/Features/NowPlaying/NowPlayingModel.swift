@@ -18,12 +18,22 @@ final class NowPlayingModel {
     private(set) var snapshot: NowPlayingSnapshot?
     private(set) var artwork: Data?
     private(set) var access: Access
+    /// Why the last reading (or the last silent permission check) failed, nil when it did not. The Home card
+    /// prints its `line`; the unified log gets the same line (player, kind, number: never a title).
+    private(set) var fault: NowPlayingFault?
 
     private static let flagKey = "nowplaying.automationRequested"
     private let providers: [any NowPlayingProvider]
     private var aggregator: NowPlayingAggregator
     private let defaults: any NowPlayingFlagStore
     private let artworkTimeout: Duration
+    /// A reading that has not come back by then is a fault (-1712), not an endless wait.
+    private let pollTimeout: Duration
+    /// While the permission is missing and the Home is open: how often the silent check runs.
+    static let permissionCheckInterval: Duration = .seconds(3)
+    /// Players whose Automation permission was confirmed silently since the app started. A remembered
+    /// permission is verified once per player, never on a timer.
+    private var confirmedPlayers: Set<String> = []
     private let interval: Duration
     private let transport: NowPlayingTransport?
     private let artworkLoader: (any ArtworkLoading)?
@@ -45,10 +55,11 @@ final class NowPlayingModel {
 
     init(providers: [any NowPlayingProvider], defaults: any NowPlayingFlagStore = UserDefaults.standard,
                 interval: Duration = .seconds(1), transport: NowPlayingTransport?, artwork: (any ArtworkLoading)?,
-         artworkTimeout: Duration = .seconds(5),
+         artworkTimeout: Duration = .seconds(5), pollTimeout: Duration = .seconds(8),
          automation: (any AutomationChecking)? = nil, running: (any RunningAppChecking)? = nil,
          openPane: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) },
          sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+        self.pollTimeout = pollTimeout
         self.automation = automation
         self.running = running
         self.openPane = openPane
@@ -93,22 +104,69 @@ final class NowPlayingModel {
     /// Reads now. Before the user ever pressed "Autoriser", asks macOS WITHOUT prompting whether the permission
     /// already stands (a previous build, System Settings): if it does the model starts reading by itself.
     func refreshNow() async {
-        if access == .needsAuthorization, let automation, let id = runningPlayerBundleID {
-            switch automation.status(bundleID: id, askUser: false) {
-            case .granted:
+        var refused = false
+        if let automation, let id = runningPlayerBundleID, needsSilentCheck(id) {
+            // A TCC round trip: never on the main thread.
+            let status = await Task.detached { automation.status(bundleID: id, askUser: false) }.value
+            applySilent(status, id: id)
+            refused = access == .denied   // macOS just said no: an Apple Event would only repeat it
+        }
+        guard access != .needsAuthorization, !refused else { notify(); return }
+        await poll()
+    }
+
+    /// The silent check runs while no permission is on record (that is what it looks for), and once per player
+    /// for a permission that is (a build re-signed, a reset in System Settings: macOS would prompt from the
+    /// poll, and a prompt must only follow a click). Never for a refused one: the poll sees the grant itself.
+    private func needsSilentCheck(_ id: String) -> Bool {
+        switch access {
+        case .needsAuthorization: true
+        case .ready: !confirmedPlayers.contains(id)
+        case .denied: false
+        }
+    }
+
+    private func applySilent(_ status: AutomationStatus, id: String) {
+        switch status {
+        case .granted:
+            confirmedPlayers.insert(id)
+            setFault(nil)
+            if access != .ready {
                 defaults.set(true, forKey: Self.flagKey)
                 access = .ready
                 updatePolling()
-            case .denied:
-                access = .denied
-                updatePolling()
-                notify()
-            case .notAsked, .notRunning, .unknown:
-                break
             }
+        case .denied:
+            confirmedPlayers.remove(id)
+            setFault(NowPlayingFault(.permissionDenied, bundleID: id))
+            access = .denied
+            snapshot = nil
+            updatePolling()
+            notify()
+        case .notAsked:
+            // Never asked (or reset): only the user's click may ask, so the card offers it.
+            confirmedPlayers.remove(id)
+            setFault(NowPlayingFault(.consentRequired, bundleID: id))
+            if access == .ready {
+                defaults.set(false, forKey: Self.flagKey)
+                access = .needsAuthorization
+                snapshot = nil
+                updatePolling()
+            }
+        case .notRunning:
+            // NSWorkspace says the player is open, macOS says it is not: show that, do not call it "empty".
+            setFault(NowPlayingFault(player: PlayerNames.name(for: id), kind: .automation, code: Int(procNotFound)))
+        case .failed(let code):
+            setFault(NowPlayingFault(player: PlayerNames.name(for: id), kind: .automation, code: code))
+        case .unknown:
+            setFault(NowPlayingFault(player: PlayerNames.name(for: id), kind: .automation))
         }
-        guard access != .needsAuthorization else { notify(); return }
-        await poll()
+    }
+
+    private func setFault(_ new: NowPlayingFault?) {
+        guard new != fault else { return }
+        fault = new
+        if let new { NowPlayingLog.record(new) }
     }
 
     /// The "Autoriser le contrôle de ..." click: the ONLY place the Automation prompt is triggered. Already
@@ -118,14 +176,18 @@ final class NowPlayingModel {
         let status = await Task.detached { automation.status(bundleID: id, askUser: true) }.value
         switch status {
         case .granted:
+            confirmedPlayers.insert(id)
+            setFault(nil)
             await authorize()
         case .denied:
+            setFault(NowPlayingFault(.permissionDenied, bundleID: id))
             access = .denied
             updatePolling()   // a permission switched on in System Settings is picked up by the next poll
             notify()
             openPane(AutomationPane.url)
-        case .notAsked, .notRunning, .unknown:
-            break
+        case .notAsked, .notRunning, .unknown, .failed:
+            applySilent(status, id: id)
+            notify()
         }
     }
 
@@ -156,20 +218,41 @@ final class NowPlayingModel {
     }
 
     func poll() async {
-        let gathered = await NowPlayingAggregator.gather(from: providers)
+        let providers = self.providers
+        let gathered = await Deadline.run(pollTimeout) { await NowPlayingAggregator.gather(from: providers) }
+            ?? timedOutRound()
         let out = aggregator.resolve(gathered)
         if out.permissionDenied {
+            setFault(out.fault)
             access = .denied; snapshot = nil; artwork = nil
             cancelArtwork()
             onSnapshot?(nil)
             notify()
             return
         }
+        if out.consentRequired {
+            // The script itself says the permission was never asked: back to the click, no prompt from a poll.
+            setFault(out.fault)
+            defaults.set(false, forKey: Self.flagKey)
+            access = .needsAuthorization; snapshot = nil; artwork = nil
+            cancelArtwork()
+            onSnapshot?(nil)
+            updatePolling()
+            notify()
+            return
+        }
         access = .ready
+        setFault(out.fault)
         snapshot = out.snapshot
         refreshArtwork()
         onSnapshot?(out.snapshot)
         notify()
+    }
+
+    /// What a round that outlived `pollTimeout` stands for: the open player did not answer (-1712).
+    private func timedOutRound() -> NowPlayingAggregator.Gathered {
+        let id = runningPlayerBundleID ?? providers.first?.bundleID ?? BundleIDs.spotify
+        return NowPlayingAggregator.Gathered(faults: [NowPlayingFault(.timedOut, bundleID: id)])
     }
 
     /// Never awaited by `poll()`: a slow cover must not stall the transport state. Each track key owns at
@@ -225,15 +308,16 @@ final class NowPlayingModel {
     private func updatePolling() {
         task?.cancel()
         task = nil
-        guard visible || background || homeOpen else { return }
+        guard visible || homeOpen || (background && access == .ready) else { return }
         if access == .needsAuthorization {
             // Nothing is read before the user agrees, but while the home is open a player that was just launched,
-            // or a permission granted elsewhere, must show up: a silent check (no prompt) each `interval`.
+            // or a permission granted elsewhere, must show up: a silent check (no prompt, off the main thread)
+            // every few seconds, and only while that card is on screen. Closed: nothing runs, no TCC call at all.
             guard homeOpen else { return }
-            task = Task { [weak self, interval, sleep] in
+            task = Task { [weak self, sleep] in
                 while !Task.isCancelled {
                     await self?.refreshNow()
-                    await sleep(interval)
+                    await sleep(Self.permissionCheckInterval)
                 }
             }
             return

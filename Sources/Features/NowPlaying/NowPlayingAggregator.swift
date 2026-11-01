@@ -8,6 +8,18 @@ struct NowPlayingAggregator: Sendable {
         var snapshot: NowPlayingSnapshot?
         /// True only when nothing could be read and at least one provider was refused.
         var permissionDenied: Bool
+        /// True only when nothing could be read and a provider reports the permission was never asked.
+        var consentRequired = false
+        /// Why nothing could be read, when a provider failed (the first one). Nil with a snapshot.
+        var fault: NowPlayingFault?
+    }
+
+    /// What one round over the providers returned.
+    struct Gathered: Sendable {
+        var snapshots: [NowPlayingSnapshot] = []
+        var faults: [NowPlayingFault] = []
+        var denied = false
+        var consentRequired = false
     }
 
     private let clock: @Sendable () -> Date
@@ -42,24 +54,33 @@ struct NowPlayingAggregator: Sendable {
         return best
     }
 
-    static func gather(from providers: [any NowPlayingProvider]) async -> (snapshots: [NowPlayingSnapshot], denied: Bool) {
-        var snaps: [NowPlayingSnapshot] = []
-        var denied = false
+    /// Asks every provider. A failure is kept as a fault, never dropped: a player that is open and cannot be
+    /// read is not a player with nothing loaded.
+    static func gather(from providers: [any NowPlayingProvider]) async -> Gathered {
+        var out = Gathered()
         for p in providers {
             do {
-                if let s = try await p.snapshot() { snaps.append(s) }
-            } catch NowPlayingError.permissionDenied {
-                denied = true
-            } catch {
+                if let s = try await p.snapshot() { out.snapshots.append(s) }
+            } catch is CancellationError {
                 continue
+            } catch let error as NowPlayingError {
+                out.faults.append(NowPlayingFault(error, bundleID: p.bundleID))
+                if error == .permissionDenied { out.denied = true }
+                if error == .consentRequired { out.consentRequired = true }
+            } catch {
+                out.faults.append(NowPlayingFault(.scriptFailed(code: (error as NSError).code), bundleID: p.bundleID))
             }
         }
-        return (snaps, denied)
+        return out
     }
 
-    mutating func resolve(_ gathered: (snapshots: [NowPlayingSnapshot], denied: Bool)) -> Output {
+    mutating func resolve(_ gathered: Gathered) -> Output {
         let chosen = select(from: gathered.snapshots)
-        return Output(snapshot: chosen, permissionDenied: chosen == nil && gathered.denied)
+        let empty = chosen == nil
+        return Output(snapshot: chosen,
+                      permissionDenied: empty && gathered.denied,
+                      consentRequired: empty && gathered.consentRequired && !gathered.denied,
+                      fault: empty ? gathered.faults.first : nil)
     }
 
     mutating func current(from providers: [any NowPlayingProvider]) async -> Output {

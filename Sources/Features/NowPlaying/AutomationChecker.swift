@@ -12,6 +12,8 @@ enum AutomationStatus: Equatable, Sendable {
     /// The player is not open: macOS cannot tell.
     case notRunning
     case unknown
+    /// macOS answered with a code this app does not map (the number is shown on the card and logged).
+    case failed(Int)
 }
 
 /// Reads (and, on a click only, asks for) the Automation permission "Mac Island -> player".
@@ -33,7 +35,7 @@ struct LiveAutomationChecker: AutomationChecking {
         case Int(errAEEventNotPermitted): return .denied
         case Int(errAEEventWouldRequireUserConsent): return .notAsked
         case Int(procNotFound): return .notRunning
-        default: return .unknown
+        default: return .failed(Int(result))
         }
     }
 }

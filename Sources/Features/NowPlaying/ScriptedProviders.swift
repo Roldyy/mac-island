@@ -1,6 +1,7 @@
 import Foundation
 
 /// Provider for an AppleScript-capable player. Queries only when the app is running.
+/// Every failure is thrown, never turned into "nothing playing": the model reports its cause.
 actor SpotifyProvider: NowPlayingProvider {
     nonisolated let bundleID = BundleIDs.spotify
     private let runner: AppleScriptRunning
@@ -12,12 +13,8 @@ actor SpotifyProvider: NowPlayingProvider {
 
     func snapshot() async throws -> NowPlayingSnapshot? {
         guard running.isRunning(bundleID: bundleID) else { return nil }
-        do {
-            let out = try await runner.run(PlayerScripts.status(bundleID: bundleID))
-            return try PlayerScriptParser.parse(out.text ?? "", bundleID: bundleID, durationUnit: .milliseconds)
-        } catch NowPlayingError.noCurrentTrack {
-            return nil
-        }
+        let out = try await runner.run(PlayerScripts.status(bundleID: bundleID))
+        return try PlayerScriptParser.parse(out.text ?? "", bundleID: bundleID, durationUnit: .milliseconds)
     }
 }
 
@@ -35,15 +32,9 @@ actor MusicProvider: NowPlayingProvider {
 
     func snapshot() async throws -> NowPlayingSnapshot? {
         guard running.isRunning(bundleID: bundleID) else { return nil }
-        var snap: NowPlayingSnapshot
-        do {
-            let out = try await runner.run(PlayerScripts.status(bundleID: bundleID))
-            guard let s = try PlayerScriptParser.parse(out.text ?? "", bundleID: bundleID, durationUnit: .seconds)
-            else { return nil }
-            snap = s
-        } catch NowPlayingError.noCurrentTrack {
-            return nil
-        }
+        let out = try await runner.run(PlayerScripts.status(bundleID: bundleID))
+        guard var snap = try PlayerScriptParser.parse(out.text ?? "", bundleID: bundleID, durationUnit: .seconds)
+        else { return nil }
         if artworkKey != snap.trackKey {
             artworkKey = snap.trackKey
             // A track without artwork raises an error: that is an empty cover, not a failure.

@@ -65,4 +65,29 @@ import Testing
         try render("5-permission", reading: .init(access: .needsAuthorization, runningPlayer: spotify), record: record)
         try render("6-permission-denied", reading: .init(access: .denied, runningPlayer: spotify), record: record)
     }
+
+    /// The real cause on the card, with the AppleScript error number, and the kept last track still shown.
+    @Test func theDiagnosticStates() throws {
+        let spotify = HomeNowPlayingReading.Player(bundleID: "com.spotify.client", name: "Spotify")
+        let record = LastTrackRecord(title: "Stored last track", artist: "Khruangbin", album: "Mordechai",
+                                     playerBundleID: "com.spotify.client",
+                                     timestamp: Date(timeIntervalSince1970: 1_700_000_000), artworkJPEG: cover())
+        try render("7-timeout-with-last-track",
+                   reading: .init(access: .ready, runningPlayer: spotify, diagnostic: "Spotify : pas de réponse (-1712)"),
+                   record: record)
+        try render("8-timeout-no-last-track",
+                   reading: .init(access: .ready, runningPlayer: spotify, diagnostic: "Spotify : pas de réponse (-1712)"),
+                   record: nil)
+        try render("9-empty-reply-with-last-track",
+                   reading: .init(access: .ready, runningPlayer: spotify, diagnostic: "Spotify : réponse vide"),
+                   record: record)
+        try render("10-refused-with-code",
+                   reading: .init(access: .denied, runningPlayer: spotify,
+                                  diagnostic: "Spotify : autorisation refusée (-1743)"), record: record)
+        try render("11-never-asked-with-code",
+                   reading: .init(access: .needsAuthorization, runningPlayer: spotify,
+                                  diagnostic: "Spotify : autorisation à accorder (-1744)"), record: record)
+        try render("12-nothing-loaded-no-last-track", reading: .init(access: .ready, runningPlayer: spotify),
+                   record: nil)
+    }
 }

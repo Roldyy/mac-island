@@ -46,7 +46,7 @@ import Testing
         #expect(r?.sourceBundleID == "a")
     }
 
-    @Test func currentSkipsNilAndSwallowsFailures() async {
+    @Test func currentSkipsNilAndKeepsTheFailureAsAFaultWithoutHidingTheTrack() async {
         var (agg, _) = make()
         let providers: [any NowPlayingProvider] = [
             FakeProvider("x", .success(nil)),

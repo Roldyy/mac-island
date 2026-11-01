@@ -33,24 +33,25 @@ public protocol PermissionTriggerSource: AnyObject {
 /// permission some enabled feature needs is missing, and reports a change only when the answer differs.
 /// Never asks for a permission. The poll runs whether or not the Settings window is open.
 ///
-/// Cost: the poll can run forever (a feature switched on whose permission the user never grants), so it is
-/// slow (2.5 s with a 1 s timer tolerance) and backs off to 5 s after a minute without a change. What makes
-/// a grant feel instant is not the poll: activation and the Accessibility notification re-read at once, and
-/// the notification is followed by a short 1 s burst. Any change, trigger, "Revérifier" press or "Autoriser"
-/// press puts the poll back to its base rate.
+/// Cost: every reading is a TCC round trip (`AXIsProcessTrusted`, `CGPreflight*`), and a feature switched on
+/// whose permission the user never grants would keep it running for ever. So the poll is bounded: 2.5 s with a
+/// 1 s timer tolerance, and it STOPS after a minute without a change (the 5 s backoff it replaced showed up
+/// in the unified log as a `TCCAccessRequest() IPC` on the main thread every 5 s, for ever, with every island
+/// closed). What makes a grant feel instant is not the poll: activation, the Accessibility notification, the
+/// Settings window opening and the "Revérifier" press re-read at once, and the notification is followed by a
+/// short 1 s burst. Any change, trigger, "Revérifier" press or "Autoriser" press starts the poll again.
+/// With a `backgroundRead` the timer's readings run off the main thread; only the result comes back.
 @MainActor @Observable
 public final class PermissionMonitor {
     public static let pollInterval: TimeInterval = 2.5
     /// Timer slack at the base rate: the system may fire a poll up to this late, to coalesce wake-ups.
     public static let pollTolerance: TimeInterval = 1
-    /// After `quietPollsBeforeBackoff` polls with the same answer the poll slows to this.
-    public static let backoffInterval: TimeInterval = 5
     /// Rate of the burst that follows the Accessibility notification.
     public static let burstInterval: TimeInterval = 1
     /// Extra polls after the Accessibility notification: it can arrive just before the answer flips.
     static let burstPolls = 5
-    /// About a minute at the base rate.
-    static let quietPollsBeforeBackoff = 24
+    /// About a minute at the base rate: after this many polls with the same answer the poll stops.
+    static let quietPollsBeforeIdle = 24
 
     /// Last reading. Assigned only when it differs, so observers redraw for real changes only.
     public private(set) var snapshot: PermissionSnapshot
@@ -68,13 +69,17 @@ public final class PermissionMonitor {
     @ObservationIgnored private let scheduler: PermissionPollScheduler
     @ObservationIgnored private let triggers: PermissionTriggerSource?
     @ObservationIgnored private let onChange: @MainActor (PermissionChange) -> Void
+    @ObservationIgnored private let backgroundRead: (@Sendable () -> PermissionSnapshot)?
+    @ObservationIgnored private var tickRead: Task<Void, Never>?
 
     public init(read: @escaping @MainActor () -> PermissionSnapshot,
                 needed: @escaping @MainActor () -> Set<MonitoredPermission> = { Set(MonitoredPermission.allCases) },
                 scheduler: PermissionPollScheduler,
                 triggers: PermissionTriggerSource? = nil,
+                backgroundRead: (@Sendable () -> PermissionSnapshot)? = nil,
                 onChange: @escaping @MainActor (PermissionChange) -> Void = { _ in }) {
         let first = read()
+        self.backgroundRead = backgroundRead
         self.read = read
         self.needed = needed
         self.scheduler = scheduler
@@ -91,6 +96,8 @@ public final class PermissionMonitor {
     }
 
     public func stop() {
+        tickRead?.cancel()
+        tickRead = nil
         scheduler.stop()
         isPolling = false
         currentInterval = nil
@@ -118,8 +125,10 @@ public final class PermissionMonitor {
 
     /// One reading. True when the answer changed.
     @discardableResult
-    private func refresh() -> Bool {
-        let new = read()
+    private func refresh() -> Bool { apply(read()) }
+
+    /// Records a reading taken on or off the main thread. True when the answer changed.
+    private func apply(_ new: PermissionSnapshot) -> Bool {
         var changed = false
         if let change = tracker.observe(new) {
             changed = true
@@ -144,25 +153,23 @@ public final class PermissionMonitor {
         recheck()
     }
 
-    /// Rate for now: the burst first, then the base rate, then the backed-off one.
-    private var desiredInterval: TimeInterval {
-        if burst > 0 { return Self.burstInterval }
-        return quietPolls >= Self.quietPollsBeforeBackoff ? Self.backoffInterval : Self.pollInterval
-    }
+    /// Rate for now: the burst first, then the base rate.
+    private var desiredInterval: TimeInterval { burst > 0 ? Self.burstInterval : Self.pollInterval }
 
     private func tolerance(for interval: TimeInterval) -> TimeInterval {
-        interval == Self.burstInterval ? 0.1 : interval == Self.pollInterval ? Self.pollTolerance : interval * 0.4
+        interval == Self.burstInterval ? 0.1 : Self.pollTolerance
     }
 
     /// Starts, stops or re-rates the poll for the current need, without reading.
     private func updatePolling() {
-        let wanted = burst > 0 || tracker.needsPolling(needed: needed())
+        let idle = quietPolls >= Self.quietPollsBeforeIdle
+        let wanted = burst > 0 || (!idle && tracker.needsPolling(needed: needed()))
         guard wanted else {
             if isPolling {
                 scheduler.stop()
                 isPolling = false
                 currentInterval = nil
-                quietPolls = 0
+                if !idle { quietPolls = 0 }   // gone idle: stay idle until a trigger or a press says otherwise
             }
             return
         }
@@ -175,7 +182,18 @@ public final class PermissionMonitor {
 
     private func tick() {
         if burst > 0 { burst -= 1 }
-        if refresh() { quietPolls = 0 } else { quietPolls += 1 }
+        guard let backgroundRead else { finishTick(changed: refresh()); return }
+        guard tickRead == nil else { return }   // the previous reading has not come back yet
+        tickRead = Task { [weak self] in
+            let new = await Task.detached(priority: .utility) { backgroundRead() }.value
+            guard let self, !Task.isCancelled else { return }
+            self.tickRead = nil
+            self.finishTick(changed: self.apply(new))
+        }
+    }
+
+    private func finishTick(changed: Bool) {
+        if changed { quietPolls = 0 } else { quietPolls += 1 }
         updatePolling()
     }
 }

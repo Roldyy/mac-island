@@ -45,7 +45,8 @@ import Testing
     @Test func errorCodeMapping() {
         #expect(NowPlayingError.from(scriptErrorCode: -1743) == .permissionDenied)
         #expect(NowPlayingError.from(scriptErrorCode: -1728) == .noCurrentTrack)
-        #expect(NowPlayingError.from(scriptErrorCode: -600) == .scriptFailed(code: -600))
+        #expect(NowPlayingError.from(scriptErrorCode: -600) == .appNotFound)
+        #expect(NowPlayingError.from(scriptErrorCode: -1) == .scriptFailed(code: -1))
     }
 
     @Test func everyScriptIsGuardedByAnIsRunningCheck() {

@@ -397,6 +397,7 @@ extension AppDelegate {
                       playerBundleID: t.playerBundleID, playerName: t.playerName)
         }
         let player = reading.runningPlayer.map { HomeNowPlayingReading.Player(bundleID: $0.bundleID, name: $0.name) }
-        return HomeNowPlayingReading(access: access, track: track, runningPlayer: player)
+        return HomeNowPlayingReading(access: access, track: track, runningPlayer: player,
+                                     diagnostic: reading.diagnostic)
     }
 }

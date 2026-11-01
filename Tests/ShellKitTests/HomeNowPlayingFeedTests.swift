@@ -87,6 +87,36 @@ private func track(playing: Bool, title: String = "Reason", progress: Double? = 
         #expect(home.nowPlayingNotice == .playerEmpty(player: "Spotify"))
     }
 
+    @Test func anEmptyReadingOfAnOpenPlayerCarriesItsRealCause() {
+        let fake = FakeNowPlayingSource()
+        let (home, cleanup) = home(fake)
+        defer { cleanup() }
+        fake.publish(HomeNowPlayingReading(access: .ready, track: nil, runningPlayer: spotify,
+                                           diagnostic: "Spotify : pas de réponse (-1712)"))
+        #expect(home.nowPlayingNotice == .playerEmpty(player: "Spotify", detail: "Spotify : pas de réponse (-1712)"))
+        // The same reading without a cause is a player with nothing loaded.
+        fake.publish(HomeNowPlayingReading(access: .ready, track: nil, runningPlayer: spotify))
+        #expect(home.nowPlayingNotice == .playerEmpty(player: "Spotify", detail: nil))
+        // A track wins over any leftover cause.
+        fake.publish(HomeNowPlayingReading(access: .ready, track: track(playing: true), runningPlayer: spotify,
+                                           diagnostic: "Spotify : réponse vide"))
+        #expect(home.nowPlayingNotice == nil)
+    }
+
+    @Test func thePermissionNoticeCarriesTheErrorNumber() {
+        let fake = FakeNowPlayingSource()
+        let (home, cleanup) = home(fake)
+        defer { cleanup() }
+        fake.publish(HomeNowPlayingReading(access: .needsAuthorization, track: nil, runningPlayer: spotify,
+                                           diagnostic: "Spotify : autorisation à accorder (-1744)"))
+        #expect(home.nowPlayingNotice == .permission(player: "Spotify", denied: false,
+                                                     detail: "Spotify : autorisation à accorder (-1744)"))
+        fake.publish(HomeNowPlayingReading(access: .denied, track: nil, runningPlayer: spotify,
+                                           diagnostic: "Spotify : autorisation refusée (-1743)"))
+        #expect(home.nowPlayingNotice == .permission(player: "Spotify", denied: true,
+                                                     detail: "Spotify : autorisation refusée (-1743)"))
+    }
+
     @Test func missingPermissionIsACallToActionAndTheClickIsTheOnlyAsk() {
         let fake = FakeNowPlayingSource()
         let (home, cleanup) = home(fake)

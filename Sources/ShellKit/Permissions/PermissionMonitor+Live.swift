@@ -55,6 +55,7 @@ public extension PermissionMonitor {
             needed: { [weak registry] in registry?.neededPermissions ?? [] },
             scheduler: TimerPollScheduler(),
             triggers: SystemPermissionTriggers(),
+            backgroundRead: { probe.snapshot() },
             onChange: { [weak registry] change in registry?.permissionsChanged(change) })
         registry.permissionMonitor = monitor
         monitor.start()
