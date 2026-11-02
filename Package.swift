@@ -32,7 +32,7 @@ let package = Package(
         .target(name: "MonitorFeature", dependencies: ["IslandKit"], path: "Sources/Features/Monitor"),
         .target(name: "CommandBarFeature", dependencies: ["IslandKit", "IslandUI", "PortKit"], path: "Sources/Features/CommandBar"),
         .target(name: "TerminalFeature", dependencies: [
-            "IslandKit", .product(name: "SwiftTerm", package: "SwiftTerm"),
+            "IslandKit", "IslandUI", .product(name: "SwiftTerm", package: "SwiftTerm"),
         ], path: "Sources/Features/Terminal"),
         .target(name: "AgentsFeature", dependencies: ["IslandKit", "IslandUI", "ClaudeLiveKit"], path: "Sources/Features/Agents"),
         .target(name: "ClipboardFeature", dependencies: ["IslandKit"], path: "Sources/Features/Clipboard"),

@@ -37,8 +37,27 @@ final class ActivityTerminalView: LocalProcessTerminalView {
         registerForDraggedTypes([.fileURL, .string])
     }
 
+    /// Font a colour profile asked for; used only when it is installed and fixed-pitch. The size stays the user's.
+    private var profileFontName: String?
+
     func applySavedFontSize() {
-        font = NSFont.monospacedSystemFont(ofSize: fontSize.current, weight: .regular)
+        font = terminalFont(size: fontSize.current)
+    }
+
+    private func terminalFont(size: Double) -> NSFont {
+        if let name = profileFontName, let custom = NSFont(name: name, size: size), custom.isFixedPitch { return custom }
+        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+
+    /// Wears a colour profile: palette, foreground, background, cursor, selection and (when usable) its font.
+    func applyColorProfile(_ profile: TerminalColorProfile) {
+        installColors(profile.ansi.map(\.terminalColor))
+        nativeBackgroundColor = profile.background.nsColor
+        nativeForegroundColor = profile.foreground.nsColor
+        caretColor = profile.cursor.nsColor
+        selectedTextBackgroundColor = profile.selection.nsColor
+        profileFontName = profile.fontName
+        applySavedFontSize()
     }
 
     override func dataReceived(slice: ArraySlice<UInt8>) {
@@ -89,7 +108,7 @@ final class ActivityTerminalView: LocalProcessTerminalView {
         case .fontLarger, .fontSmaller, .fontReset:
             let size = TerminalFontSize.next(fontSize.current, action: action)
             fontSize.current = size
-            font = NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+            font = terminalFont(size: size)
         }
     }
 

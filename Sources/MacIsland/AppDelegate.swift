@@ -500,6 +500,8 @@ extension AppDelegate {
         }
         // The IP scanner's page: its catalog row carries the feature id (switch and status card), this is the body.
         SettingsPageBodies.register(pageID: IPScannerFeature.pageID) { IPScannerFeature.settingsBody() }
+        // The terminal's page: its catalog row carries the feature id; this is the colour profile card.
+        SettingsPageBodies.register(pageID: TerminalFeature.pageID) { TerminalFeature.settingsBody() }
         // A bound feature's page opens with its switch and status, then the ported body.
         if let registry {
             for page in PortFeatureBinding.shared.pages {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The 67 pages, in sidebar order. Titles are facts noted from the reference app; summaries are ours.
+/// The 69 pages, in sidebar order. Titles are facts noted from the reference app; summaries are ours.
 public enum SettingsPageCatalog {
     public static let all: [SettingsPage] = essentials + utilities + sound + energy + windows + input + files + apps + app
 
@@ -223,6 +223,9 @@ public enum SettingsPageCatalog {
         P(id: "ipscanner", title: "Scanner IP", symbol: "dot.radiowaves.left.and.right", section: .apps,
           summary: "Liste les appareils de votre réseau local, sur clic uniquement.",
           keywords: ["réseau", "ip", "arp", "nmap", "appareils", "bonjour", "ports", "mac"], featureID: "ipscanner"),
+        P(id: "terminal", title: "Terminal", symbol: "terminal", section: .apps,
+          summary: "Le terminal de l’île : profil de couleurs importé depuis Terminal ou iTerm2.",
+          keywords: ["couleurs", "profil", "thème", "iterm", "itermcolors", "shell", "police"], featureID: "terminal"),
     ]
 
     private static let app: [SettingsPage] = [

@@ -1,0 +1,23 @@
+import Foundation
+import IslandKit
+
+/// Reads and writes the profile library in the app's defaults (key `terminalColorProfile`, versioned JSON).
+struct TerminalProfileStore {
+    static let key = "terminalColorProfile"
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults) { self.defaults = defaults }
+
+    /// The store the app uses.
+    static func standard() -> TerminalProfileStore { TerminalProfileStore(defaults: AppDefaults.make() ?? .standard) }
+
+    func load() -> TerminalProfileLibrary { TerminalProfileLibraryCodec.decode(defaults.data(forKey: Self.key)) }
+
+    func save(_ library: TerminalProfileLibrary) {
+        if let data = TerminalProfileLibraryCodec.encode(library) { defaults.set(data, forKey: Self.key) }
+    }
+
+    /// The profile a terminal starting now must wear (nil: the default theme).
+    var activeProfile: TerminalColorProfile? { load().active }
+}
