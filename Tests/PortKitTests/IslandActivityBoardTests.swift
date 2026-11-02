@@ -125,7 +125,9 @@ import Testing
         defer { r.cleanup() }
         r.board.post(download, expiresAfter: .milliseconds(20))
         #expect(r.recorder.live.count == 1)
-        try await Task.sleep(for: .milliseconds(400))
+        // Polled, not slept: a loaded main actor can run the expiry task seconds late (waits tolerate a long backlog).
+        let deadline = ContinuousClock.now + .seconds(120)
+        while !r.recorder.live.isEmpty, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         #expect(r.recorder.live.isEmpty, "gone after its lifetime")
         // Posted again without a lifetime before the first one ran out: the old clock must not take it down.
         r.board.post(watch, expiresAfter: .milliseconds(20))
