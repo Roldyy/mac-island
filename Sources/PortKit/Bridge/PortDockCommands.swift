@@ -28,6 +28,13 @@ public struct PortDockCommand {
 /// permission: `unavailableReason` reads the registry's verdict and the last permission reading, `run` calls the same
 /// function the feature's own shortcut calls.
 public enum PortDockCommands {
+    /// Lent by the app delegate (PortKit cannot see `ClipboardFeature` or the registry): is OUR clipboard feature running,
+    /// clear what it keeps (the pinned stay), paste as plain text. The ported clipboard services are never started
+    /// (`ClipboardLane`), so `AppFeature.clipboardHistory` / `.pastePlain` answer "off" forever and must not gate these.
+    @MainActor public static var clipboardIsOn: @MainActor () -> Bool = { false }
+    @MainActor public static var clearClipboardUnpinned: @MainActor () -> Void = {}
+    @MainActor public static var pastePlainFromClipboard: @MainActor () -> Void = {}
+
     private static func off(_ title: String) -> String { "« \(title) » est désactivée. Active-la dans Fonctionnalités." }
 
     private static let screenRecordingMissing = "Autorisation « Enregistrement de l'écran » manquante. Ouvre les Réglages pour l'accorder."
@@ -86,11 +93,11 @@ public enum PortDockCommands {
                 id: "port.pasteplain", title: "Coller sans mise en forme", systemImage: "doc.plaintext", category: .tools,
                 keywords: ["texte brut", "plain paste", "coller"], confirmation: nil, closesIsland: true, isOn: nil,
                 unavailableReason: {
-                    guard AppFeature.pastePlain.isAvailable else { return off("Coller sans mise en forme") }
+                    guard clipboardIsOn() else { return off("Presse-papiers") }
                     return PortHost.permissionState.value.accessibility
                         ? nil : "Autorisation « Accessibilité » manquante. Ouvre les Réglages pour l'accorder."
                 },
-                run: { PastePlainService.shared.performPastePlain() }),
+                run: { pastePlainFromClipboard() }),
             PortDockCommand(
                 id: "port.micmute", title: "Couper le micro", systemImage: "mic.slash", category: .tools,
                 keywords: ["micro", "microphone", "mute", "silence"], confirmation: nil, closesIsland: false,
@@ -116,11 +123,8 @@ public enum PortDockCommands {
                 systemImage: "trash", category: .tools, keywords: ["effacer", "historique", "supprimer", "clipboard"],
                 confirmation: "Supprimer tous les éléments non épinglés de l'historique du presse-papiers ? Les épinglés restent.",
                 closesIsland: false, isOn: nil,
-                unavailableReason: { AppFeature.clipboardHistory.isAvailable ? nil : off("Historique du presse-papiers") },
-                run: {
-                    let history = ClipboardHistoryService.shared
-                    history.clearRecent(history.recentEntriesSnapshot)
-                }),
+                unavailableReason: { clipboardIsOn() ? nil : off("Presse-papiers") },
+                run: { clearClipboardUnpinned() }),
             PortDockCommand(
                 id: "port.timer.start", title: "Minuteur de 25 minutes", systemImage: "timer", category: .tools,
                 keywords: ["minuteur", "chrono", "timer", "compte à rebours"], confirmation: nil, closesIsland: false,

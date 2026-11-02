@@ -179,6 +179,8 @@ public final class PortFeatureBinding {
         guard !started.contains(id) else { return }
         guard permissionsGranted(entry) else { return }  // never arm, never prompt: the monitor restarts us
         started.insert(id)
+        // The Fonctions switch is the opt-in: the feature's own upstream gate key follows it when never chosen.
+        IslandFeatureSeed.seed(feature: id)
         entry.start()
     }
 

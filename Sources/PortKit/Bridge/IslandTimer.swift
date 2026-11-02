@@ -43,11 +43,17 @@ struct TimerReading: Equatable {
 ///
 /// Not a Settings channel of `AmbientChannel` (that list is the user's switchboard of the other lanes): the switch
 /// lives with the feature, in the timer tab, under the key `notchIdleShowTimer`, which is exactly the key a future
-/// `timer` channel would use. Off by default, so a running timer shows nothing in the closed island until asked.
+/// `timer` channel would use. ON unless the person turned it off: a running timer is something they started on
+/// purpose, and a feature switched on whose running clock never reached the closed island read as broken. Nothing
+/// runs, nothing shows, so the closed island at rest is unchanged.
 /// A finished timer is a different thing: a short alert (`IslandNoticeMapper`).
 enum TimerIndicator {
     static let id = "timer"
     static let switchKey = "notchIdleShowTimer"
+
+    static func isOn(in defaults: UserDefaults = PortHost.defaults) -> Bool {
+        defaults.object(forKey: switchKey) as? Bool ?? true
+    }
 
     static func clockText(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded(.down)))
@@ -91,6 +97,9 @@ enum TimerIndicator {
 enum CalendarIndicator {
     static let id = "calendar"
     static let switchKey = "notchIdleShowCalendar"
+
+    /// Off until asked: an appointment appears with nobody having started anything, so it is the person's call.
+    static func isOn(in defaults: UserDefaults = PortHost.defaults) -> Bool { defaults.bool(forKey: switchKey) }
 
     static func indicator(title: String, target: Date, ongoing: Bool, now: Date) -> AmbientIndicator? {
         guard target > now else { return nil }
@@ -188,7 +197,7 @@ struct TimerRuntime {
         },
         timerTicker: {
             ClosedIslandTicker(id: TimerIndicator.id, hooks: .init(
-                isOn: { PortHost.defaults.bool(forKey: TimerIndicator.switchKey) },
+                isOn: { TimerIndicator.isOn() },
                 make: { _ in
                     let service = NotchTimerService.shared
                     return TimerIndicator.indicator(TimerReading(session: service.session, now: service.now))
@@ -198,7 +207,7 @@ struct TimerRuntime {
         },
         calendarTicker: {
             ClosedIslandTicker(id: CalendarIndicator.id, hooks: .init(
-                isOn: { PortHost.defaults.bool(forKey: CalendarIndicator.switchKey) },
+                isOn: { CalendarIndicator.isOn() },
                 make: { now in
                     guard let countdown = NotchCalendarService.shared.countdown, countdown.isShown(at: now) else { return nil }
                     return CalendarIndicator.indicator(title: countdown.event.title, target: countdown.target,
@@ -329,10 +338,10 @@ private struct ClosedIslandSwitch: View {
     let key: String
     @AppStorage private var isOn: Bool
 
-    init(title: String, key: String) {
+    init(title: String, key: String, defaultOn: Bool = false) {
         self.title = title
         self.key = key
-        _isOn = AppStorage(wrappedValue: false, key, store: PortHost.defaults)
+        _isOn = AppStorage(wrappedValue: defaultOn, key, store: PortHost.defaults)
     }
 
     var body: some View {
@@ -340,7 +349,7 @@ private struct ClosedIslandSwitch: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .padding(.horizontal, 12)
-            .accessibilityHint("Affiche un repère dans l’île fermée. Désactivé par défaut.")
+            .accessibilityHint("Affiche un repère dans l’île fermée.")
     }
 }
 
@@ -352,7 +361,8 @@ private struct TimerIslandTab: View {
             if on {
                 VStack(spacing: 8) {
                     NotchTimerView(size: proxy.size)
-                    ClosedIslandSwitch(title: "Afficher le minuteur dans l’île fermée", key: TimerIndicator.switchKey)
+                    ClosedIslandSwitch(title: "Afficher le minuteur dans l’île fermée", key: TimerIndicator.switchKey,
+                                       defaultOn: true)
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             } else {

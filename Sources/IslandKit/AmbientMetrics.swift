@@ -97,7 +97,7 @@ public enum AmbientMetrics {
         return items.reduce(0) { $0 + elementWidth($1, now: now) } + CGFloat(items.count - 1) * elementGap
     }
 
-    /// A wing that is too narrow loses the text of its last element, then the element itself. An element that
+    /// A wing that is too narrow loses the text of its last element, then the companion, then an element. An element that
     /// would be left as a bare glyph (an arrow with no rate, a chip with no load) is dropped whole: it can empty
     /// the wing.
     public static func fitted(_ items: [AmbientIndicator], width: CGFloat, now: Date) -> [AmbientIndicator] {
@@ -113,7 +113,9 @@ public enum AmbientMetrics {
                 if stripped.isReadable { out[index] = stripped } else { out.remove(at: index) }
                 continue
             }
-            out.removeLast()
+            // Nothing left to shorten: the companion, which the person opted into but which carries no reading, goes
+            // before a reading's element does.
+            if let index = out.lastIndex(where: { $0.glyph == .mascot }) { out.remove(at: index) } else { out.removeLast() }
         }
         return out
     }

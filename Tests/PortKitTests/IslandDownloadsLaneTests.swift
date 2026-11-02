@@ -189,8 +189,8 @@ import Testing
         let bench = TestDefaults.make()
         defer { bench.cleanup() }
         let host = IslandActivityHost.shared
-        #expect(host.isHosting == false)
-        #expect(NotchSupport.islandIsEnabled(in: bench.defaults) == false)
+        // No "not hosting yet" check: the host is process-wide and other suites (the mascot, visibility and lock-screen
+        // ones) hold it while they run in parallel. What matters is below: with the flag held, only the lane checks say yes.
         host.acquire("test.lane")
         defer { host.release("test.lane") }
         #expect(host.isHosting && host.holds("test.lane"))

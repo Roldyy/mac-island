@@ -36,20 +36,35 @@ public final class IslandActivityHost: @unchecked Sendable {
 
     public func acquire(_ owner: String) {
         lock.lock()
-        owners.insert(owner)
+        let changed = owners.insert(owner).inserted
         lock.unlock()
+        if changed { IslandHostTicker.notify() }
     }
 
     public func release(_ owner: String) {
         lock.lock()
-        owners.remove(owner)
+        let changed = owners.remove(owner) != nil
         lock.unlock()
+        if changed { IslandHostTicker.notify() }
     }
 
     public func holds(_ owner: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         return owners.contains(owner)
+    }
+}
+
+/// What SwiftUI watches instead of the lock-protected flag above: every change of who hosts bumps `tick` on the main
+/// actor, and a view that reads `holds` observes this object, so a page appears or empties the moment its feature switch
+/// changes (a switch flipped while the page is on screen used to show the old state until something else redrew it).
+@MainActor
+public final class IslandHostTicker: ObservableObject {
+    public static let shared = IslandHostTicker()
+    @Published public private(set) var tick = 0
+
+    nonisolated static func notify() {
+        Task { @MainActor in shared.tick += 1 }
     }
 }
 

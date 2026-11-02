@@ -58,6 +58,8 @@ struct AmbientGlyphView: View {
         case .equalizer:
             AmbientEqualizer(color: item.status.color)
                 .scaleEffect(isRinged ? 0.85 : 1)
+        case .mascot:
+            AmbientMascotSlot.view(size: AmbientMetrics.glyphSize)
         case .symbol:
             let side: CGFloat = isRinged ? 7.5 : 14
             if item.symbol.hasPrefix("battery") {

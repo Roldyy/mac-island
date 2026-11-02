@@ -52,7 +52,9 @@ import UserNotifications
 
     @Test func theClosedIslandStillShowsOnlyTheListedIndicators() throws {
         let text = try Self.source("Sources/MacIsland/AppDelegate.swift")
-        #expect(!text.contains("IslandMascotView"), "no companion in the closed strip")
+        // The companion reaches the closed strip only through its opt-in indicator (`IslandMascotPresence`), never by the
+        // app delegate drawing it: off, the strip keeps the five default indicators.
+        #expect(!text.contains("IslandMascotView"), "the app delegate draws no companion itself")
         let extras = try Self.source("Sources/PortKit/Bridge/IslandLockScreen.swift")
         #expect(extras.contains("struct PortIslandExtrasSettings"))
     }

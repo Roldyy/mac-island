@@ -304,7 +304,8 @@ final class IslandGestureMonitor {
 ///   `PrivateOverlaySpace.swift` only: capability probe, kill switch, a journal written BEFORE the first call, and a launch
 ///   check that keeps the island down after a crash (`recoverAtLaunch`). Never a prompt, never a crash for a missing symbol.
 /// - `notchGestures`: start = the scroll monitor (public events only).
-/// - `notchMascot`: start = the hosting flag; the mascot is a view (`IslandMascotView`, the Compagnon tab).
+/// - `notchMascot`: start = the hosting flag, the seeded toggle and the companion's indicator in a wing of the closed island
+///   (`IslandMascotPresence`); the same view (`IslandMascotView`) is the Compagnon tab's.
 enum IslandLockScreenLane {
     static let lockScreenID = "lockscreen"
 
@@ -338,8 +339,28 @@ enum IslandLockScreenLane {
                 monitor.stop()
                 IslandActivityHost.shared.release("notchGestures")
             },
-            startMascot: { IslandActivityHost.shared.acquire("notchMascot") },
-            stopMascot: { IslandActivityHost.shared.release("notchMascot") })
+            startMascot: { mascotStart(presence: mascotPresence)() },
+            stopMascot: { mascotStop(presence: mascotPresence)() })
+
+        @MainActor private static let mascotPresence = IslandMascotPresence(hooks: .live)
+
+        /// What the registry runs when the Compagnon switch goes on: take the hosting flag, seed the ported toggle (the
+        /// switch in Fonctions is the opt-in, `IslandFeatureSeed`), give the closed island its drawing, then show the
+        /// companion in a wing. Tests pass a presence wired to a local `AmbientCenter`.
+        @MainActor static func mascotStart(presence: IslandMascotPresence) -> @MainActor () -> Void {
+            {
+                IslandActivityHost.shared.acquire("notchMascot")
+                AmbientMascotSlot.make = { size in AnyView(IslandMascotView(size: size)) }
+                presence.start()
+            }
+        }
+
+        @MainActor static func mascotStop(presence: IslandMascotPresence) -> @MainActor () -> Void {
+            {
+                presence.stop()
+                IslandActivityHost.shared.release("notchMascot")
+            }
+        }
     }
 
     static let descriptor = FeatureDescriptor(
@@ -376,6 +397,7 @@ enum IslandLockScreenLane {
 /// The mascot as a bare view for the island (beside the camera, on a page): empty while the feature is off.
 public struct IslandMascotView: View {
     private let size: CGFloat
+    @ObservedObject private var ticker = IslandHostTicker.shared
 
     public init(size: CGFloat = 20) { self.size = size }
 
@@ -388,19 +410,28 @@ public struct IslandMascotView: View {
     }
 }
 
+/// The Compagnon page: the companion at the top while its feature runs (live, `IslandHostTicker`), its settings below.
+private struct CompanionTabContent: View {
+    @ObservedObject private var ticker = IslandHostTicker.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                if IslandActivityHost.shared.holds("notchMascot") {
+                    IslandMascotView(size: 64)
+                }
+                NotchMascotSettings(embedded: true)
+            }
+            .padding(12)
+        }
+    }
+}
+
 extension IslandPortTabs {
     /// The tab of wave 8D: the companion, with its own settings (style, palette, side, visits).
     @MainActor public static func companion() -> IslandTab {
         IslandTab(id: "companion", title: "Compagnon", systemImage: "face.smiling") {
-            AnyView(ScrollView {
-                VStack(spacing: 14) {
-                    if IslandActivityHost.shared.holds("notchMascot") {
-                        IslandMascotView(size: 64)
-                    }
-                    NotchMascotSettings(embedded: true)
-                }
-                .padding(12)
-            })
+            AnyView(CompanionTabContent())
         }
     }
 
@@ -409,8 +440,8 @@ extension IslandPortTabs {
 }
 
 /// The ported island settings the island page hosts below its own editors: the lock-screen switches, the companion's
-/// look and the "Combiner" menu. The companion's closed-island slot is NOT offered anywhere (the closed island shows
-/// only the indicators the person listed); this is a settings view and a tab, never a closed-strip item.
+/// look and the "Combiner" menu. The companion shows in the closed island only while its feature is on
+/// (`IslandMascotPresence`, an opt-in indicator in a wing); this view is settings only.
 public struct PortIslandExtrasSettings: View {
     public init() {}
 

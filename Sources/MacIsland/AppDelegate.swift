@@ -66,8 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Upstream registers `notchEnabled` off; here the island is the app. A first launch stores on, BEFORE upstream's
         // defaults are registered (a registered value would hide that the key is absent), so the island, its page and
         // the ported permission gates read one value. A migrated choice is a stored value and stays.
-        if defaults.object(forKey: "notchEnabled") == nil { defaults.set(true, forKey: "notchEnabled") }
-        PortBridge.registerDefaults()
+        // Written AFTER the registration and its migrations (`IslandFirstLaunch`): upstream's `migrateExistingNotchDefaults`
+        // takes any saved `notch*` key for an island configured before and forces seven switches off (notifications,
+        // camera, accessories, lyrics, equalizer, queue, downloads) on every fresh install.
+        IslandFirstLaunch.storeIslandOn(in: defaults, register: { PortBridge.registerDefaults() })
         // The one prompt-capable audio call (a probe tap) runs from the "Autoriser" click only.
         // Both cards (the mixer's and the equalizer's) read the probe tap's stored outcome: re-read it after the click.
         UserPermissionRequest.audioCaptureRequest = { [weak self] in
@@ -98,10 +100,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Each start() only arms what the user's settings and granted permissions allow; none prompts.
         // From here the registry also stops them: kill switch, safe mode and each switch call the stoppers.
-        // Now Playing exposes no stop(): its switch takes effect at the next launch and the Settings row says so.
+        // Now Playing has a stop() since 2026-11-02 (withdraws its music activity, ends the background poll).
         // The ported features add their own starters and stoppers (permission-gated, never prompting).
         // Crash recovery runs FIRST (PortBridge.launchAfterRecovery): a feature that started before it would write
         // its own journal and the recovery would undo it as if a crash had left it.
+        // The extra dock's clipboard commands read OUR clipboard feature, not the ported one (never started).
+        PortDockCommands.clipboardIsOn = { registry.state(for: "clipboard") == .active }
+        PortDockCommands.clearClipboardUnpinned = { ClipboardFeature.clearUnpinned() }
+        PortDockCommands.pastePlainFromClipboard = { ClipboardFeature.pastePlain() }
         PortBridge.launchAfterRecovery {
             registry.launch(
                 starters: ported.starters.merging([
@@ -118,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
                     "monitor": { MonitorFeature.stop() },
+                    "nowplaying": { NowPlayingFeature.stop() },
                     "agents": { live.stop() },  // withdraws every Claude activity through the sink
                     "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
                 ]) { _, ours in ours },

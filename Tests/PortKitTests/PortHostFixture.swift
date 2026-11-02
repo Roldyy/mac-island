@@ -19,9 +19,14 @@ enum PortHostFixture {
         let savedStored = PortHost.storedSwitch
         let savedAvailability = PortHost.availability
         let savedPermissions = PortHost.permissionState.value
+        let savedIsStored = IslandFeatureSeed.isStored
         // Fenced: a body that runs `Defaults.register` fills the fence, never the process-wide registration domain
         // (which cannot be emptied again and made every other suite read upstream's registered values as stored).
-        let bench = TestDefaults.make(fenced: true)
+        let name = UUID().uuidString
+        let bench = TestDefaults.make(name, fenced: true)
+        // "Stored" = in the bench's own domain (the real profile's domain is never read by a test).
+        let domain = NSTemporaryDirectory() + "mis-test-\(name)"
+        IslandFeatureSeed.isStored = { defaults, key in defaults.persistentDomain(forName: domain)?[key] != nil }
         PortHost.defaults = bench.defaults
         PortHost.setEnabled = nil
         PortHost.storedSwitch = nil
@@ -33,6 +38,7 @@ enum PortHostFixture {
             PortHost.storedSwitch = savedStored
             PortHost.availability = savedAvailability
             PortHost.permissionState.send(savedPermissions)
+            IslandFeatureSeed.isStored = savedIsStored
             bench.cleanup()
         }
         return try body(bench.defaults)

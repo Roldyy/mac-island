@@ -263,9 +263,11 @@ public enum IslandPortTabs {
     /// Archive and optimise what was dropped: the ported Files page (it needs the shelf and Media Tools on).
     @MainActor public static func fileTools() -> IslandTab {
         IslandTab(id: "filetools", title: "Fichiers", systemImage: "tray.full") {
-            AnyView(NotchFilesView(service: NotchService.shared)
-                .onAppear { IslandActivityHost.shared.acquire("fileTools") }
-                .onDisappear { IslandActivityHost.shared.release("fileTools") })
+            AnyView(IslandFilesGate {
+                NotchFilesView(service: NotchService.shared)
+                    .onAppear { IslandActivityHost.shared.acquire("fileTools") }
+                    .onDisappear { IslandActivityHost.shared.release("fileTools") }
+            })
         }
     }
 
@@ -292,11 +294,36 @@ enum IslandMirrorTab {
     static let owner = "mirror"
 }
 
+/// The Fichiers page works on the shelf's files: with the shelf off it says so in French instead of drawing a page that
+/// cannot do anything (the ported page reads `AppFeature.shelf`, which is the registry's verdict for our shelf).
+private struct IslandFilesGate<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @ObservedObject private var ticker = IslandHostTicker.shared
+    @ObservedObject private var features = FeatureRuntime.shared
+
+    var body: some View {
+        if features.isAvailable(.shelf) {
+            content()
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "tray").font(.system(size: 22, weight: .light))
+                Text("« Fichiers » a besoin de l’Étagère. Allumez-la dans Fonctions pour archiver ou optimiser des fichiers ici.")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.white.opacity(0.6))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
 /// Shows the page only while the registry has the feature running.
 private struct IslandPortGate<Content: View>: View {
     let feature: String
     let title: String
     @ViewBuilder let content: () -> Content
+    @ObservedObject private var ticker = IslandHostTicker.shared
 
     var body: some View {
         if IslandActivityHost.shared.holds(feature) {

@@ -51,6 +51,9 @@ public enum ClipboardFeature {
     /// "Effacer non épinglés": the pinned items stay. The page asks for the confirmation.
     @MainActor public static func clearUnpinned() { shared.clearUnpinned() }
 
+    /// Pastes the clipboard as plain text, the way the plain-paste shortcut does (the island's extra dock calls it).
+    @MainActor public static func pastePlain() { shared.plainPasteTriggered() }
+
     /// Start the pasteboard watcher and the plain-paste hotkey. Idempotent.
     @MainActor public static func start() { shared.start() }
 

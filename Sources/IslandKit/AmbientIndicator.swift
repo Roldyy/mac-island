@@ -25,6 +25,9 @@ public enum AmbientChannel {
     public static let camera = "camera"
     /// A bar and a percentage for a second when the system volume changes.
     public static let volume = "volume"
+    /// The Compagnon (mascot), an opt-in indicator posted only while its feature is on. Not a user choice of the closed
+    /// island list (`userChoices`): the feature's own switch in Fonctions is the opt-in, so `isEnabled` is always true.
+    public static let mascot = "mascot"
 
     /// Default order of the user-facing channels.
     public static let userChoices = [limits, claude, music, battery, keepAwake, clock, system, network, disk, mic, camera, volume]
@@ -79,6 +82,8 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         case equalizer
         /// No glyph at all: the value stands alone (the clock).
         case none
+        /// The animated companion, drawn by `AmbientMascotSlot` (14 pt, no text).
+        case mascot
     }
 
     public let id: String
@@ -147,13 +152,16 @@ public struct AmbientIndicator: Identifiable, Equatable, Sendable {
         if let text, !text.isEmpty { return true }
         if clockSince != nil || bar != nil || progress != nil || badge != nil { return true }
         if glyph == .equalizer { return true }
+        // The companion is the whole point of its indicator: it is only ever posted while its feature is on.
+        if glyph == .mascot { return true }
         if Self.stateChannels.contains(channel) { return true }
         // Offline: the struck-through symbol, in the warning colour, with its words for VoiceOver.
         return channel == AmbientChannel.network && status == .warning
     }
 
     /// Urgent and live items (an alert, Claude working or waiting) stay put: rotation only moves the rest.
-    public var isPinned: Bool { isUrgent || priority >= .claudeWorking }
+    /// The companion stays put too: rotating it away every four seconds would make it appear half the time.
+    public var isPinned: Bool { isUrgent || priority >= .claudeWorking || glyph == .mascot }
 
     /// Color alone never carries the state: VoiceOver gets the status and the value in words.
     public func accessibilityLabel(clock: String? = nil) -> String {

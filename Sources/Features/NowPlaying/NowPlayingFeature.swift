@@ -28,6 +28,7 @@ public enum NowPlayingFeature {
     /// Also keeps the last track ("Mémoriser la dernière lecture", on by default, local only).
     @MainActor public static func start(center: ActivityCenter? = nil) {
         let center = center ?? ActivityCenter.shared
+        postedCenter = center
         let recorder = lastTrack
         model.onSnapshot = { snap in
             recorder.observe(snap, artwork: model.artwork)
@@ -44,10 +45,24 @@ public enum NowPlayingFeature {
         Task { await model.refreshNow() }
     }
 
+    /// Switch off, kill switch, safe mode or quarantine: the closed-island music activity is withdrawn, the background
+    /// poll ends and the Home card reads nothing, at once (it used to wait for the next launch). Idempotent; the tab
+    /// still polls while it is on screen, as before.
+    @MainActor public static func stop() {
+        model.onSnapshot = nil
+        model.setBackground(false)
+        postedCenter?.withdraw(id: "music")
+        started = false
+    }
+
+    @MainActor private static var postedCenter: ActivityCenter?
+
     // MARK: - The island home
 
     /// True once `start()` ran: a switched-off feature reads nothing for the Home either.
     @MainActor private static var started = false
+
+    @MainActor public static var isStarted: Bool { started }
 
     /// The Home card reads this. Nothing (no player, no access) until the feature runs.
     @MainActor public static func homeReading() -> NowPlayingHomeReading {
