@@ -1,6 +1,6 @@
 # Mac Island
 
-A notch app for macOS. Move the pointer over the notch and an island opens with a terminal, your clipboard history, a file shelf, a volume mixer and a few other tools. On a Mac without a notch it sits at the top center as a black pill.
+A notch app for macOS. Move the pointer over the notch and an island opens with a terminal, Claude Code sessions, your clipboard history, a file shelf, a mixer, a system monitor, fan control, window and Finder tools, a network scanner and many more, each one switched on from the Functions page of the settings. On a Mac without a notch it sits at the top center as a black pill.
 
 It runs on macOS 14 or later, on Apple silicon. The interface is in French for now.
 
@@ -70,7 +70,7 @@ Writing fan speeds has not been confirmed on the M4 family. It may not work on y
 
 ## Coming from Vorssaint
 
-On first launch Mac Island looks for a Vorssaint install and copies the settings it understands. It first writes a full backup to `~/Library/Application Support/be.roldy.macisland/Backups/`. Vorssaint itself is never modified. Keys it does not recognize are logged by name and left alone. Mac Island is an independent rewrite and shares no code with Vorssaint. It is not affiliated with Vorssaint or Glasswave.
+On first launch Mac Island looks for a Vorssaint install and copies the settings it understands. It first writes a full backup to `~/Library/Application Support/be.roldy.macisland/Backups/`. Vorssaint itself is never modified. Keys it does not recognize are logged by name and left alone. Mac Island is derived from Vorssaint 3.4.2 and is released under the same GPL-3.0-or-later licence: much of its code comes from that project, with the credit kept in `NOTICE`. It is not affiliated with Vorssaint or Glasswave.
 
 ## Your data
 
