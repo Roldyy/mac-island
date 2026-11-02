@@ -13,6 +13,8 @@ struct NotchMascotSettings: View {
     @ObservedObject private var l10n = L10n.shared
     /// Redraws when the island or the Command Bar is installed or removed.
     @ObservedObject private var features = FeatureRuntime.shared
+    /// Redraws when the Compagnon feature is switched in Fonctionnalites (its hosting flag changes).
+    @ObservedObject private var hosting = IslandHostTicker.shared
     @AppStorage(DefaultsKey.notchEnabled) private var islandEnabled = false
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
     @AppStorage(DefaultsKey.notchMascotEnabled) private var enabled = false
@@ -40,7 +42,15 @@ struct NotchMascotSettings: View {
     private var restingSide: NotchMascotSide { NotchMascotSide(rawValue: side) ?? .left }
 
     /// The island it lives in is installed and on.
-    private var islandOn: Bool { features.isAvailable(.notch) && islandEnabled }
+    /// Mac Island: the island is the app, so it is always on (`CompanionSwitch`).
+    private var islandOn: Bool { CompanionSwitch.islandIsOn(installed: features.isAvailable(.notch), enabled: islandEnabled) }
+
+    /// One switch for the page and for the feature (`CompanionSwitch`): the registry's switch and `notchMascotEnabled` together.
+    private var companionOn: Bool { _ = enabled; _ = hosting.tick; return CompanionSwitch.isOn() }
+
+    private var companionSwitch: Binding<Bool> {
+        Binding(get: { CompanionSwitch.isOn() }, set: { CompanionSwitch.set($0) })
+    }
 
     /// It rests beside a camera, real or drawn, so the side it takes matters.
     /// A capsule holds it in the middle.
@@ -55,7 +65,7 @@ struct NotchMascotSettings: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 if !islandOn { islandNote }
-                NotchMascotStageCard(look: look, side: restingSide, awake: enabled, canGreet: enabled && islandOn,
+                NotchMascotStageCard(look: look, side: restingSide, awake: companionOn, canGreet: companionOn && islandOn,
                                      visits: visits, reactions: reactions, hides: hidesWhenIdle, text: text,
                                      language: l10n.language)
                 appearance
@@ -74,7 +84,7 @@ struct NotchMascotSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
-            Toggle(text.title, isOn: $enabled).labelsHidden().toggleStyle(.switch)
+            Toggle(text.title, isOn: companionSwitch).labelsHidden().toggleStyle(.switch)
                 .accessibilityLabel(text.title)
         }
     }

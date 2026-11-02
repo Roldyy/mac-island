@@ -167,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The clipboard history's "last copy in the menu bar": the model publishes the text, already cut to the
         // chosen length. Called at once with the current value, so a preview published before this line is not lost.
         ClipboardFeature.onMenuBarPreviewChange = { [weak self] text in self?.menuBar?.setPreview(text) }
+        PortBridge.connectMenuBar(showIcon: { [weak self] in MainActor.assumeIsolated { self?.menuBar?.setIconVisible(true) } })
         // The ported menu bar metrics may hide the app's icon (their option), only while one of their items shows.
         PortMenuBar.installAppIconVisibility { [weak self] visible in self?.menuBar?.setIconVisible(visible) }
 
@@ -213,6 +214,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
                                          dockCatalog: { context.dockCatalog() }))
         }
+        // "Open the island on tab X" from the ported code: the same two steps as the command bar's tab commands.
+        PortBridge.connectIsland(
+            openTab: { [weak island] tabID in
+                MainActor.assumeIsolated {
+                    navigation.open(tabID: tabID)
+                    island?.open()
+                }
+            },
+            // The ported buttons that act on the screen ("Choose area", ...) close the island first.
+            close: { [weak island] in MainActor.assumeIsolated { island?.close() } })
+        // Every door the ported code leaves open is bound or listed with a reason (`PortHookCatalog`); say so if one slipped.
+        let unbound = PortBridge.unboundHooks
+        if !unbound.isEmpty { NSLog("Mac Island: unbound port hooks: %@", unbound.joined(separator: ", ")) }
         // The clipboard history shortcut, and a click on the menu bar preview, open the island on its tab.
         ClipboardFeature.openHistory = { [weak island] in
             navigation.open(tabID: "clipboard")
@@ -474,7 +488,11 @@ extension AppDelegate {
         PortBridge.install(host: PortBridge.Host(
             openSettings: { MainActor.assumeIsolated { settings.show() } },
             closePanel: { MainActor.assumeIsolated { PortQuickPanel.shared.close() } },
-            relaunch: relaunch.map { action in { MainActor.assumeIsolated { action() } } }))
+            relaunch: relaunch.map { action in { MainActor.assumeIsolated { action() } } },
+            // Upstream's router ("Ouvrir Fonctionnalites", "Gerer...") lands on OUR page, mapped by `PortSettingsNavigation`.
+            openSettingsPage: { id in MainActor.assumeIsolated { settings.show(page: id) } },
+            // No feedback window in Mac Island: the project's issue form.
+            openFeedback: { kind in NSWorkspace.shared.open(PortFeedbackURL.url(kind: kind)) }))
         for pageID in PortBridge.registeredPageIDs {
             SettingsPageBodies.register(pageID: pageID) {
                 PortBridge.settingsBody(pageID: pageID) ?? AnyView(EmptyView())

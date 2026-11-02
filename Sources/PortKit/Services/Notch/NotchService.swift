@@ -2224,6 +2224,13 @@ final class NotchService: ObservableObject {
     }
 
     func perform(_ action: @escaping () -> Void) {
+        // Mac Island: OUR island is the one on screen (this one is asleep). It closes first, the action runs once the closing
+        // animation is done, so the island is not in the shot and the button ("Choose area", ...) is no longer dead.
+        if !PortHost.vorssaintIslandEnabled, let close = appDelegate()?.closeIsland {
+            close()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: action)
+            return
+        }
         collapse()
         if let windowHost { windowHost.whenSettled(action) }
         else { DispatchQueue.main.async(execute: action) }

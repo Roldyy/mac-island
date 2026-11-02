@@ -91,20 +91,50 @@ import Testing
         }
     }
 
-    @Test func theCompanionsOwnToggleOnItsPageStillSwitchesItOffAndTheSeedIsNotReappliedAtRestart() {
+    @Test func theFonctionnalitesSwitchIsTheOptInAndTheStoredPageKeyFollowsIt() {
         PortHostFixture.isolated { defaults in
             Defaults.registerDefaultValues(in: defaults)
             let r = rig(defaults: defaults)
             defer { r.cleanup() }
             r.registry.switches["notchMascot"] = true
             #expect(mascotItems(r.ambient).count == 1)
-            defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)  // the toggle on the Compagnon page
+            defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)  // a profile from before the single switch
             #expect(mascotItems(r.ambient).isEmpty)
             r.registry.switches["notchMascot"] = false
             r.registry.switches["notchMascot"] = true
-            #expect(defaults.bool(forKey: DefaultsKey.notchMascotEnabled) == false, "a person's choice is not undone by a restart")
+            // One source of truth (`CompanionSwitch`): switching the feature on writes the page key on too, so the page
+            // toggle can never read off while the feature runs.
+            #expect(defaults.bool(forKey: DefaultsKey.notchMascotEnabled), "the switch in Fonctionnalites is the opt-in")
+            #expect(CompanionSwitch.isOn(in: defaults))
+            #expect(mascotItems(r.ambient).count == 1)
+        }
+    }
+
+    @Test func thePageToggleDrivesTheRegistrySwitchAndTheKeyTogether() {
+        PortHostFixture.isolated { defaults in
+            Defaults.registerDefaultValues(in: defaults)
+            let r = rig(defaults: defaults)
+            defer { r.cleanup() }
+            let registry = r.registry
+            let setFeature: (String, Bool) -> Void = { id, on in MainActor.assumeIsolated { registry.switches[id] = on } }
+            CompanionSwitch.set(true, in: defaults, setFeature: setFeature)
+            #expect(registry.switches["notchMascot"] == true)
+            #expect(defaults.bool(forKey: DefaultsKey.notchMascotEnabled))
+            #expect(CompanionSwitch.isOn(in: defaults), "the page reads on while the feature runs")
+            #expect(mascotItems(r.ambient).count == 1)
+            CompanionSwitch.set(false, in: defaults, setFeature: setFeature)
+            #expect(registry.switches["notchMascot"] == false)
+            #expect(defaults.bool(forKey: DefaultsKey.notchMascotEnabled) == false)
+            #expect(CompanionSwitch.isOn(in: defaults) == false)
             #expect(mascotItems(r.ambient).isEmpty)
         }
+    }
+
+    @Test func theCompanionPageNeverAsksToActivateTheIslandBecauseTheIslandIsTheApp() {
+        #expect(PortHost.hostsOwnIsland)
+        #expect(CompanionSwitch.islandIsOn(installed: false, enabled: false), "no 'activate Dynamic Island' card")
+        #expect(CompanionSwitch.islandIsOn(installed: false, enabled: false, hostsOwnIsland: false) == false, "the rule itself")
+        #expect(CompanionSwitch.islandIsOn(installed: true, enabled: true, hostsOwnIsland: false))
     }
 
     @Test func thePageShowsItToo() {

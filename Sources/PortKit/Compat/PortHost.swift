@@ -13,6 +13,10 @@ public enum PortHost {
     /// Read by `NotchService.syncWithPreferences()` and `AppFeature.notch`.
     public nonisolated(unsafe) static var vorssaintIslandEnabled = false
 
+    /// Mac Island's own island is the app: it is always on, so every ported page that asked "is the Dynamic Island installed
+    /// and on?" (the Companion's "activate Dynamic Island" card) must answer yes. Read by `CompanionSwitch`.
+    public static let hostsOwnIsland = true
+
     /// Mac Island's `FeatureRegistry` is the only writer of `shell.enabled.<id>`. When a bridge lane sets this,
     /// the ported `FeatureRuntime.setAvailable` hands the switch over instead of writing the key itself.
     public nonisolated(unsafe) static var setEnabled: (@Sendable (_ featureID: String, _ enabled: Bool) -> Void)?

@@ -350,6 +350,8 @@ enum IslandLockScreenLane {
         @MainActor static func mascotStart(presence: IslandMascotPresence) -> @MainActor () -> Void {
             {
                 IslandActivityHost.shared.acquire("notchMascot")
+                // The Fonctionnalites switch IS the opt-in: the page's own key follows it (`CompanionSwitch`, one source of truth).
+                PortHost.defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
                 AmbientMascotSlot.make = { size in AnyView(IslandMascotView(size: size)) }
                 presence.start()
             }
@@ -424,6 +426,7 @@ private struct CompanionTabContent: View {
             }
             .padding(12)
         }
+        .defaultAppStorage(PortHost.defaults)
     }
 }
 

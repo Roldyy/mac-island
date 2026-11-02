@@ -17,13 +17,20 @@ public enum PortBridge {
         public var closePanel: () -> Void
         public var relaunch: (() -> Void)?
         public var isOverMenuBarItem: (NSPoint) -> Bool
+        /// Opens Mac Island's Settings on the page with this catalog id (`SettingsPageCatalog`).
+        public var openSettingsPage: ((String) -> Void)?
+        /// "Report a bug" (`"bug"`) / "suggest a feature" (`"feature"`).
+        public var openFeedback: ((String) -> Void)?
 
         public init(openSettings: @escaping () -> Void, closePanel: @escaping () -> Void = {},
-                    relaunch: (() -> Void)? = nil, isOverMenuBarItem: @escaping (NSPoint) -> Bool = { _ in false }) {
+                    relaunch: (() -> Void)? = nil, isOverMenuBarItem: @escaping (NSPoint) -> Bool = { _ in false },
+                    openSettingsPage: ((String) -> Void)? = nil, openFeedback: ((String) -> Void)? = nil) {
             self.openSettings = openSettings
             self.closePanel = closePanel
             self.relaunch = relaunch
             self.isOverMenuBarItem = isOverMenuBarItem
+            self.openSettingsPage = openSettingsPage
+            self.openFeedback = openFeedback
         }
     }
 
@@ -79,8 +86,39 @@ public enum PortBridge {
         facade.closePanel = host.closePanel
         facade.relaunch = host.relaunch
         facade.isOverMenuBarItem = host.isOverMenuBarItem
+        facade.openSettingsPage = host.openSettingsPage
+        facade.openFeedback = host.openFeedback.map { open in { kind in open(kind.rawValue) } }
+        // Keeps a later `connectIsland` / `connectMenuBar` (the island and the icon do not exist yet when `install` runs).
+        if let earlier = AppDelegate.current {
+            facade.openIslandTab = earlier.openIslandTab
+            facade.closeIsland = earlier.closeIsland
+            facade.reshowIcon = earlier.reshowIcon
+        }
         AppDelegate.current = facade
+        _ = PortSettingsBridge.shared  // upstream's router now reaches our Settings window
         recoverAtLaunch()
+    }
+
+    /// Binds "open the island on tab X" (the app's `ShellNavigation` and island). Called once the island exists.
+    public static func connectIsland(openTab: @escaping (String) -> Void, close: @escaping () -> Void) {
+        AppDelegate.current?.openIslandTab = openTab
+        AppDelegate.current?.closeIsland = close
+    }
+
+    /// Binds "show the menu bar icon" (the app's own status item). Called once the item exists.
+    /// `showIcon` makes the item visible; the metrics' "hide the icon while a metric shows" option is switched off first,
+    /// or the next sync would hide the icon again.
+    public static func connectMenuBar(showIcon: @escaping () -> Void) {
+        AppDelegate.current?.reshowIcon = {
+            PortHost.defaults.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+            showIcon()
+        }
+    }
+
+    /// Names of the hooks the app is expected to bind (`PortHookCatalog.bound`) that are still nil. Empty once the app
+    /// delegate has called `install`, `connectIsland` and `connectMenuBar`.
+    public static var unboundHooks: [String] {
+        PortHookCatalog.bound.filter { $0.onFacade && !$0.optional && !PortHookCatalog.isBound($0.name, on: AppDelegate.current) }.map(\.name)
     }
 
     // MARK: Launch

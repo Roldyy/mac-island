@@ -14,6 +14,13 @@ final class AppDelegate {
     var closePanel: (() -> Void)?
     var relaunch: (() -> Void)?
     var isOverMenuBarItem: ((NSPoint) -> Bool)?
+    /// Mac Island's own doors (`PortBridge.install` / `connectIsland` / `connectMenuBar`). Every optional hook of this class
+    /// is either bound by the app or listed with a reason in `PortHookCatalog` (a test enforces it).
+    var openSettingsPage: ((String) -> Void)?
+    var openIslandTab: ((String) -> Void)?
+    var closeIsland: (() -> Void)?
+    var openFeedback: ((FeedbackKind) -> Void)?
+    var reshowIcon: (() -> Void)?
 
     func openSettingsWindow() { openSettings?() }
 
@@ -27,13 +34,25 @@ final class AppDelegate {
 
     func relaunchApp() { relaunch?() }
 
-    // Feedback, onboarding, update tour: none of them exists in Mac Island.
-    func openFeedbackWindow(kind: FeedbackKind = .bug) {}
+    /// Opens Mac Island's own Settings on the page whose catalog id is `id` (`PortSettingsNavigation` maps upstream's pages).
+    func openSettingsPage(id: String) {
+        if let openSettingsPage { openSettingsPage(id) } else { openSettingsWindow() }
+    }
+
+    /// Opens the island on the tab `id` (a feature tab id of ShellKit).
+    func openIslandTab(id: String) { openIslandTab?(id) }
+
+    /// "Report a bug" / "suggest a feature": the project's issue form (no in-app feedback window in Mac Island).
+    func openFeedbackWindow(kind: FeedbackKind = .bug) { openFeedback?(kind) }
+
+    /// "Show the menu bar icon": the app's own icon, which the metrics may have hidden.
+    func reshowStatusItem() { reshowIcon?() }
+
+    // Onboarding and update tour: none of them exists in Mac Island (the update state never leaves `idle`).
     func showUpdatePreview() {}
     func showUpdateHighlights(isReview: Bool = false) {}
     func openSettingsFromHighlights() { openSettingsWindow() }
     func showOnboarding(mode: OnboardingMode = .full) {}
-    func reshowStatusItem() {}
 }
 
 enum FeedbackKind: String, Codable, CaseIterable {
