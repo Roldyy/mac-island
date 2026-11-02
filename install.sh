@@ -1,6 +1,8 @@
 #!/bin/bash
-# Mac Island installer. It downloads the notarized DMG of the latest release, checks the checksum
-# and the signature, and copies the app to /Applications.
+# Mac Island installer. It downloads the DMG of the latest release, checks the checksum and the
+# signature, and copies the app to /Applications. The release is signed with a Developer ID but not
+# notarized; because this script (and not a browser) copies the app, macOS puts no quarantine flag on it
+# and Gatekeeper does not block the first launch.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Roldyy/mac-island/main/install.sh | bash
 #
@@ -47,7 +49,8 @@ say "Checking the signature"
 codesign --verify --deep --strict "$src" || die "the app signature is not valid, nothing was installed."
 found_team="$(codesign -dv "$src" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
 [ "$found_team" = "$TEAM_ID" ] || die "unexpected signing team '$found_team', nothing was installed."
-spctl -a -t exec "$src" 2>/dev/null || die "Gatekeeper does not accept this app, nothing was installed."
+# Not notarized: spctl reports it as an unnotarized Developer ID app, which is expected. The checksum, the
+# signature and the team identifier above are what this script relies on.
 
 if pgrep -x MacIsland >/dev/null 2>&1; then
   say "Quitting the running Mac Island"

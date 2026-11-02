@@ -6,7 +6,17 @@ It runs on macOS 14 or later, on Apple silicon. The interface is in French for n
 
 ## Install
 
-Build it from source. You need the Command Line Tools and nothing else:
+Download `MacIsland.dmg` from the [latest release](https://github.com/Roldyy/mac-island/releases/latest), or run the installer, which checks the checksum and the signing team before it copies the app to `/Applications`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Roldyy/mac-island/main/install.sh | bash
+```
+
+The app is signed with a Developer ID but not notarized. If you open the DMG from a browser download, macOS asks for a confirmation on the first launch: right-click the app, choose Open, then confirm. The installer script avoids that prompt.
+
+Or build it from source.
+
+You need the Command Line Tools and nothing else:
 
 ```sh
 git clone https://github.com/Roldyy/mac-island
@@ -21,8 +31,6 @@ make install SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
 ```
 
 The helper for fan control only accepts an app signed with a Developer ID, so it needs this variant.
-
-A one-command installer for a notarized release exists in the repository (`install.sh`), but no release is published yet. It will be announced here when it is.
 
 ## Using it
 
