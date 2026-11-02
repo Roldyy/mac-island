@@ -35,8 +35,14 @@ private func scratchDefaults() -> UserDefaults {
 
     @Test func shellAloneRestartsAtOnce() {
         #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: 10, foregroundName: "zsh") == .restart)
-        #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: nil, foregroundName: nil) == .restart)
-        #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: 0, foregroundName: nil) == .restart)
+    }
+
+    @Test func unreadableForegroundGroupAsksInsteadOfRestartingSilently() {
+        // A shell that exec'd a program, or a PTY that cannot be read: unknown is not "only the shell".
+        #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: nil, foregroundName: nil) == .confirm(process: "un programme"))
+        #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: 0, foregroundName: nil) == .confirm(process: "un programme"))
+        #expect(TerminalRestartDecision.decide(hasSession: true, shellPid: 10, foregroundGroup: -1, foregroundName: "x") == .confirm(process: "x"))
+        #expect(TerminalRestartDecision.decide(hasSession: false, shellPid: 10, foregroundGroup: nil, foregroundName: nil) == .colorsOnNextStart)
     }
 
     @Test func anotherForegroundProgramNeedsConfirmation() {

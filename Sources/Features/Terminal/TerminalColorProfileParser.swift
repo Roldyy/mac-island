@@ -1,7 +1,8 @@
+import Darwin
 import Foundation
 
 /// A parsed file: the profile, ready to preview, and how many of its colours came from the file itself.
-struct TerminalColorProfileImport: Equatable {
+struct TerminalColorProfileImport: Equatable, Sendable {
     var profile: TerminalColorProfile
     var foundColors: Int
     static let totalColors = TerminalRawColors.ansiCount + 4
@@ -30,11 +31,31 @@ enum TerminalColorProfileParser {
     }
 
     /// Reads at most the cap plus one byte, so a huge or endless file is refused without being loaded.
+    /// The file is opened without blocking (a named pipe would otherwise hang the open), then `fstat` on the
+    /// descriptor itself must say "regular file": a directory, pipe, socket or device is refused before any read.
+    /// A symlink is followed (the open panel hands over resolved paths) and judged by what it points to.
+    /// Blocking work: call it off the main thread.
     static func read(url: URL, now: Date = Date()) throws -> TerminalColorProfileImport {
         guard supportedExtensions.contains(url.pathExtension.lowercased()) else { throw TerminalColorProfileError.unsupportedType }
-        guard let handle = try? FileHandle(forReadingFrom: url) else { throw TerminalColorProfileError.unreadable }
-        defer { try? handle.close() }
-        guard let data = try? handle.read(upToCount: maxFileBytes + 1) else { throw TerminalColorProfileError.unreadable }
+        let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { throw TerminalColorProfileError.unreadable }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else { throw TerminalColorProfileError.unreadable }
+        guard (info.st_mode & S_IFMT) == S_IFREG else { throw TerminalColorProfileError.notARegularFile }
+        guard info.st_size <= off_t(maxFileBytes) else { throw TerminalColorProfileError.fileTooLarge }
+
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while data.count <= maxFileBytes {
+            let count = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, min($0.count, maxFileBytes + 1 - data.count)) }
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw TerminalColorProfileError.unreadable
+            }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
         return try parse(data: data, fileName: url.lastPathComponent, now: now)
     }
 }

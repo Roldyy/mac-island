@@ -12,9 +12,13 @@ enum TerminalRestartDecision: Equatable {
 
     /// `foregroundGroup` is the terminal's foreground process group; the shell leads its own group, so a
     /// different group means a command is running in front of it (a background job does not count).
+    /// A group that cannot be read (nil or 0) is unknown, not "only the shell": the user is asked.
     static func decide(hasSession: Bool, shellPid: pid_t, foregroundGroup: pid_t?, foregroundName: String?) -> Self {
         guard hasSession else { return .colorsOnNextStart }
-        guard let group = foregroundGroup, group > 0, group != shellPid else { return .restart }
+        guard let group = foregroundGroup, group > 0 else {
+            return .confirm(process: TerminalColorProfile.sanitizedName(foregroundName ?? "", fallback: "un programme"))
+        }
+        guard group != shellPid else { return .restart }
         let name = TerminalColorProfile.sanitizedName(foregroundName ?? "", fallback: "un programme")
         return .confirm(process: name)
     }

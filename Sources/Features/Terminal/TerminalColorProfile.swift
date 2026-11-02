@@ -39,8 +39,51 @@ struct TerminalColorProfile: Codable, Equatable, Identifiable, Sendable {
         }
         var text = String(String.UnicodeScalarView(visible))
         text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        if text.count > maxNameLength { text = String(text.prefix(maxNameLength)).trimmingCharacters(in: .whitespaces) }
+        text = limitedMarks(text)
+        if text.count > maxNameLength { text = String(text.prefix(maxNameLength)) }
+        text = cappedScalarsAndBytes(text).trimmingCharacters(in: .whitespaces)
         return text.isEmpty ? fallback : text
+    }
+
+    static let maxNameScalars = maxNameLength * 4
+    static let maxNameBytes = 256
+    /// Accents need one or two combining marks; a longer run is a stack of them (Zalgo) and one Character
+    /// can hold any number, so the Character cap alone does not bound the size.
+    static let maxCombiningRun = 2
+
+    private static func isCombining(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.properties.generalCategory {
+        case .nonspacingMark, .spacingMark, .enclosingMark: true
+        default: false
+        }
+    }
+
+    private static func limitedMarks(_ text: String) -> String {
+        var run = 0
+        var kept = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if isCombining(scalar) {
+                run += 1
+                if run > maxCombiningRun { continue }
+            } else {
+                run = 0
+            }
+            kept.append(scalar)
+        }
+        return String(kept)
+    }
+
+    /// Cuts at a scalar boundary once either the scalar cap or the UTF-8 byte cap is reached.
+    private static func cappedScalarsAndBytes(_ text: String) -> String {
+        var kept = String.UnicodeScalarView()
+        var bytes = 0
+        for scalar in text.unicodeScalars {
+            let size = String(scalar).utf8.count
+            if kept.count >= maxNameScalars || bytes + size > maxNameBytes { break }
+            kept.append(scalar)
+            bytes += size
+        }
+        return String(kept)
     }
 
     /// Same colours and font, whatever the name, id and date: used to avoid listing one file twice.

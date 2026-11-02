@@ -9,34 +9,67 @@ import SwiftTerm
 final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, TerminalRestarting {
     static let shared = TerminalSession()
 
+    /// Builds a configured, not yet started view wearing the profile (nil: the default theme).
+    typealias MakeView = @MainActor (_ profile: TerminalColorProfile?) -> ActivityTerminalView
+    /// Starts the shell in the view, in that directory.
+    typealias StartShell = @MainActor (_ view: ActivityTerminalView, _ directory: String) -> Void
+
     private var terminalView: ActivityTerminalView?
     private var exited = false
-    private var shell = TerminalSession.loginShell()
+    private let makeView: MakeView
+    private let startShell: StartShell
+    private let activeProfile: @MainActor () -> TerminalColorProfile?
+    private let foregroundGroup: (Int32) -> pid_t?
+    private let terminator: ShellTerminating
+
+    /// Everything has the app's behaviour by default; tests swap each piece.
+    init(
+        makeView: MakeView? = nil,
+        startShell: StartShell? = nil,
+        activeProfile: (@MainActor () -> TerminalColorProfile?)? = nil,
+        foregroundGroup: ((Int32) -> pid_t?)? = nil,
+        terminator: ShellTerminating = TerminalShellTerminator()
+    ) {
+        self.makeView = makeView ?? Self.defaultView
+        self.startShell = startShell ?? Self.defaultStart
+        self.activeProfile = activeProfile ?? { TerminalProfileStore.standard().activeProfile }
+        self.foregroundGroup = foregroundGroup ?? { TerminalProcessInfo.foregroundGroup(masterFd: $0) }
+        self.terminator = terminator
+        super.init()
+    }
 
     var hasSession: Bool { terminalView != nil && !exited }
     var lastOutputAt: Date { terminalView?.lastOutputAt ?? .distantPast }
     var shellPid: pid_t { terminalView?.process.shellPid ?? 0 }
 
-    /// Returns the live view, creating or restarting the shell when needed.
-    func ensureRunning() -> ActivityTerminalView {
-        if let view = terminalView, !exited { return view }
-        shell = Self.loginShell()
-        return start(directory: NSHomeDirectory())
-    }
-
-    private func start(directory: String) -> ActivityTerminalView {
+    static let defaultView: MakeView = { profile in
         let view = ActivityTerminalView(frame: NSRect(x: 0, y: 0, width: 640, height: 320))
         view.applySavedFontSize()
         view.configureInteraction()
         view.nativeBackgroundColor = NSColor(calibratedWhite: 0.06, alpha: 1)
         view.nativeForegroundColor = NSColor(calibratedWhite: 0.88, alpha: 1)
-        if let profile = TerminalProfileStore.standard().activeProfile { view.applyColorProfile(profile) }
+        if let profile { view.applyColorProfile(profile) }
+        return view
+    }
+
+    static let defaultStart: StartShell = { view, directory in
+        view.startProcess(
+            executable: TerminalSession.loginShell(), args: ["-l"], environment: nil,
+            execName: nil, currentDirectory: directory)
+    }
+
+    /// Returns the live view, creating or restarting the shell when needed.
+    func ensureRunning() -> ActivityTerminalView {
+        if let view = terminalView, !exited { return view }
+        return start(directory: NSHomeDirectory())
+    }
+
+    private func start(directory: String) -> ActivityTerminalView {
+        let view = makeView(activeProfile())
         view.processDelegate = self
         terminalView = view
         exited = false
-        view.startProcess(
-            executable: shell, args: ["-l"], environment: nil,
-            execName: nil, currentDirectory: directory)
+        startShell(view, directory)
         return view
     }
 
@@ -53,7 +86,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
         guard let view = terminalView, !exited else {
             return .colorsOnNextStart
         }
-        let group = TerminalProcessInfo.foregroundGroup(masterFd: view.process.childfd)
+        let group = foregroundGroup(view.process.childfd)
         return TerminalRestartDecision.decide(
             hasSession: true, shellPid: view.process.shellPid, foregroundGroup: group,
             foregroundName: group.flatMap { TerminalProcessInfo.processName($0) })
@@ -70,8 +103,16 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
         let mask = old.autoresizingMask
         let onClick = old.onClick
 
+        // Read before ending anything: SwiftTerm's terminate() closes the PTY and forgets its descriptor.
+        let pid = old.process.shellPid
+        let foreground = foregroundGroup(old.process.childfd)
+
         old.processDelegate = nil  // its exit must not mark the NEW session as ended
+        // SwiftTerm's terminate() alone leaves the shell and its program running (see TerminalShellTerminator):
+        // hang up the foreground program and the shell, close the PTY, then wait and reap off the main thread.
+        let target = terminator.hangUp(shellPid: pid, foregroundGroup: foreground)
         old.terminate()
+        terminator.reap(target)
         old.removeFromSuperview()
 
         let view = start(directory: directory)

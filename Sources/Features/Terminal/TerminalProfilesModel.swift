@@ -28,6 +28,7 @@ final class TerminalProfilesModel {
     var renamingID: UUID?
     var renameText = ""
 
+    @ObservationIgnored private var importGeneration = 0
     @ObservationIgnored private let store: TerminalProfileStore
     @ObservationIgnored private let session: TerminalRestarting
 
@@ -43,12 +44,31 @@ final class TerminalProfilesModel {
 
     // MARK: Import
 
+    /// Reads on a background thread, then shows the result on the main actor. A second pick while the first is
+    /// still being read wins: the older result is dropped.
+    func importFileInBackground(at url: URL) async {
+        importGeneration += 1
+        let generation = importGeneration
+        let result = await Task.detached(priority: .userInitiated) {
+            Result { try TerminalColorProfileParser.read(url: url) }
+        }.value
+        guard generation == importGeneration else { return }
+        show(result)
+    }
+
+    /// Same as `importFileInBackground`, but reads on the calling thread (tests, scripts).
     func importFile(at url: URL) {
+        importGeneration += 1
+        show(Result { try TerminalColorProfileParser.read(url: url) })
+    }
+
+    private func show(_ result: Result<TerminalColorProfileImport, Error>) {
         errorMessage = nil
         statusMessage = nil
-        do {
-            pending = try TerminalColorProfileParser.read(url: url)
-        } catch {
+        switch result {
+        case .success(let value):
+            pending = value
+        case .failure(let error):
             pending = nil
             errorMessage = (error as? LocalizedError)?.errorDescription ?? TerminalColorProfileError.unreadable.errorDescription
         }
@@ -94,12 +114,13 @@ final class TerminalProfilesModel {
     private func perform(_ change: TerminalProfileChange, restart: Bool) {
         reload()
         var name = "le profil par défaut"
+        var savedImport = false
         switch change {
         case .imported(let profile):
             let id = library.add(profile)
             library.activate(id)
             name = "« \(library.profile(id: id)?.name ?? profile.name) »"
-            pending = nil
+            savedImport = true
         case .existing(let id):
             guard let profile = library.profile(id: id) else { return }
             library.activate(id)
@@ -107,7 +128,12 @@ final class TerminalProfilesModel {
         case .defaultTheme:
             library.activate(nil)
         }
-        store.save(library)
+        guard store.save(library) else {
+            reload()  // the stored library is untouched: show it, do not restart on a profile that was not kept
+            errorMessage = TerminalColorProfileError.cannotSave.errorDescription
+            return
+        }
+        if savedImport { pending = nil }
         if restart {
             session.restartWithActiveProfile()
             statusMessage = "Terminal redémarré avec \(name)."
@@ -126,7 +152,10 @@ final class TerminalProfilesModel {
     func commitRename() {
         guard let id = renamingID else { return }
         library.rename(id, to: renameText)
-        store.save(library)
+        if !store.save(library) {
+            reload()
+            errorMessage = TerminalColorProfileError.cannotSave.errorDescription
+        }
         renamingID = nil
     }
 
@@ -136,7 +165,11 @@ final class TerminalProfilesModel {
     func delete(_ id: UUID) {
         let wasActive = library.activeID == id
         library.remove(id)
-        store.save(library)
+        if !store.save(library) {
+            reload()
+            errorMessage = TerminalColorProfileError.cannotSave.errorDescription
+            return
+        }
         if renamingID == id { renamingID = nil }
         statusMessage = wasActive ? "Profil supprimé. Le terminal retrouvera ses couleurs par défaut à son prochain démarrage." : nil
     }

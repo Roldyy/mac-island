@@ -58,14 +58,19 @@ enum TerminalProfileLibraryCodec {
         var profiles: [TerminalColorProfile]
     }
 
-    static func encode(_ library: TerminalProfileLibrary) -> Data? {
+    /// nil when the library cannot be encoded or its encoding is larger than `decode` would accept:
+    /// writing it would make the next load come back empty and the next save drop every profile.
+    static func encode(_ library: TerminalProfileLibrary, maxBytes: Int = TerminalProfileLibraryCodec.maxBytes) -> Data? {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
-        return try? encoder.encode(Envelope(version: version, activeID: library.activeID, profiles: library.profiles))
+        guard let data = try? encoder.encode(Envelope(version: version, activeID: library.activeID, profiles: library.profiles)),
+              data.count <= maxBytes
+        else { return nil }
+        return data
     }
 
-    static func decode(_ data: Data?) -> TerminalProfileLibrary {
+    static func decode(_ data: Data?, maxBytes: Int = TerminalProfileLibraryCodec.maxBytes) -> TerminalProfileLibrary {
         guard let data, data.count <= maxBytes else { return TerminalProfileLibrary() }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

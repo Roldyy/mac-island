@@ -153,7 +153,7 @@ struct TerminalSettingsBody: View {
         panel.allowedContentTypes = TerminalColorProfileParser.supportedExtensions.compactMap { UTType(filenameExtension: $0) }
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            Task { @MainActor in model.importFile(at: url) }
+            Task { @MainActor in await model.importFileInBackground(at: url) }
         }
     }
 }
