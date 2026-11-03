@@ -5,6 +5,7 @@
 import AppKit
 import Carbon.HIToolbox
 import Combine
+import IslandKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -1050,11 +1051,14 @@ final class ShelfService: ObservableObject {
                 ShelfService.shared.clearSelection()
                 return true
             }
-            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a" {
+            // Mac Island: not while a note or a field holds the keyboard (there Cmd+A selects its text).
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a", !(firstResponder is NSText) {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
-            return super.performKeyEquivalent(with: event)
+            // Mac Island: no Edit menu in an accessory app; Cmd+C / X / V / Z (and Cmd+A in a note) go to the focused text input.
+            if super.performKeyEquivalent(with: event) { return true }
+            return EditKeyRouting.handle(event, in: self)
         }
 
         override func cancelOperation(_ sender: Any?) {

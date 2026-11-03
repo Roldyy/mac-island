@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        EditMenu.install()  // hidden Edit menu: Cmd+C / X / V / A / Z in the Settings window (accessory app, no menu bar)
         migrateVorssaintIfNeeded()  // must run before the clipboard reads its migrated files
         let defaults = AppDefaults.make() ?? .standard
         // The ported features: same defaults domain as the registry and the migrator, then every lane binds its

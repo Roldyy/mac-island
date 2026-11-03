@@ -1,0 +1,72 @@
+--- a/Services/Notch/NotchWindowHost.swift
++++ b/Services/Notch/NotchWindowHost.swift
+@@ -3,6 +3,7 @@
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
+ import AppKit
++import IslandKit
+ import SwiftUI
+ import QuartzCore
+ 
+@@ -907,6 +908,12 @@
+     override func orderFrontRegardless() {
+         super.orderFrontRegardless()
+         visibilityDidChange?()
++    }
++
++    // Mac Island: no Edit menu in an accessory app, so Cmd+C / X / V / A / Z need this route to the focused text input.
++    override func performKeyEquivalent(with event: NSEvent) -> Bool {
++        if super.performKeyEquivalent(with: event) { return true }
++        return EditKeyRouting.handle(event, in: self)
+     }
+ 
+     override func sendEvent(_ event: NSEvent) {
+--- a/Services/Shelf/ShelfService.swift
++++ b/Services/Shelf/ShelfService.swift
+@@ -5,6 +5,7 @@
+ import AppKit
+ import Carbon.HIToolbox
+ import Combine
++import IslandKit
+ import SwiftUI
+ import UniformTypeIdentifiers
+ 
+@@ -1050,11 +1051,14 @@
+                 ShelfService.shared.clearSelection()
+                 return true
+             }
+-            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a" {
++            // Mac Island: not while a note or a field holds the keyboard (there Cmd+A selects its text).
++            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a", !(firstResponder is NSText) {
+                 ShelfService.shared.selectAllVisibleItems()
+                 return true
+             }
+-            return super.performKeyEquivalent(with: event)
++            // Mac Island: no Edit menu in an accessory app; Cmd+C / X / V / Z (and Cmd+A in a note) go to the focused text input.
++            if super.performKeyEquivalent(with: event) { return true }
++            return EditKeyRouting.handle(event, in: self)
+         }
+ 
+         override func cancelOperation(_ sender: Any?) {
+--- a/UI/OverlayPanel.swift
++++ b/UI/OverlayPanel.swift
+@@ -3,6 +3,7 @@
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
+ import AppKit
++import IslandKit
+ 
+ /// A panel that floats over other apps' windows, such as the Shelf. AppKit
+ /// describes a non-activating panel as a system dialog, which tiling window
+@@ -11,4 +12,11 @@
+ /// window for assistive technology.
+ class OverlayPanel: NSPanel {
+     override func accessibilitySubrole() -> NSAccessibility.Subrole? { .unknown }
++
++    // Mac Island: an accessory app has no Edit menu and a non-activating panel never activates it, so Cmd+C / X / V / A / Z
++    // reached no text field in here. What no view answered goes to the focused text input.
++    override func performKeyEquivalent(with event: NSEvent) -> Bool {
++        if super.performKeyEquivalent(with: event) { return true }
++        return EditKeyRouting.handle(event, in: self)
++    }
+ }

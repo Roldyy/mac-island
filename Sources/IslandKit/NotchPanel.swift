@@ -28,6 +28,14 @@ public final class NotchPanel: NSPanel {
         hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
     }
+
+    /// An accessory app has no Edit menu and this panel does not activate the app, so Cmd+C / X / V / A / Z never
+    /// reached the text view. Views answer first (the terminal handles its own copy and paste); what is left goes
+    /// to the focused text input (`EditKeyRouting`).
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) { return true }
+        return EditKeyRouting.handle(event, in: self)
+    }
 }
 
 /// How the panel frame follows a size change without being resized every frame: it grows at once (to the

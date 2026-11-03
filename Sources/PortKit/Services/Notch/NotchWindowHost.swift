@@ -3,6 +3,7 @@
 // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
 
 import AppKit
+import IslandKit
 import SwiftUI
 import QuartzCore
 
@@ -907,6 +908,12 @@ final class NotchPanel: NSPanel {
     override func orderFrontRegardless() {
         super.orderFrontRegardless()
         visibilityDidChange?()
+    }
+
+    // Mac Island: no Edit menu in an accessory app, so Cmd+C / X / V / A / Z need this route to the focused text input.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if super.performKeyEquivalent(with: event) { return true }
+        return EditKeyRouting.handle(event, in: self)
     }
 
     override func sendEvent(_ event: NSEvent) {
