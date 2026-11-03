@@ -3,6 +3,7 @@
 // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
 
 import AppKit
+import IslandKit
 import Foundation
 import SwiftUI
 
@@ -303,9 +304,17 @@ enum RadialNowPlayingApplication {
             }
             return
         }
-        guard let identifier = snapshot.appBundleIdentifier,
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        // Mac Island: not running, so this is a launch: the shared resolver (never Apple Music while the Music
+        // blocker is on or Spotify is chosen; the install page when the player is missing).
+        switch MusicPlayerResolver.resolve(playing: snapshot.appBundleIdentifier, last: nil,
+                                           settings: MusicPlayerSettings.read(from: PortHost.defaults),
+                                           isInstalled: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }) {
+        case .open(let identifier):
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { return }
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        case .installPage(let url):
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// Whether the player has a window on the current Space. One on another

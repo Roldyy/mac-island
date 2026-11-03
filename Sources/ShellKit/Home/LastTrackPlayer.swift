@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import IslandKit
 
 /// The seam between "open the player" and NSWorkspace, so tests launch nothing.
 @MainActor
@@ -62,19 +63,24 @@ public enum PlayerOpenPlan: Equatable, Sendable {
     /// Spotify is not installed (and no other player applies): the download page.
     case installPage(url: URL)
 
-    /// The player of the last track; when it is gone, Spotify; when that is missing too, the download page.
+    /// One resolver for every click (`MusicPlayerResolver`): the player playing now, the chosen player, the last
+    /// track's player, the blocker's replacement, Spotify, then the download page. Apple Music never comes out while
+    /// the Music blocker is on or Spotify is the chosen player.
     @MainActor
-    public static func resolve(playerBundleID: String?, launcher: any PlayerLaunching) -> PlayerOpenPlan {
-        let target = MusicPlayerTarget(bundleID: playerBundleID)
-        if let url = launcher.applicationURL(bundleID: target.bundleID) {
-            return .launch(name: target.name ?? url.deletingPathExtension().lastPathComponent,
-                           bundleID: target.bundleID, appURL: url)
+    public static func resolve(playerBundleID: String?, playing: String? = nil,
+                               settings: MusicPlayerSettings = MusicPlayerSettings(),
+                               launcher: any PlayerLaunching) -> PlayerOpenPlan {
+        let outcome = MusicPlayerResolver.resolve(playing: playing, last: playerBundleID, settings: settings) {
+            launcher.applicationURL(bundleID: $0) != nil
         }
-        if target.bundleID != MusicPlayerTarget.spotifyBundleID,
-           let url = launcher.applicationURL(bundleID: MusicPlayerTarget.spotifyBundleID) {
-            return .launch(name: "Spotify", bundleID: MusicPlayerTarget.spotifyBundleID, appURL: url)
+        switch outcome {
+        case .open(let bundleID):
+            guard let url = launcher.applicationURL(bundleID: bundleID) else { return .installPage(url: MusicPlayerTarget.spotifyInstallURL) }
+            return .launch(name: MusicPlayerTarget(bundleID: bundleID).name ?? url.deletingPathExtension().lastPathComponent,
+                           bundleID: bundleID, appURL: url)
+        case .installPage(let url):
+            return .installPage(url: url)
         }
-        return .installPage(url: MusicPlayerTarget.spotifyInstallURL)
     }
 
     /// Label of the idle card's call to action.

@@ -1,4 +1,5 @@
 import Foundation
+import IslandKit
 import Observation
 
 /// The idle now-playing card: the last track kept on this Mac, and what a click on it does.
@@ -17,6 +18,7 @@ public final class LastTrackModel {
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var seenModification: Date?
     @ObservationIgnored private var planCheckedAt: Date?
+    @ObservationIgnored private var planSettings: MusicPlayerSettings?
 
     /// How long an "installed or not" answer is reused: the tooltip does not need a Launch Services call per second.
     static let planLifetime: TimeInterval = 10
@@ -59,20 +61,24 @@ public final class LastTrackModel {
 
     private func refreshPlan() {
         let current = now()
-        if let checked = planCheckedAt, current.timeIntervalSince(checked) < Self.planLifetime, plan != nil { return }
+        let settings = MusicPlayerSettings.read(from: defaults)
+        // A changed player or blocker setting shows at once, not after the cached answer expires.
+        if let checked = planCheckedAt, current.timeIntervalSince(checked) < Self.planLifetime, plan != nil,
+           settings == planSettings { return }
         planCheckedAt = current
-        let fresh = PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, launcher: launcher)
+        planSettings = settings
+        let fresh = PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, settings: MusicPlayerSettings.read(from: defaults), launcher: launcher)
         if fresh != plan { plan = fresh }
     }
 
     /// Click on the card: open the player (the page to install Spotify when it is missing).
     public func open() {
-        PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, launcher: launcher).perform(with: launcher)
+        PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, settings: MusicPlayerSettings.read(from: defaults), launcher: launcher).perform(with: launcher)
     }
 
     /// Play button of an idle card: a running player gets "play", otherwise it is launched.
     public func play(send: (HomeTransport) -> Void) {
-        let plan = PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, launcher: launcher)
+        let plan = PlayerOpenPlan.resolve(playerBundleID: record?.playerBundleID, settings: MusicPlayerSettings.read(from: defaults), launcher: launcher)
         if case .launch(_, let bundleID, _) = plan, launcher.isRunning(bundleID: bundleID) {
             send(.playPause)
         } else {
