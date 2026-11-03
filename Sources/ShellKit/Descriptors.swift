@@ -1,6 +1,6 @@
 import IslandKit
 
-/// The 12 existing modules (the Display one was retired into the ported auto-quit, W3D). W1 moves each descriptor into its own module; ids are stable and double as tab ids.
+/// The 14 modules (the Display one was retired into the ported auto-quit, W3D). W1 moves each descriptor into its own module; ids are stable and double as tab ids.
 public enum ShellDescriptors {
     public static let all: [FeatureDescriptor] = [
         .init(id: "terminal", title: "Terminal", summary: "Terminal intégré dans l'île.",
@@ -34,5 +34,8 @@ public enum ShellDescriptors {
         // Off until the user switches it on; a scan never starts by itself (module IPScannerFeature).
         .init(id: "ipscanner", title: "Scanner IP", summary: "Liste les appareils du réseau local, sur clic uniquement.",
               systemImage: "dot.radiowaves.left.and.right", category: .tools, enabledByDefault: false, tabID: "ipscanner"),
+        // Off until the user switches it on; nothing is scanned or written by itself (module DefaultAppsFeature).
+        .init(id: "defaultapps", title: "Apps par défaut", summary: "Remplace l’app qui ouvre un type de fichier (TextEdit par Sublime Text, par exemple), avec aperçu et annulation.",
+              systemImage: "app.badge.checkmark", category: .tools, enabledByDefault: false, tabID: "defaultapps"),
     ]
 }

@@ -8,6 +8,7 @@ import FansFeature
 import MonitorFeature
 import FinderFeature
 import IPScannerFeature
+import DefaultAppsFeature
 import DockFeature
 import AudioFeature
 import KeepAwakeFeature
@@ -121,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "nowplaying": { NowPlayingFeature.start() },
                     "agents": { live.start() },
                     "ipscanner": { IPScannerFeature.start() },
+                    "defaultapps": { DefaultAppsFeature.start() },
                 ]) { _, ours in ours },
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
@@ -128,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "nowplaying": { NowPlayingFeature.stop() },
                     "agents": { live.stop() },  // withdraws every Claude activity through the sink
                     "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
+                    "defaultapps": { DefaultAppsFeature.stop() },  // forgets the screen and unplugs the guard (journal stays)
                 ]) { _, ours in ours },
                 activitySources: ["agents": ClaudeActivityMapper.source])
         }
@@ -446,7 +449,7 @@ enum ShellTabs {
         ShelfFeature.tab(), KeepAwakeFeature.tab(), NowPlayingFeature.tab(),
         FinderFeature.tab(), DockFeature.tab(), AudioFeature.tab(),
         FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
-        IPScannerFeature.tab(),
+        IPScannerFeature.tab(), DefaultAppsFeature.tab(),
     ]
 
     static let ported: [IslandTab] = [
@@ -502,6 +505,8 @@ extension AppDelegate {
         }
         // The IP scanner's page: its catalog row carries the feature id (switch and status card), this is the body.
         SettingsPageBodies.register(pageID: IPScannerFeature.pageID) { IPScannerFeature.settingsBody() }
+        // The default apps' page: its catalog row carries the feature id (switch and status card), this is the body.
+        SettingsPageBodies.register(pageID: DefaultAppsFeature.pageID) { DefaultAppsFeature.settingsBody() }
         // The terminal's page: its catalog row carries the feature id; this is the colour profile card.
         SettingsPageBodies.register(pageID: TerminalFeature.pageID) { TerminalFeature.settingsBody() }
         // A bound feature's page opens with its switch and status, then the ported body.

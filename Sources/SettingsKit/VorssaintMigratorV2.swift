@@ -68,6 +68,9 @@ public enum SettingsMachineState {
         "macIslandDisplayGammaDimActive", "quickToggles.finderJournal.macisland",
         "quickToggles.temporaryFinderFlags.macisland", "macisland.media.stagingDirectories",
         "macisland.wallpaper.restorePoint",
+        // Default apps: the undo journal (bundle ids of THIS Mac), its corrupt-copy, the choices the guard re-applies
+        // and its per-type attempt times. A restored file must never change a default handler by itself.
+        "defaultAppsJournal", "defaultAppsJournal.corrupt", "defaultAppsChoices", "defaultAppsGuardLast",
         // Safety state: crash breakers and kill switches (a restored file must never arm or clear one), and a
         // security-scoped bookmark bound to this install's identity.
         "macIslandOverlaySpaceCrashed", "macIslandOverlaySpaceKill", "macisland.musicAdapter.disabled",
