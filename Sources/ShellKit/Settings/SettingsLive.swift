@@ -90,6 +90,10 @@ public enum SettingsLive {
             "Épinglés": C("clipboard.pinnedCount", .readout),
             "Récents": C("clipboard.recentCount", .readout),
             "Effacer non épinglés": C("clipboard.clearUnpinned", .action(title: "Effacer", confirm: "Confirmer l’effacement")),
+        ], extras: [
+            // Says why the shortcut does nothing ("Raccourci déjà utilisé par une autre app ...", Accessibilité): the
+            // registration used to fail with no word anywhere.
+            C("clipboard.plainPasteStatus", .readout, title: "État du raccourci"),
         ]),
         // "cutpaste" and "renameshortcut" have no live entry any more: the ported Finder page (PortKit, W7-A lane) draws
         // both pages whole, under the `finder` feature card their catalog rows carry.

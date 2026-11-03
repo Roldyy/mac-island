@@ -47,6 +47,7 @@ final class ClipboardModel {
     @ObservationIgnored private var historyIntent: HistoryIntent?
     @ObservationIgnored private var applied: AppliedSettings?
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
     @ObservationIgnored private var started = false
     /// The files are read once, by the first start: a stop and a start never reload (and never drop) what is in memory.
     @ObservationIgnored private var loaded = false
@@ -123,6 +124,25 @@ final class ClipboardModel {
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.settingsChanged() }
         }
+        // A key another app held at launch may be free now: try again whenever the app is activated.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.retryRefusedHotkeys() }
+        }
+    }
+
+    /// Registers again a shortcut that is wanted but not held (refused earlier). Nothing registered is touched.
+    func retryRefusedHotkeys() {
+        guard hotkeyWanted else { return }
+        let s = settings()
+        if s.pastePlainEnabled, hotkey.registered == nil {
+            PasteLog.logger.notice("retrying the plain paste hotkey")
+            configureHotkey()
+        }
+        if let wanted = intent(for: s).wanted, historyHotkey.registered == nil {
+            PasteLog.logger.notice("retrying the history hotkey (\(Self.display(wanted), privacy: .public))")
+            configureHistoryHotkey()
+        }
     }
 
     /// Every settings write lands here: the two hotkeys, then what the other rows change.
@@ -173,6 +193,10 @@ final class ClipboardModel {
             if let defaultsObserver {
                 NotificationCenter.default.removeObserver(defaultsObserver)
                 self.defaultsObserver = nil
+            }
+            if let activationObserver {
+                NotificationCenter.default.removeObserver(activationObserver)
+                self.activationObserver = nil
             }
         }
         updatePlainPasteStatus()
@@ -384,7 +408,13 @@ final class ClipboardModel {
     private func configureHotkey() {
         let s = settings()
         hotkey.unregister()
-        hotkeyRegistered = s.pastePlainEnabled && hotkey.register(s.pastePlainShortcut)
+        if s.pastePlainEnabled {
+            hotkeyRegistered = hotkey.register(s.pastePlainShortcut)
+            PasteLog.logger.notice("plain paste hotkey \(self.hotkeyRegistered ? "armed" : "NOT armed (refused)", privacy: .public) for \(Self.display(s.pastePlainShortcut), privacy: .public)")
+        } else {
+            hotkeyRegistered = false
+            PasteLog.logger.notice("plain paste hotkey off (switch off in Settings)")
+        }
         refreshAccessibility()
     }
 
@@ -409,13 +439,17 @@ final class ClipboardModel {
         let outcome = PlainPasteHotkeyService.performPlainPaste(
             pasteboard: pasteboard, accessibilityTrusted: accessibilityCheck, postAccess: postAccessCheck,
             sendPaste: sendPaste,
-            didSend: { if $0 == .eventFailed { notify(.eventFailed) } }
+            didSend: {
+                PasteLog.logger.notice("plain paste outcome: key send \($0 == .posted ? "posted" : "FAILED", privacy: .public)")
+                if $0 == .eventFailed { notify(.eventFailed) }
+            }
         ) { [watcher, autoClear, pasteboard, settings] in
             // The rewrite is ours: do not record it back, and re-arm auto-clear on the NEW count
             // so the old timer (bound to the previous count) cannot fire on, or be skipped for, it.
             watcher.syncToCurrent()
             autoClear.schedule(delaySeconds: settings().autoClearDelay, expectedChangeCount: pasteboard.changeCount)
         }
+        PasteLog.logger.notice("plain paste outcome: \(String(describing: outcome), privacy: .public)")
         // Never silent: the plain text is on the pasteboard in every case but "nothing to paste".
         switch outcome {
         case .pasted: break
@@ -431,7 +465,7 @@ final class ClipboardModel {
         if !s.pastePlainEnabled {
             plainPasteStatus = "Collage sans style désactivé"
         } else if !hotkeyRegistered {
-            plainPasteStatus = "Collage sans style : \(label) indisponible (déjà utilisé)"
+            plainPasteStatus = "Raccourci déjà utilisé par une autre app : \(label) indisponible pour le collage sans style"
         } else if !accessibilityTrusted {
             plainPasteStatus = "Collage sans style : autorisation Accessibilité requise"
         } else {

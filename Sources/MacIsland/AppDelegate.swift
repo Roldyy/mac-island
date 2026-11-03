@@ -238,6 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsActions.register(action: "clipboard.clearUnpinned") { ClipboardFeature.clearUnpinned() }
         SettingsActions.register(readout: "clipboard.pinnedCount") { String(ClipboardFeature.pinnedCount) }
         SettingsActions.register(readout: "clipboard.recentCount") { String(ClipboardFeature.recentCount) }
+        SettingsActions.register(readout: "clipboard.plainPasteStatus") { ClipboardFeature.plainPasteStatus }
         installGestures(island: island, navigation: navigation, home: home)
         AgentsFeature.startResting()  // limits wing at rest, when notchIdleContent is "agents"
         startAmbientSources(live: live)

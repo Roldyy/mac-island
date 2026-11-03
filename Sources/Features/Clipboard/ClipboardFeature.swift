@@ -48,6 +48,9 @@ public enum ClipboardFeature {
     /// The Settings rows of the history and plain-paste pages (the app delegate registers them in `SettingsActions`).
     @MainActor public static var pinnedCount: Int { shared.pinnedCount }
     @MainActor public static var recentCount: Int { shared.recentCount }
+    /// One line for the Settings page: "Collage sans style actif : ⌥⌘V", or why the shortcut does not work
+    /// ("Raccourci déjà utilisé par une autre app ...", "autorisation Accessibilité requise").
+    @MainActor public static var plainPasteStatus: String { shared.plainPasteStatus }
     /// "Effacer non épinglés": the pinned items stay. The page asks for the confirmation.
     @MainActor public static func clearUnpinned() { shared.clearUnpinned() }
 

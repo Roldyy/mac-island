@@ -34,6 +34,8 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private(set) var registered: HotkeyShortcut?
+    /// OSStatus of the last `register` (noErr, `eventHotKeyExistsErr` -9878 when the combination is taken, ...).
+    private(set) var lastStatus: OSStatus = noErr
     var onTrigger: () -> Void = {}
 
     nonisolated static var accessibilityTrusted: Bool { AXIsProcessTrusted() }
@@ -54,17 +56,28 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
             guard status == noErr, PlainPasteHotkeyService.isOurHotKey(hotKeyID) else {
                 return OSStatus(eventNotHandledErr)
             }
+            PasteLog.logger.notice("trigger received: plain paste hotkey")
             Task { @MainActor in PlainPasteHotkeyService.active?.onTrigger() }
             return noErr
         }
-        guard InstallEventHandler(GetApplicationEventTarget(), handler, 1, &spec, nil, &handlerRef) == noErr else {
+        let installStatus = InstallEventHandler(GetApplicationEventTarget(), handler, 1, &spec, nil, &handlerRef)
+        guard installStatus == noErr else {
+            lastStatus = installStatus
+            PasteLog.logger.notice("plain paste hotkey: InstallEventHandler failed, OSStatus \(installStatus, privacy: .public)")
             return false
         }
         let id = EventHotKeyID(signature: Self.signature, id: Self.hotKeyID)
         let status = RegisterEventHotKey(shortcut.keyCode, shortcut.carbonModifiers, id,
                                          GetApplicationEventTarget(), 0, &hotKeyRef)
-        guard status == noErr else { unregister(); return false }
+        guard status == noErr else {
+            unregister()
+            lastStatus = status
+            PasteLog.logger.notice("plain paste hotkey: RegisterEventHotKey failed, OSStatus \(status, privacy: .public), key code \(shortcut.keyCode, privacy: .public), modifiers \(shortcut.carbonModifiers, privacy: .public)")
+            return false
+        }
+        lastStatus = noErr
         registered = shortcut
+        PasteLog.logger.notice("plain paste hotkey registered: key code \(shortcut.keyCode, privacy: .public), modifiers \(shortcut.carbonModifiers, privacy: .public), OSStatus 0")
         return true
     }
 
