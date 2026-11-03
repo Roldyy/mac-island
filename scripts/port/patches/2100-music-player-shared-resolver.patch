@@ -1,0 +1,52 @@
+--- a/Services/Notch/NotchPreferredPlayer.swift
++++ b/Services/Notch/NotchPreferredPlayer.swift
+@@ -3,6 +3,7 @@
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
+ import AppKit
++import IslandKit
+ 
+ /// The music app the island opens when nothing is playing and a playback
+ /// button or the cover is clicked. Opening it never starts playback.
+@@ -19,16 +20,21 @@ enum NotchPreferredPlayer {
+         return value.utf8.count <= 256 ? value : automatic
+     }
+ 
+-    /// A chosen player wins while it is installed. Otherwise the music app
+-    /// that played last, then Spotify, then Apple Music.
+-    static func resolve(choice: String, lastPlayed: String?, isInstalled: (String) -> Bool) -> String? {
+-        if !choice.isEmpty, isInstalled(choice) { return choice }
+-        if let lastPlayed, isInstalled(lastPlayed) { return lastPlayed }
+-        return known.first(where: isInstalled)
++    /// Mac Island: the one shared rule (`MusicPlayerResolver`). The playing app, then a chosen player, then the app
++    /// that played last, the blocker's replacement and Spotify. Apple Music never comes out while the Music blocker
++    /// is on or Spotify is chosen. Nothing usable: nil (the install page is `open()`'s job).
++    static func resolve(choice: String, lastPlayed: String?, blockerOn: Bool = false, replacement: String? = nil,
++                        isInstalled: (String) -> Bool) -> String? {
++        let settings = MusicPlayerSettings(preferred: choice, blockerOn: blockerOn, replacementBundleID: replacement)
++        guard case .open(let id) = MusicPlayerResolver.resolve(playing: nil, last: lastPlayed, settings: settings, isInstalled: isInstalled)
++        else { return nil }
++        return id
+     }
+ 
+     static func current() -> String? {
+-        resolve(choice: choice(), lastPlayed: lastPlayed) { InstalledApps.url(for: $0) != nil }
++        let settings = MusicPlayerSettings.read(from: PortHost.defaults)
++        return resolve(choice: settings.preferred, lastPlayed: lastPlayed, blockerOn: settings.blockerOn,
++                       replacement: settings.replacementBundleID) { InstalledApps.url(for: $0) != nil }
+     }
+ 
+     static func remember(_ playback: NotchPlayback?, in sources: [NotchPlaybackSource]) {
+@@ -79,7 +85,11 @@ enum NotchPreferredPlayer {
+     /// Launch Services.
+     @discardableResult
+     static func open() -> Bool {
+-        guard let id = current(), let url = InstalledApps.url(for: id), Bundle(url: url)?.bundleIdentifier == id else { return false }
++        guard let id = current() else {
++            // The chosen player (Spotify by default) is not installed: its download page, never Apple Music.
++            return NSWorkspace.shared.open(MusicPlayerResolver.spotifyInstallURL)
++        }
++        guard let url = InstalledApps.url(for: id), Bundle(url: url)?.bundleIdentifier == id else { return false }
+         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+         return true
+     }
