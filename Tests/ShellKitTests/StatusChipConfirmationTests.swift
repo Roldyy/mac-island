@@ -17,7 +17,7 @@ import Testing
     @Test func aDestructiveActionNeedsASecondClick() {
         #expect(quit().needsConfirmation)
         #expect(StatusChipConfirmation.decide(quit(), armed: nil, now: t0) == .arm)
-        let armed = StatusChipConfirmation.Armed(actionID: "quit", at: t0)
+        let armed = StatusChipConfirmation.Armed(actionID: "quit", title: quit().title, at: t0)
         #expect(StatusChipConfirmation.decide(quit(), armed: armed, now: t0.addingTimeInterval(1)) == .perform)
     }
 
