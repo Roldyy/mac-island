@@ -26,6 +26,8 @@ final class LoadChipSource: StatusChipPolledSource {
     private let totalMemory: UInt64
     private let primeDelay: UInt32
     private let state = SamplerState<CPUTicks?>(nil)
+    /// Bumped by every `end()`: a tick of an older run recognises itself and drops its baseline.
+    private let runGeneration = SamplerState<Int>(0)
     private let temperatureProvider: (@MainActor () -> Double?)?
     private let openMonitor: (@MainActor () -> Void)?
     private var poller: AmbientPoller?
@@ -84,19 +86,22 @@ final class LoadChipSource: StatusChipPolledSource {
     override func begin() {
         let state = self.state, readTicks = self.readTicks, readMemory = self.readMemory
         let readPressure = self.readPressure, total = Double(max(totalMemory, 1)), primeDelay = self.primeDelay
+        let generation = self.runGeneration
+        let myRun = generation.withValue { $0 }
         let tick: @Sendable () -> Void = { [weak self] in
             var cpu: Double?
+            var previous = state.withValue { $0 }
             var now = readTicks()
-            state.withValue { ticks in
-                if ticks == nil, let first = now {
-                    // First tick of a run: a short second sample gives the load of the last instants.
-                    if primeDelay > 0 { usleep(primeDelay) }
-                    ticks = first
-                    now = readTicks() ?? first
-                }
-                if let before = ticks, let current = now { cpu = SamplingMath.cpuLoad(previous: before, current: current) }
-                if let current = now { ticks = current }
+            if previous == nil, let first = now {
+                // First tick of a run: a short second sample gives the load of the last instants. The wait holds
+                // no lock, so `end()` (main actor) never stalls behind it.
+                if primeDelay > 0 { usleep(primeDelay) }
+                previous = first
+                now = readTicks() ?? first
             }
+            if let before = previous, let current = now { cpu = SamplingMath.cpuLoad(previous: before, current: current) }
+            // A tick that outlived its run (stopped meanwhile) must not leave a baseline for the next one.
+            if let current = now, generation.withValue({ $0 }) == myRun { state.withValue { $0 = current } }
             let memory = readMemory().map { min(max(Double($0) / total, 0), 1) }
             let snapshot = Snapshot(cpu: cpu, memory: memory, pressure: readPressure())
             Task { @MainActor in self?.apply(snapshot) }
@@ -109,6 +114,7 @@ final class LoadChipSource: StatusChipPolledSource {
         poller?.stop()
         poller = nil
         // The next run measures from its own first reading, not from ticks taken before the island closed.
+        runGeneration.withValue { $0 += 1 }
         state.withValue { $0 = nil }
     }
 

@@ -23,7 +23,7 @@ struct StatusChipActionStrip: View {
     }
 
     private func row(_ action: StatusChipAction) -> some View {
-        let isArmed = StatusChipConfirmation.isArmed(armed, for: action.id, now: .now)
+        let isArmed = StatusChipConfirmation.isArmed(armed, for: action.id, title: action.title, now: .now)
         return Button { tap(action) } label: {
             if isArmed {
                 Label("Confirmer", systemImage: "checkmark")
@@ -44,7 +44,7 @@ struct StatusChipActionStrip: View {
             action.handler()
             dismiss()
         case .arm:
-            armed = StatusChipConfirmation.Armed(actionID: action.id, at: .now)
+            armed = StatusChipConfirmation.Armed(actionID: action.id, title: action.title, at: .now)
         }
     }
 }

@@ -35,6 +35,15 @@ import Testing
         #expect(StatusChipConfirmation.decide(quit(), armed: armed, now: t0.addingTimeInterval(3.5)) == .arm)
     }
 
+    @Test func aConfirmationDoesNotSurviveAChangeOfTarget() {
+        // The refreshed reading reuses the id "quit" for another app: the first click no longer counts.
+        let safari = StatusChipAction(id: "quit", title: "Quitter Safari", isDestructive: true) {}
+        let xcode = StatusChipAction(id: "quit", title: "Quitter Xcode", isDestructive: true) {}
+        let armed = StatusChipConfirmation.Armed(actionID: "quit", title: safari.title, at: t0)
+        #expect(StatusChipConfirmation.decide(safari, armed: armed, now: t0.addingTimeInterval(1)) == .perform)
+        #expect(StatusChipConfirmation.decide(xcode, armed: armed, now: t0.addingTimeInterval(1)) == .arm)
+    }
+
     @Test func aConfirmationIsForOneActionOnly() {
         let armed = StatusChipConfirmation.Armed(actionID: "other", at: t0)
         #expect(!StatusChipConfirmation.isArmed(armed, for: "quit", now: t0))

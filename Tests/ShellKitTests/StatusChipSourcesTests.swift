@@ -77,6 +77,19 @@ private final class TickCounter: @unchecked Sendable {
         source.stop()
     }
 
+    @Test func stoppingRightAfterTheFirstTickNeverWaitsForThePrimeDelay() async throws {
+        // The 250 ms prime wait of a first tick used to hold the lock stop() needs: the main actor froze.
+        let source = LoadChipSource(
+            sleep: sleeper(ticks: 1),
+            readTicks: { CPUTicks(busy: 1, total: 2) }, readMemory: { 1 }, readPressure: { .normal },
+            totalMemory: 2, primeDelay: 400_000)
+        source.start()
+        try await Task.sleep(for: .milliseconds(60))  // the tick is inside its prime wait
+        let began = ContinuousClock.now
+        source.stop()
+        #expect(ContinuousClock.now - began < .milliseconds(100), "stop() must not wait for the prime delay")
+    }
+
     @Test func startAndStopAreIdempotent() async throws {
         let source = LoadChipSource(sleep: sleeper(ticks: 1), readTicks: { nil }, readMemory: { 1 },
                                     readPressure: { .normal }, totalMemory: 2, primeDelay: 0)
