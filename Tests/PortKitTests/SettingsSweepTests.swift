@@ -22,6 +22,8 @@ import Testing
         for id in PortBridge.registeredPageIDs { SettingsPageBodies.register(pageID: id) { AnyView(EmptyView()) } }
         // What the app delegate registers itself (it owns the HomeModel): the island editors.
         SettingsPageBodies.register(pageID: "island") { AnyView(EmptyView()) }
+        // ... and the status chips page (MIS_0100 lot 1), registered by the app delegate the same way.
+        SettingsPageBodies.register(pageID: StatusChipsSettings.pageID) { AnyView(EmptyView()) }
 
         func isPlanned(_ row: ShellKit.SettingsRow) -> Bool {
             !row.isLive && row.item.kind != .caption && row.item.kind != .heading

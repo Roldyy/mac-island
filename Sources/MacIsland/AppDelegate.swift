@@ -211,8 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tabGate: .ported,
             openSettingsPage: { settings.show(page: $0) },
             // Extra status chips (monitor, calendar, timer...) are added here by the lanes that own them; ShellKit
-            // already feeds network, load and disk itself.
-            statusSources: { [ipChip] })
+            // already feeds network, load and disk itself. PortKit's bridge brings battery health, next event, top app,
+            // devices and timer, plus the temperature of the Load chip; the IP chip comes from the IP scanner feature.
+            statusSources: { PortStatusChips.sources() + [ipChip] },
+            statusTemperature: { PortStatusChips.temperature() })
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }

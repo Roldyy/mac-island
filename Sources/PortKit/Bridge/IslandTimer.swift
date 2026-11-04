@@ -84,11 +84,9 @@ enum TimerIndicator {
     static func indicator(_ reading: TimerReading?) -> AmbientIndicator? {
         guard let reading, !reading.completed else { return nil }
         let text = clockText(reading.seconds)
-        let progress: Double? = reading.mode == .stopwatch || reading.duration <= 0 ? nil
-            : min(1, max(0, 1 - reading.seconds / reading.duration))
         return AmbientIndicator(
             id: id, channel: id, symbol: symbol(reading), text: text, status: reading.isPaused ? .warning : .neutral,
-            progress: progress, priority: .ambient, wing: .trailing,
+            progress: reading.progress, priority: .ambient, wing: .trailing,
             label: "\(phaseWord(reading)) : \(text)\(reading.isPaused ? ", en pause" : "")")
     }
 }

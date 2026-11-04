@@ -54,7 +54,9 @@ let package = Package(
         // The one place that touches MediaRemote's private symbols (lane W8A); AppKit and Foundation only.
         .target(name: "NowPlayingAdapter", path: "Sources/NowPlayingAdapter"),
         // FansFeature: the Fans bridge drives the helper through its `FanDriving` door (no dependency the other way).
-        .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "FansFeature", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
+        // ShellKit joins (MIS_0102) only for `Bridge/StatusChipsBridge.swift`, which conforms to its `StatusChipSource` contract;
+        // no imported file imports it, and ShellKit still never imports PortKit (no cycle).
+        .target(name: "PortKit", dependencies: ["IslandKit", "IslandUI", "ShellKit", "FansFeature", "HIDEventSystem", "VMStatisticsCompat"], path: "Sources/PortKit"),
 
         .executableTarget(name: "MacIsland", dependencies: [
             "PortKit",
