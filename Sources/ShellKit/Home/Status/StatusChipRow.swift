@@ -16,7 +16,7 @@ struct StatusChipRow: View {
                 Color.clear
             } else {
                 ScrollView(.horizontal) { StatusChipStrip(readings: readings) }
-                    .scrollIndicators(.hidden)
+                    .scrollIndicators(.never)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

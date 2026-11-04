@@ -29,14 +29,14 @@ struct HomeButtonStackView<Content: View>: View {
             // The viewport starts `fade` above the first button (its resting margin) and ends at the foot of the body.
             let length = available + HomeButtonStack.fade
             ScrollView(.vertical) { content().frame(maxWidth: .infinity) }
-                .scrollIndicators(.hidden)
+                .scrollIndicators(.never)
                 .contentMargins(.vertical, HomeButtonStack.fade, for: .scrollContent)
                 .frame(height: length)
                 .mask(Self.fadeMask(length: length, axis: .vertical))
                 .padding(.top, inset - HomeButtonStack.fade)
         } else {
             ScrollView(.horizontal) { content().frame(maxHeight: .infinity) }
-                .scrollIndicators(.hidden)
+                .scrollIndicators(.never)
                 .contentMargins(.horizontal, HomeButtonStack.fade, for: .scrollContent)
                 .frame(width: available, height: HomeGeometry.bottomRow)
                 .mask(Self.fadeMask(length: available, axis: .horizontal))

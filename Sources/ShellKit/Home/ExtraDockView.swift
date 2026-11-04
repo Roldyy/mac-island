@@ -64,7 +64,7 @@ struct ExtraDockView: View {
                 }
                 .padding(.vertical, IslandSpacing.xxs)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
