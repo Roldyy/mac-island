@@ -1,0 +1,62 @@
+--- a/Services/Clipboard/ClipboardAutoClearService.swift
++++ b/Services/Clipboard/ClipboardAutoClearService.swift
+@@ -4,6 +4,7 @@
+ 
+ import AppKit
+ import Foundation
++import IslandKit
+ 
+ /// Wipes the system pasteboard on four independent, opt-in triggers: a delay
+ /// after the last copy, computer sleep, display sleep, and screen lock.
+@@ -14,7 +15,8 @@
+ final class ClipboardAutoClearService {
+     static let shared = ClipboardAutoClearService()
+ 
+-    private var timer: Timer?
++    /// Mac Island: the shared pasteboard hub replaces this service's own 1 s timer.
++    private var hubToken: PasteboardChangeHub.Token?
+     /// The change count last acted on, and when it first appeared. The date is
+     /// wall clock rather than a count of ticks: timers do not fire while the
+     /// Mac sleeps, so a machine asleep past the delay clears on the first tick
+@@ -90,19 +92,19 @@
+     }
+ 
+     private func startTimer() {
+-        guard timer == nil else { return }
++        guard hubToken == nil else { return }
+         baseline()
+-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+-            self?.tick()
++        // The hub reads the count once per tick for every clipboard service (off the main thread, as before).
++        hubToken = MainActor.assumeIsolated {
++            PasteboardChangeHub.shared.subscribe(interval: 1) { [weak self] count in
++                self?.tick(changeCount: count)
++            }
+         }
+-        timer.tolerance = 0.2
+-        RunLoop.main.add(timer, forMode: .common)
+-        self.timer = timer
+     }
+ 
+     private func stopTimer() {
+-        timer?.invalidate()
+-        timer = nil
++        if let hubToken { MainActor.assumeIsolated { PasteboardChangeHub.shared.unsubscribe(hubToken) } }
++        hubToken = nil
+         readGeneration &+= 1
+         readInFlight = false
+     }
+@@ -117,11 +119,10 @@
+         }
+     }
+ 
+-    private func tick() {
++    private func tick(changeCount count: Int) {
+         let delay = Defaults.sanitizedClipboardAutoClearDelay(
+             PortHost.defaults.integer(forKey: DefaultsKey.clipboardAutoClearDelay))
+-        readChangeCount { [weak self] count in
+-            guard let self else { return }
++        do {
+             switch ClipboardAutoClearSupport.decide(changeCount: count,
+                                                     lastChangeCount: self.lastChangeCount,
+                                                     lastClearedChangeCount: self.lastClearedChangeCount,

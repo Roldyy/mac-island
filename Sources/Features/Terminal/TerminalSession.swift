@@ -70,6 +70,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
         terminalView = view
         exited = false
         startShell(view, directory)
+        NotificationCenter.default.post(name: ClaudeStatusModel.sessionChanged, object: self)
         return view
     }
 
@@ -140,6 +141,10 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
     nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
 
     nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
-        MainActor.assumeIsolated { if source === terminalView { exited = true } }
+        MainActor.assumeIsolated {
+            guard source === terminalView else { return }
+            exited = true
+            NotificationCenter.default.post(name: ClaudeStatusModel.sessionChanged, object: self)
+        }
     }
 }

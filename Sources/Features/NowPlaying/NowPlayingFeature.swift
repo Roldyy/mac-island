@@ -40,6 +40,8 @@ public enum NowPlayingFeature {
                 trailing: CompactItem(symbol: "waveform", text: title)))
         }
         started = true
+        syncClosedIndicator()
+        if case .some(let reading) = adapterState { model.adapterDelivered(reading) }
         model.setBackground(true)
         // Silent (never prompts): a permission that already stands starts the reading without a click.
         Task { await model.refreshNow() }
@@ -50,12 +52,50 @@ public enum NowPlayingFeature {
     /// still polls while it is on screen, as before.
     @MainActor public static func stop() {
         model.onSnapshot = nil
+        model.adapterUnavailable()   // a later start() waits for the adapter's next reading
         model.setBackground(false)
         postedCenter?.withdraw(id: "music")
         started = false
     }
 
     @MainActor private static var postedCenter: ActivityCenter?
+
+    // MARK: - Closed island indicator, system adapter
+
+    /// The closed island reads the player only while its music indicator is switched on (off by default). Keeps the
+    /// model in step with that Settings switch; the defaults notification is the only trigger, there is no timer.
+    @MainActor private static var indicatorObserver: NSObjectProtocol?
+
+    @MainActor private static func syncClosedIndicator() {
+        let defaults = AppDefaults.make() ?? .standard
+        model.setClosedIndicatorWanted(ClosedIslandSettings.load(from: defaults).isEnabled(AmbientChannel.music))
+        guard indicatorObserver == nil else { return }
+        indicatorObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: defaults, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                guard started else { return }
+                model.setClosedIndicatorWanted(ClosedIslandSettings.load(from: defaults).isEnabled(AmbientChannel.music))
+            }
+        }
+    }
+
+    /// The system Now Playing adapter answered (it runs event driven, in PortKit). From now on this feature reads
+    /// from it and polls no AppleScript. nil: the adapter says nothing is playing. Called by the app, on the main actor.
+    @MainActor public static func adapterDelivered(_ reading: NowPlayingAdapterReading?) {
+        adapterState = .some(reading)
+        guard started else { return }
+        model.adapterDelivered(reading)
+    }
+
+    /// What the adapter last said, kept while the feature is off so `start()` can pick it up: `.none` = not live,
+    /// `.some(nil)` = live, nothing playing.
+    @MainActor private static var adapterState: NowPlayingAdapterReading??
+
+    /// The adapter stopped or cannot run: AppleScript is the fallback again.
+    @MainActor public static func adapterUnavailable() {
+        adapterState = .none
+        model.adapterUnavailable()
+    }
 
     // MARK: - The island home
 

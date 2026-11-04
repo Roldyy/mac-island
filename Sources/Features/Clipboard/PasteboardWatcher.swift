@@ -1,4 +1,5 @@
 import AppKit
+import IslandKit
 
 /// What a pasteboard change carried, already size-capped.
 enum PasteboardCapture: Equatable {
@@ -7,7 +8,8 @@ enum PasteboardCapture: Equatable {
     case files([String])
 }
 
-/// Polls `NSPasteboard.changeCount` every 0.5 s on the main run loop.
+/// Follows `NSPasteboard.changeCount` through the shared `PasteboardChangeHub` (one timer and one read of the count
+/// for every clipboard service, at 0.5 s); the hub runs only while this watcher (or another service) is subscribed.
 /// Items marked concealed/transient/auto-generated, or copied while an excluded app is in
 /// front, are reported as a change (so auto-clear still runs) with no capture.
 /// Content is never logged.
@@ -16,8 +18,12 @@ final class PasteboardWatcher {
     static let interval: TimeInterval = 0.5
 
     private let pasteboard: NSPasteboard
-    private var timer: Timer?
+    private let hub: PasteboardChangeHub
+    private var subscription: PasteboardChangeHub.Token?
     private(set) var lastChangeCount: Int
+    /// A count lower than `lastChangeCount` is a read that started before our own write (stale), not a copy. The
+    /// same lower count three times in a row means the pasteboard server restarted: adopt it.
+    private var staleCount: (value: Int, times: Int)?
 
     var settings: () -> ClipboardSettings = { ClipboardSettings() }
     var frontmostBundleID: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
@@ -25,26 +31,27 @@ final class PasteboardWatcher {
     var afterCaptureRead: () -> Void = {}
     var onChange: (_ changeCount: Int, _ capture: PasteboardCapture?, _ source: String?) -> Void = { _, _, _ in }
 
-    init(pasteboard: NSPasteboard = .general) {
+    /// The general pasteboard shares the app-wide hub; any other pasteboard (tests) gets a hub of its own that
+    /// reads that pasteboard.
+    init(pasteboard: NSPasteboard = .general, hub: PasteboardChangeHub? = nil) {
         self.pasteboard = pasteboard
         self.lastChangeCount = pasteboard.changeCount
+        self.hub = hub ?? (pasteboard === NSPasteboard.general
+            ? .shared
+            : PasteboardChangeHub(reader: { done in done(pasteboard.changeCount) }))
     }
 
-    var isRunning: Bool { timer != nil }
+    var isRunning: Bool { subscription != nil }
 
     func start() {
-        guard timer == nil else { return }
+        guard subscription == nil else { return }
         lastChangeCount = pasteboard.changeCount
-        let t = Timer(timeInterval: Self.interval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.poll() }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        subscription = hub.subscribe(interval: Self.interval) { [weak self] count in self?.poll(changeCount: count) }
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        if let subscription { hub.unsubscribe(subscription) }
+        subscription = nil
     }
 
     /// Call right after the app itself wrote to the pasteboard, so it is not recorded back.
@@ -54,10 +61,19 @@ final class PasteboardWatcher {
     /// sleeping for a guessed time before asserting that nothing was recorded.
     private(set) var pollCount = 0
 
-    func poll() {
+    /// Looks at the pasteboard now (reads the count itself): tests and "check right away" callers.
+    func poll() { poll(changeCount: pasteboard.changeCount) }
+
+    /// One look with a count the hub already read.
+    func poll(changeCount count: Int) {
         pollCount += 1
-        let count = pasteboard.changeCount
-        guard count != lastChangeCount else { return }
+        guard count != lastChangeCount else { staleCount = nil; return }
+        if count < lastChangeCount {
+            let times = staleCount?.value == count ? (staleCount?.times ?? 0) + 1 : 1
+            staleCount = (count, times)
+            guard times >= 3 else { return }
+        }
+        staleCount = nil
         lastChangeCount = count
 
         let types = pasteboardTypes()

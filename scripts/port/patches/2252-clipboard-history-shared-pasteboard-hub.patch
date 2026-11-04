@@ -1,0 +1,53 @@
+--- a/Services/Clipboard/ClipboardHistoryService.swift
++++ b/Services/Clipboard/ClipboardHistoryService.swift
+@@ -9,6 +9,7 @@
+ import CryptoKit
+ import Foundation
+ import ImageIO
++import IslandKit
+ import SwiftUI
+ 
+ enum ClipboardHistoryMoveDirection {
+@@ -71,7 +72,8 @@
+     /// always agree, even if the setting changes while it is open.
+     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+ 
+-    private var timer: Timer?
++    /// Mac Island: the shared pasteboard hub replaces this service's own 0.8 s timer (idle unless the ported store owns history).
++    private var hubToken: PasteboardChangeHub.Token?
+     /// Entries age out with nothing new copied, so the retention window is
+     /// also checked on its own clock instead of only after each capture.
+     private var retentionTimer: Timer?
+@@ -651,16 +653,15 @@
+         // Mac Island: our Features/Clipboard module is the recorder (`PortClipboard`). A second watcher would record
+         // every copy twice and race it for the history file.
+         guard PortClipboard.portedStoreOwnsHistory else { return }
+-        guard timer == nil else {
++        guard hubToken == nil else {
+             isRunning = true
+             return
+         }
+-        let timer = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in
+-            self?.captureIfChanged()
++        hubToken = MainActor.assumeIsolated {
++            PasteboardChangeHub.shared.subscribe(interval: 0.8) { [weak self] _ in
++                self?.captureIfChanged()
++            }
+         }
+-        timer.tolerance = 0.25
+-        RunLoop.main.add(timer, forMode: .common)
+-        self.timer = timer
+         let retentionTimer = Timer(timeInterval: 3_600, repeats: true) { [weak self] _ in
+             self?.trimToLimit()
+         }
+@@ -674,8 +675,8 @@
+     }
+ 
+     private func stop() {
+-        timer?.invalidate()
+-        timer = nil
++        if let hubToken { MainActor.assumeIsolated { PasteboardChangeHub.shared.unsubscribe(hubToken) } }
++        hubToken = nil
+         retentionTimer?.invalidate()
+         retentionTimer = nil
+         isRunning = false

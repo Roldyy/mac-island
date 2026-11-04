@@ -1,0 +1,54 @@
+--- a/Services/URLCleanerService.swift
++++ b/Services/URLCleanerService.swift
+@@ -4,6 +4,7 @@
+ 
+ import AppKit
+ import Combine
++import IslandKit
+ import UniformTypeIdentifiers
+ 
+ final class URLCleanerService: ObservableObject {
+@@ -38,7 +39,8 @@
+         let cleaned: URLCleaning.Result?
+     }
+ 
+-    private var timer: Timer?
++    /// Mac Island: the shared pasteboard hub replaces this service's own 0.8 s timer.
++    private var hubToken: PasteboardChangeHub.Token?
+     private var lastChangeCount = 0
+     private var pollInFlight = false
+     private var pollToken: PollToken?
+@@ -76,23 +78,25 @@
+     }
+ 
+     func stop() {
+-        timer?.invalidate()
+-        timer = nil
++        if let hubToken { MainActor.assumeIsolated { PasteboardChangeHub.shared.unsubscribe(hubToken) } }
++        hubToken = nil
+         cancelPoll()
+         isRunning = false
+     }
+ 
+     private func start() {
+-        guard timer == nil else {
++        guard hubToken == nil else {
+             isRunning = true
+             return
+         }
+-        let timer = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in
+-            self?.cleanClipboardIfNeeded()
++        // The hub reads the change count once per tick for every clipboard service, off the main thread. The lane
++        // pass below (types, payload, rewrite) runs only when the count moved, not on every tick.
++        hubToken = MainActor.assumeIsolated {
++            PasteboardChangeHub.shared.subscribe(interval: 0.8) { [weak self] count in
++                guard let self, count != self.lastChangeCount else { return }
++                self.cleanClipboardIfNeeded()
++            }
+         }
+-        timer.tolerance = 0.25
+-        RunLoop.main.add(timer, forMode: .common)
+-        self.timer = timer
+         isRunning = true
+         baselinePasteboard()
+     }

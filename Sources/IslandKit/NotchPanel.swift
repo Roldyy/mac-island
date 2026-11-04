@@ -290,7 +290,6 @@ public final class IslandController {
     }
 
     fileprivate func hoverChanged(inside: Bool) {
-        NSLog("IslandKit: hover %@", inside ? "enter" : "exit")
         closeWork?.cancel()
         if inside {
             open()

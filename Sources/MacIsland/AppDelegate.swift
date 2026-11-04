@@ -91,6 +91,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         FinderFeature.engineCancelCut = { PortFinder.cancelCut() }
         // Now Playing talks to two players: its own ask (the running one, then the pane after a refusal) answers the click.
         UserPermissionRequest.automationHandlers["nowplaying"] = { NowPlayingFeature.requestAutomationFromHome() }
+        // The system adapter (event driven) is the single source of truth for Now Playing while it delivers: the feature
+        // then polls no AppleScript. Unavailable (not started, restarting, crashed): AppleScript is the fallback.
+        PortMusicFeed.observe(
+            onReading: { reading in
+                NowPlayingFeature.adapterDelivered(reading.map {
+                    NowPlayingAdapterReading(title: $0.title, artist: $0.artist, album: $0.album, artworkData: $0.artworkData,
+                                             isPlaying: $0.isPlaying, position: $0.position, duration: $0.duration,
+                                             rate: $0.rate, sampledAt: $0.sampledAt, bundleID: $0.bundleID)
+                })
+            },
+            onUnavailable: { NowPlayingFeature.adapterUnavailable() })
         // The OCR page's own "Autoriser": ask once so macOS lists the app, then open the pane.
         PortCaptureTools.requestPermission = { _ in UserPermissionRequest.request(MonitoredPermission.screenRecording) }
 

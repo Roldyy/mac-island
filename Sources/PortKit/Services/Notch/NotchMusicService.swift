@@ -96,6 +96,10 @@ final class NotchMusicService: ObservableObject {
     /// nil once the kill switch is on. See `Bridge/PrivateMediaRemoteAdapter.swift`.
     private static var adapter: [String]? { MediaRemoteAdapterLocator.live.launchArguments() }
 
+    /// Mac Island: true while the adapter child runs and has answered once. The app reads it to know whether the
+    /// system reading can stand in for polling AppleScript (a restart gap or an exhausted restart budget is not live).
+    var adapterIsLive: Bool { wantsPlayback && process?.isRunning == true && !awaitingPlayback }
+
     func start() {
         let includeOtherPlayers = PortHost.defaults.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
         if wantsPlayback {

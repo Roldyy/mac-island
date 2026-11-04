@@ -43,6 +43,17 @@ final class NowPlayingModel {
     private let sleep: @Sendable (Duration) async -> Void
     private var visible = false
     private var background = false
+    /// A music indicator is switched on for the closed island (Settings > closed island > Lecture en cours, off by
+    /// default). Only then does the closed island have a reason to read the player.
+    private var closedIndicatorWanted: Bool
+    private let lifecycle: (any AppLifecycleWatching)?
+    private var lifecycleArmed = false
+    /// The adapter (event driven) delivers: it is the single source of truth and AppleScript is not polled.
+    private(set) var adapterDelivering = false
+    private var adapterReading: NowPlayingAdapterReading?
+    /// The access state to go back to when the adapter leaves (a reading through it needs no Automation permission).
+    private var accessBeforeAdapter: Access?
+    private let now: () -> Date
     /// The island home is open: the same fast polling as the tab, whatever the closed island has to show.
     private var homeOpen = false
     /// Called after every poll with what is playing (nil when nothing or access missing). The closed island listens.
@@ -58,7 +69,12 @@ final class NowPlayingModel {
          artworkTimeout: Duration = .seconds(5), pollTimeout: Duration = .seconds(8),
          automation: (any AutomationChecking)? = nil, running: (any RunningAppChecking)? = nil,
          openPane: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) },
-         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+         lifecycle: (any AppLifecycleWatching)? = nil, closedIndicatorWanted: Bool = true,
+         now: @escaping () -> Date = Date.init) {
+        self.lifecycle = lifecycle
+        self.closedIndicatorWanted = closedIndicatorWanted
+        self.now = now
         self.pollTimeout = pollTimeout
         self.automation = automation
         self.running = running
@@ -80,7 +96,8 @@ final class NowPlayingModel {
         return NowPlayingModel(
             providers: [SpotifyProvider(runner: runner), MusicProvider(runner: runner)],
             transport: NowPlayingTransport(runner: runner), artwork: ArtworkLoader(),
-            automation: LiveAutomationChecker(), running: WorkspaceRunningChecker())
+            automation: LiveAutomationChecker(), running: WorkspaceRunningChecker(),
+            lifecycle: WorkspaceAppEvents())
     }
 
     /// The first known player that is open (Spotify before Music), nil when none or no checker.
@@ -104,6 +121,8 @@ final class NowPlayingModel {
     /// Reads now. Before the user ever pressed "Autoriser", asks macOS WITHOUT prompting whether the permission
     /// already stands (a previous build, System Settings): if it does the model starts reading by itself.
     func refreshNow() async {
+        // The adapter already pushes every change: no silent check, no Apple Event.
+        if adapterDelivering { notify(); return }
         var refused = false
         if let automation, let id = runningPlayerBundleID, needsSilentCheck(id) {
             // A TCC round trip: never on the main thread.
@@ -213,11 +232,13 @@ final class NowPlayingModel {
         Task { [weak self] in
             await transport.send(command, source: source)
             try? await Task.sleep(for: .milliseconds(250))
-            await self?.poll()
+            // The adapter reports the change by itself.
+            if self?.adapterDelivering == false { await self?.poll() }
         }
     }
 
     func poll() async {
+        guard !adapterDelivering else { return }
         let providers = self.providers
         let gathered = await Deadline.run(pollTimeout) { await NowPlayingAggregator.gather(from: providers) }
             ?? timedOutRound()
@@ -298,36 +319,131 @@ final class NowPlayingModel {
         }
     }
 
-    /// Keep polling while the island is closed so the music shows in its wing. Slower than the open tab:
-    /// each poll is an AppleScript round trip. Still silent until the user pressed "Autoriser" once.
+    /// The closed island wants the music (its wing, the last-track memory). The poll behind it runs only if
+    /// `setClosedIndicatorWanted` says an indicator is actually shown. Still silent until the user pressed "Autoriser".
     func setBackground(_ on: Bool) {
         background = on
         updatePolling()
     }
 
+    /// Whether the music indicator of the closed island is switched on (Settings). Off: the closed island reads nothing.
+    func setClosedIndicatorWanted(_ wanted: Bool) {
+        guard wanted != closedIndicatorWanted else { return }
+        closedIndicatorWanted = wanted
+        updatePolling()
+    }
+
+    // MARK: - The system adapter (single source of truth while it delivers)
+
+    /// The adapter answered: `reading` is what plays (nil: nothing). From now on AppleScript is not polled; the
+    /// reading needs no Automation permission, so the card shows it whatever the Automation state is.
+    func adapterDelivered(_ reading: NowPlayingAdapterReading?) {
+        if !adapterDelivering {
+            adapterDelivering = true
+            accessBeforeAdapter = access
+        }
+        adapterReading = reading
+        access = .ready
+        setFault(nil)
+        publishAdapterReading()
+        updatePolling()
+    }
+
+    /// The adapter stopped (or never answered): back to AppleScript, as before.
+    func adapterUnavailable() {
+        guard adapterDelivering else { return }
+        adapterDelivering = false
+        adapterReading = nil
+        access = accessBeforeAdapter ?? (defaults.bool(forKey: Self.flagKey) ? .ready : .needsAuthorization)
+        accessBeforeAdapter = nil
+        snapshot = nil; artwork = nil
+        cancelArtwork()
+        onSnapshot?(nil)
+        notify()
+        updatePolling()
+    }
+
+    private func publishAdapterReading() {
+        let snap = adapterReading.map { $0.snapshot(at: now()) }
+        snapshot = snap
+        cancelArtwork()
+        artwork = snap?.artworkData
+        onSnapshot?(snap)
+        notify()
+    }
+
+    // MARK: - Polling
+
     private func updatePolling() {
         task?.cancel()
         task = nil
-        guard visible || homeOpen || (background && access == .ready) else { return }
+        setLifecycleWatching(visible || homeOpen || background)
+        if adapterDelivering { startProgressTicker(); return }
+        let closedWanted = background && closedIndicatorWanted && access == .ready
+        guard visible || homeOpen || closedWanted else { return }
         if access == .needsAuthorization {
             // Nothing is read before the user agrees, but while the home is open a player that was just launched,
             // or a permission granted elsewhere, must show up: a silent check (no prompt, off the main thread)
-            // every few seconds, and only while that card is on screen. Closed: nothing runs, no TCC call at all.
-            guard homeOpen else { return }
+            // every few seconds, and only while that card is on screen and a player is open. Closed: nothing runs,
+            // no TCC call at all. A player that launches later re-arms this through the launch notification.
+            guard homeOpen, !noPlayerRunning else { return }
             task = Task { [weak self, sleep] in
                 while !Task.isCancelled {
                     await self?.refreshNow()
+                    guard self?.noPlayerRunning == false else { return }
                     await sleep(Self.permissionCheckInterval)
                 }
             }
             return
         }
+        if noPlayerRunning {
+            // No player open: read once (so the card and the closed island drop a stale track) and arm nothing.
+            task = Task { [weak self] in await self?.poll() }
+            return
+        }
         task = Task { [weak self, interval, sleep] in
             while !Task.isCancelled {
                 await self?.poll()
+                // The player quit meanwhile: stop. The terminate notification re-arms everything on the next launch.
+                guard self?.noPlayerRunning == false else { return }
                 let fast = self.map { $0.visible || $0.homeOpen } ?? false
                 await sleep(fast ? interval : .seconds(3))
             }
         }
+    }
+
+    /// With the adapter the progress only moves between its events: a light tick keeps the bar honest, only while
+    /// something is on screen (1 s) or a closed indicator needs the ring (3 s), and only while a track plays.
+    private func startProgressTicker() {
+        guard let reading = adapterReading, reading.isPlaying, reading.duration > 0 else { return }
+        guard visible || homeOpen || (background && closedIndicatorWanted) else { return }
+        task = Task { [weak self, interval, sleep] in
+            while !Task.isCancelled {
+                let fast = self.map { $0.visible || $0.homeOpen } ?? false
+                await sleep(fast ? interval : .seconds(3))
+                guard !Task.isCancelled else { return }
+                self?.publishAdapterReading()
+            }
+        }
+    }
+
+    /// True only when a checker exists and says neither known player is open.
+    private var noPlayerRunning: Bool { running != nil && runningPlayerBundleID == nil }
+
+    private func setLifecycleWatching(_ wanted: Bool) {
+        guard let lifecycle, wanted != lifecycleArmed else { return }
+        lifecycleArmed = wanted
+        if wanted {
+            lifecycle.start(bundleIDs: [BundleIDs.spotify, BundleIDs.music]) { [weak self] in self?.playersChanged() }
+        } else {
+            lifecycle.stop()
+        }
+    }
+
+    private func playersChanged() {
+        guard !adapterDelivering else { return }
+        updatePolling()
+        // A launch or a quit changes what the Home card says ("Spotify est ouvert"), poll or not.
+        notify()
     }
 }
