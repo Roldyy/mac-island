@@ -86,6 +86,36 @@ private final class LevelBox: @unchecked Sendable {
         #expect(m.panelSize(body: m.homeBody) == CGSize(width: 688, height: 608))
     }
 
+    @Test func theStatusChipRowAddsItsSpaceToEveryMode() {
+        #expect(HomeGeometry.statusChipRow == 30 && HomeGeometry.statusChipSpace == 38)
+        for mode in IslandSizeMode.allCases {
+            let without = HomeGeometry.homeBody(mode: mode, customWidth: 440, customHeight: 480, band: band, tileCount: 40)
+            let with = HomeGeometry.homeBody(mode: mode, customWidth: 440, customHeight: 480, band: band, tileCount: 40,
+                                             status: HomeGeometry.statusChipSpace)
+            if mode == .custom {
+                // A custom island keeps its maximum height: the row takes room from the tile rows.
+                #expect(with.height <= 480)
+            } else {
+                #expect(with.height - without.height == HomeGeometry.statusChipSpace, "\(mode)")
+            }
+        }
+        // Dock and chips add up, in any order.
+        let both = HomeGeometry.homeBody(mode: .spacious, customWidth: 0, customHeight: 0, band: band,
+                                         dock: HomeGeometry.extraDockSpace, status: HomeGeometry.statusChipSpace)
+        #expect(both.height == 354 + HomeGeometry.extraDockSpace + HomeGeometry.statusChipSpace)
+    }
+
+    @Test func aCustomHeightLosesTileRowsToTheChipRowInsteadOfOverflowing() {
+        for h in stride(from: 260.0, through: 640.0, by: 10) {
+            let body = HomeGeometry.homeBody(mode: .custom, customWidth: 440, customHeight: h, band: band,
+                                             dock: HomeGeometry.extraDockSpace, status: HomeGeometry.statusChipSpace)
+            // One tile row is the floor: only below that can the body exceed the maximum.
+            let floor = HomeGeometry.fixedHeight(band: band, dock: HomeGeometry.extraDockSpace,
+                                                 status: HomeGeometry.statusChipSpace) + HomeGeometry.tileRow
+            #expect(body.height <= max(CGFloat(h), floor))
+        }
+    }
+
     @Test func sizeAndLookPersistClamped() {
         let bench = TestDefaults.make()
         defer { bench.cleanup() }

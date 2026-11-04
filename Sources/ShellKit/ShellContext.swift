@@ -46,6 +46,13 @@ public struct ShellContext {
     public var dockExtras: DockCommandRegistry
     /// Opens the Settings window on one page; nil falls back to `openSettings`.
     public var openSettingsPage: (@MainActor (String) -> Void)?
+    /// Extra status chip sources the app registers (the ported monitor, calendar, timer...), added to the ones ShellKit
+    /// feeds itself (network, load, disk). Evaluated once, when the context is built. A source of a kind ShellKit
+    /// already feeds replaces it. ShellKit cannot import PortKit, so the app delegate fills this.
+    public var statusSources: @MainActor () -> [any StatusChipSource]
+    /// Temperature in degrees Celsius for the "Charge" chip, nil when unreadable. Read on the main actor each time the
+    /// chip refreshes, only while the island is open.
+    public var statusTemperature: (@MainActor () -> Double?)?
 
     public init(tabs: [IslandTab], registry: FeatureRegistry, navigation: ShellNavigation,
                 quickAccess: QuickAccessModel,
@@ -63,8 +70,12 @@ public struct ShellContext {
                 relaunch: (@MainActor () -> Void)? = nil,
                 tabGate: ShellTabGate = .none,
                 dockExtras: DockCommandRegistry? = nil,
-                openSettingsPage: (@MainActor (String) -> Void)? = nil) {
+                openSettingsPage: (@MainActor (String) -> Void)? = nil,
+                statusSources: @escaping @MainActor () -> [any StatusChipSource] = { [] },
+                statusTemperature: (@MainActor () -> Double?)? = nil) {
         self.dockExtras = dockExtras ?? DockCommandRegistry()
+        self.statusSources = statusSources
+        self.statusTemperature = statusTemperature
         self.openSettingsPage = openSettingsPage
         self.tabGate = tabGate
         self.tabs = tabs
@@ -83,6 +94,16 @@ public struct ShellContext {
         self.onOpenSize = onOpenSize
         self.quit = quit
         self.relaunch = relaunch
+        attachStatusSources()
+    }
+
+    /// Hands the feed its sources: the built-in ones, then the app's. The sources do nothing until the island opens.
+    private func attachStatusSources() {
+        let navigation = self.navigation
+        var openMonitor: (@MainActor () -> Void)?
+        if tabs.contains(where: { $0.id == "monitor" }) { openMonitor = { navigation.open(tabID: "monitor") } }
+        home.statusChips.setSources(
+            StatusChipProviders.builtin(openMonitor: openMonitor, temperature: statusTemperature) + statusSources())
     }
 
     /// Whether the panel is on: its own switch, or the switches `tabGate` names for it.

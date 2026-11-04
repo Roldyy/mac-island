@@ -1,6 +1,6 @@
 import Foundation
 
-/// The 69 pages, in sidebar order. Titles are facts noted from the reference app; summaries are ours.
+/// The 71 pages, in sidebar order. Titles are facts noted from the reference app; summaries are ours.
 public enum SettingsPageCatalog {
     public static let all: [SettingsPage] = essentials + utilities + sound + energy + windows + input + files + apps + app
 
@@ -28,6 +28,9 @@ public enum SettingsPageCatalog {
         P(id: "island", title: "Dynamic Island", symbol: "rectangle.topthird.inset.filled", section: .essentials,
           summary: "L’îlot sous l’encoche : taille, apparence et contenu au repos.",
           keywords: ["encoche", "notch", "île", "agents", "claude", "lecture"]),
+        P(id: "statuschips", title: "Pastilles d’état", symbol: "capsule", section: .essentials,
+          summary: "Les pastilles de l’île ouverte : réseau, charge, disque, rendez-vous et plus.",
+          keywords: ["pastille", "état", "réseau", "wi-fi", "processeur", "mémoire", "disque", "batterie", "minuteur", "ip"]),
         P(id: "monitor", title: "Moniteur", symbol: "chart.line.uptrend.xyaxis", section: .essentials,
           summary: "Processeur, mémoire et alertes quand le Mac s’essouffle.",
           keywords: ["cpu", "mémoire", "alerte", "température"], featureID: "monitor"),

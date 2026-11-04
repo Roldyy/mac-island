@@ -206,7 +206,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             quit: { NSApp.terminate(nil) },
             relaunch: Self.relaunchAction,
             tabGate: .ported,
-            openSettingsPage: { settings.show(page: $0) })
+            openSettingsPage: { settings.show(page: $0) },
+            // Extra status chips (monitor, calendar, timer...) are added here by the lanes that own them; ShellKit
+            // already feeds network, load and disk itself.
+            statusSources: { [] })
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }
@@ -231,6 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                          dockCatalog: { context.dockCatalog() },
                                          dockAvailability: { context.dockAvailability($0) }))
         }
+        // "Pastilles d'état": the switch, one toggle per chip and their order drive this very model too.
+        SettingsPageBodies.register(pageID: StatusChipsSettings.pageID) { AnyView(StatusChipsSettings(home: home)) }
         // "Open the island on tab X" from the ported code: the same two steps as the command bar's tab commands.
         PortBridge.connectIsland(
             openTab: { [weak island] tabID in

@@ -26,6 +26,10 @@ public final class HomeModel {
         static let extraDock = "notchExtraDockLayout"
         /// Whether the extra dock row shows on the home; absent means on.
         static let showsExtraDock = "notchExtraDockShown"
+        /// Versioned JSON of the status chips (`StatusChipLayout`).
+        static let statusChips = "notchStatusChipsLayout"
+        /// The master switch of the status chip row; absent means on.
+        static let showsStatusChips = "notchStatusChipsShown"
         /// "Rétroéclairage du clavier" slider of the home row; absent means shown (when the Mac has one).
         static let showKeyboardLight = "notchHomeKeyboardLightSlider"
         /// "Activer Dynamic Island" (the migrated key); absent means on, the island is the app.
@@ -100,6 +104,29 @@ public final class HomeModel {
 
     /// Height the extra dock adds to the home body (0 while it is hidden).
     var dockSpace: CGFloat { showsExtraDock ? HomeGeometry.extraDockSpace : 0 }
+
+    /// The status chips: which ones, in order. Written back in the versioned form on every change, and mirrored into
+    /// the feed that orders the readings.
+    public var statusChipLayout: StatusChipLayout {
+        didSet {
+            guard statusChipLayout != oldValue else { return }
+            if let data = statusChipLayout.encoded() { defaults.set(data, forKey: Keys.statusChips) }
+            statusChips.layout = statusChipLayout
+        }
+    }
+    /// "Afficher les pastilles d'état": off removes the row (and its height) from the home and stops every source.
+    public var showsStatusChips: Bool {
+        didSet {
+            guard showsStatusChips != oldValue else { return }
+            defaults.set(showsStatusChips, forKey: Keys.showsStatusChips)
+            statusChips.isEnabled = showsStatusChips
+        }
+    }
+    /// Live readings of the chips; the home starts it while the island is open. Sources come from `ShellContext`.
+    public let statusChips: StatusChipFeed
+
+    /// Height the status chip row adds to the home body: 0 unless the switch is on and an enabled chip has a source.
+    var statusSpace: CGFloat { statusChips.hasSlot ? HomeGeometry.statusChipSpace : 0 }
 
     /// Tile ids the user hid from the home grid (right-click "Masquer ce raccourci"). The Explorer still lists them.
     public private(set) var hiddenTiles: Set<String> {
@@ -198,6 +225,11 @@ public final class HomeModel {
         showsExtraDock = (defaults.object(forKey: Keys.showsExtraDock) as? Bool) ?? true
         // A version-0 blob is rewritten once in the current form; nothing else changes.
         if storedDock != nil, let data = dock.encoded(), data != storedDock { defaults.set(data, forKey: Keys.extraDock) }
+        let chipLayout = StatusChipLayout.decode(defaults.data(forKey: Keys.statusChips))
+        let chipsShown = (defaults.object(forKey: Keys.showsStatusChips) as? Bool) ?? true
+        statusChipLayout = chipLayout
+        showsStatusChips = chipsShown
+        statusChips = StatusChipFeed(layout: chipLayout, isEnabled: chipsShown)
         showsKeyboardLight = (defaults.object(forKey: Keys.showKeyboardLight) as? Bool) ?? true
         self.volume = HomeLevel(title: "Volume", systemImage: "speaker.wave.2.fill", backend: volume)
         self.brightness = HomeLevel(title: "Luminosité", systemImage: "sun.max.fill", backend: brightness)
@@ -251,7 +283,7 @@ public final class HomeModel {
     /// Body of the home for `tileCount` tiles: the cap of the mode, without empty rows when there are few tiles.
     public func homeBody(tileCount: Int) -> CGSize {
         HomeGeometry.homeBody(mode: sizeMode, customWidth: customWidth, customHeight: customHeight, band: bandHeight,
-                              tileCount: tileCount, dock: dockSpace)
+                              tileCount: tileCount, dock: dockSpace, status: statusSpace)
     }
 
     /// Columns of the tile grid (and of the Explorer, which shows the same tiles): 4 when narrow, otherwise 5.
@@ -260,7 +292,7 @@ public final class HomeModel {
     /// Rows of the tile grid shown at once for `tileCount` tiles; the grid scrolls beyond them.
     public func tileRows(tileCount: Int) -> Int {
         HomeGeometry.visibleTileRows(for: sizeMode, customWidth: customWidth, customHeight: customHeight,
-                                     band: bandHeight, tileCount: tileCount, dock: dockSpace)
+                                     band: bandHeight, tileCount: tileCount, dock: dockSpace, status: statusSpace)
     }
 
     // MARK: - Hidden tiles

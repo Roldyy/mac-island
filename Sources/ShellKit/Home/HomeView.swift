@@ -21,6 +21,8 @@ struct HomeView: View {
             .help(home.unavailableLevelsHelp ?? "")
             HomeNowPlayingCard(track: home.track, idle: home.lastTrack, notice: home.nowPlayingNotice,
                                authorize: { home.nowPlaying.authorize() }) { home.transport($0) }
+            // The status chips sit under the card; the row keeps its height while `hasSlot` (`HomeGeometry.statusChipSpace`).
+            if home.statusChips.hasSlot { StatusChipRow(feed: home.statusChips) }
             // The extra dock sits between the card and the grid; its height is part of `HomeGeometry.fixedHeight`.
             if home.showsExtraDock { ExtraDockView(context: context) }
             HomeTileGrid(items: items, columns: home.tileColumns, visibleRows: home.tileRows(tileCount: items.count),
@@ -28,10 +30,15 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, IslandSpacing.l - 2)
-        .onDisappear { home.nowPlaying.setOpen(false) }
+        .onDisappear {
+            home.nowPlaying.setOpen(false)
+            home.statusChips.stop()
+        }
         .task(id: isActive) {
             // Open: read the players at once and poll them fast; closed: stop (the closed island polls slowly).
             home.nowPlaying.setOpen(isActive)
+            // The chips' sources sample only while the island is open.
+            if isActive { home.statusChips.start() } else { home.statusChips.stop() }
             // A volume key or the Control Center moves the level while the island is open.
             // The content is still invisible during the first frames of the open animation: read after them.
             if isActive { try? await Task.sleep(for: .milliseconds(60)) }
