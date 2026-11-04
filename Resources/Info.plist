@@ -41,6 +41,12 @@
     <string>Mac Island lowers or raises the volume of a single app, and can record the Mac's sound into a screen recording you start yourself. Nothing leaves your Mac.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Mac Island enregistre votre voix avec l’enregistrement de l’écran, uniquement si vous activez le micro et lancez vous-même un enregistrement. Rien ne quitte votre Mac.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Mac Island lit vos calendriers (iCloud, Google, Exchange) pour afficher vos prochains rendez-vous dans l’île. Les événements restent sur ce Mac.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Mac Island lit vos calendriers pour afficher vos prochains rendez-vous dans l’île. Les événements restent sur ce Mac.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Mac Island coupe le Bluetooth quand le Mac s’endort et le rétablit au réveil, uniquement si vous activez cette option.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Mac Island parcourt votre réseau local pour lister les appareils, uniquement quand vous lancez un scan vous-même. Rien ne quitte votre réseau.</string>
     <key>NSBonjourServices</key>
