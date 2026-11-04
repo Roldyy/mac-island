@@ -18,12 +18,13 @@ import Testing
 
     @Test func eventsMapToStates() {
         let now = Fixture.now
-        func state(_ e: String) -> String? {
-            if case .write(_, let r) = ClaudeHookRunner.decide(input: input(e), now: now) { r.state } else { nil }
+        func state(_ e: String, extra: String = "") -> String? {
+            if case .write(_, let r) = ClaudeHookRunner.decide(input: input(e, extra: extra), now: now) { r.state } else { nil }
         }
         #expect(state("SessionStart") == "idle")
         #expect(state("UserPromptSubmit") == "working")
-        #expect(state("Notification") == "waiting")
+        #expect(state("Notification", extra: "\"notification_type\": \"permission_prompt\"") == "waiting")
+        #expect(state("Notification") == nil)
         #expect(state("Stop") == "idle")
         #expect(state("PreToolUse") == nil)
         #expect(ClaudeHookRunner.decide(input: input("SessionEnd"), now: now) == .delete(id: "abc-123"))
@@ -161,7 +162,7 @@ import Testing
         let sessions = TempDir()
         let hooks = TempDir()
         sessions.write("12.json", Fixture.sessionJSON(status: "idle", sessionId: "s12", updatedAtMillis: 1_800_000_100_000))
-        ClaudeHookRunner.run(input: input("Notification", session: "s12"), directory: hooks.url,
+        ClaudeHookRunner.run(input: input("Notification", session: "s12", extra: "\"notification_type\": \"permission_prompt\""), directory: hooks.url,
                              now: Date(timeIntervalSince1970: 1_800_000_200))
         let source = ClaudeLiveSource(reader: Fixture.reader(sessions, alive: [12: Fixture.start]),
                                       hooks: ClaudeHookStore(directory: hooks.url))

@@ -35,7 +35,24 @@ public enum ClaudeHookRunner {
             .appendingPathComponent("Library/Application Support/be.roldy.macisland/claude-hooks", isDirectory: true)
     }
 
-    /// Pure: hook JSON in, decision out. Only `hook_event_name`, `session_id` and `cwd` are read;
+    /// Notification types that need the user (https://code.claude.com/docs/en/hooks, Notification matchers).
+    /// idle_prompt is not one of them: it fires about 60 s after Claude finished, which the Stop hook already shows as idle.
+    /// Others (auth_success, elicitation_complete, elicitation_response, agent_completed, quota_auto_resume_*,
+    /// plugin_notification, anything new) never create "waiting".
+    static let waitingNotificationTypes: Set<String> = [
+        "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
+    ]
+
+    /// Strict allow-list: a string of 1...40 ASCII lowercase letters or underscores, else nil.
+    static func notificationType(_ value: Any?) -> String? {
+        guard let text = value as? String else { return nil }
+        let bytes = text.utf8
+        guard (1...40).contains(bytes.count),
+              bytes.allSatisfy({ ($0 >= 0x61 && $0 <= 0x7A) || $0 == 0x5F }) else { return nil }
+        return text
+    }
+
+    /// Pure: hook JSON in, decision out. Only `hook_event_name`, `session_id`, `cwd` and an allow-listed `notification_type` are read;
     /// the prompt (and every other key) is never looked at.
     public static func decide(input: Data, now: Date) -> ClaudeHookAction {
         guard input.count <= maxInputBytes,
@@ -47,7 +64,12 @@ public enum ClaudeHookRunner {
         case "SessionEnd": return .delete(id: id)
         case "SessionStart", "Stop": state = "idle"
         case "UserPromptSubmit": state = "working"
-        case "Notification": state = "waiting"
+        case "Notification":
+            // Claude Code sends every notification here; only those that need the user mean "waiting".
+            // Missing, malformed or unknown type: leave the state alone (fail safe).
+            guard let type = notificationType(object["notification_type"]),
+                  waitingNotificationTypes.contains(type) else { return .ignore }
+            state = "waiting"
         default: return .ignore
         }
         let folder = (object["cwd"] as? String).map(ClaudeText.folderName(fromCwd:)) ?? ""
