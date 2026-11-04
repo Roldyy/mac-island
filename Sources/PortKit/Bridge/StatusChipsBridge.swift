@@ -23,4 +23,9 @@ public enum PortStatusChips {
     @MainActor public static func temperature() -> Double? {
         CPUTemperatureLease.shared.temperature()
     }
+
+    /// Gives back the monitor reference `temperature()` took. Called when the Load chip stops (the island closed).
+    @MainActor public static func releaseTemperature() {
+        CPUTemperatureLease.shared.release()
+    }
 }

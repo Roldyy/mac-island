@@ -10,6 +10,23 @@ private final class Recorder: @unchecked Sendable {
     var opened = 0
 }
 
+/// An interface list the test can change between two refreshes (a path change).
+private final class MovableInterfaces: InterfaceProviding, @unchecked Sendable {
+    private let lock = NSLock()
+    private var list: [LocalInterface]
+    init(_ list: [LocalInterface]) { self.list = list }
+    func set(_ new: [LocalInterface]) { lock.withLock { list = new } }
+    func interfaces() -> [LocalInterface] { lock.withLock { list } }
+}
+
+/// Answers after a pause and ignores cancellation: the worst case for a request that outlives a path change.
+private final class SlowFetcher: PublicIPFetching, @unchecked Sendable {
+    func fetch(from url: URL) async throws -> String {
+        while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }   // wait for the cancel...
+        return "203.0.113.9"                                                      // ...then answer anyway
+    }
+}
+
 @MainActor
 @Suite struct IPChipSourceTests {
     private let lan = [Fixtures.interface("192.168.1.20")]
@@ -177,6 +194,49 @@ private final class Recorder: @unchecked Sendable {
         // A restart shows the local address only: the public one was not kept.
         chip.start()
         #expect(chip.reading?.secondary == nil)
+        chip.stop()
+    }
+
+    @Test func aPathChangeAfterAShownPublicIPForgetsIt() async throws {
+        let movable = MovableInterfaces(lan)
+        let chip = IPChipSource(interfaces: movable, tunnelReadings: { [] }, fetcher: FakeFetcher(answer: "203.0.113.9"),
+                                copy: { _ in }, sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, watchPath: false)
+        chip.start()
+        try action("public-ip", in: chip).handler()
+        await chip.pendingFetch?.value
+        #expect(chip.reading?.secondary == "Publique 203.0.113.9")
+        movable.set([Fixtures.interface("10.0.0.7")])
+        chip.refresh()
+        #expect(chip.reading?.primary == "10.0.0.7")
+        #expect(chip.reading?.secondary?.contains("Publique") != true, "the public IP belonged to the old network")
+        #expect(chip.reading?.secondary == nil)
+        chip.stop()
+    }
+
+    @Test func aRefreshWithNothingChangedKeepsTheShownPublicIP() async throws {
+        let chip = source(fetcher: FakeFetcher(answer: "203.0.113.9"))
+        chip.start()
+        try action("public-ip", in: chip).handler()
+        await chip.pendingFetch?.value
+        chip.refresh()
+        #expect(chip.reading?.secondary == "Publique 203.0.113.9")
+        chip.stop()
+    }
+
+    @Test func anInFlightFetchAnsweringAfterAPathChangeIsDropped() async throws {
+        let movable = MovableInterfaces(lan)
+        let chip = IPChipSource(interfaces: movable, tunnelReadings: { [] }, fetcher: SlowFetcher(),
+                                copy: { _ in }, sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, watchPath: false)
+        chip.start()
+        try action("public-ip", in: chip).handler()
+        let pending = chip.pendingFetch
+        #expect(chip.reading?.secondary == "Recherche…")
+        movable.set([Fixtures.interface("10.0.0.7")])
+        chip.refresh()
+        #expect(chip.pendingFetch == nil && chip.reading?.secondary == nil, "the request is cancelled and forgotten")
+        await pending?.value   // the fetcher answers anyway
+        #expect(chip.reading?.primary == "10.0.0.7")
+        #expect(chip.reading?.secondary == nil, "a late answer for the old network is dropped")
         chip.stop()
     }
 

@@ -134,8 +134,19 @@ public final class IPChipSource: StatusChipSource {
     /// Re-reads the primary address and the tunnel state (on start and on each path change).
     func refresh() {
         guard isRunning else { return }
-        localAddress = interfaces.interfaces().first?.address.description
-        vpn = SamplingMath.vpnActive(tunnelReadings())
+        let address = interfaces.interfaces().first?.address.description
+        let tunnel = SamplingMath.vpnActive(tunnelReadings())
+        if address != localAddress || tunnel != vpn {
+            // The network changed: a public IP shown (or being fetched) belongs to the old path. Forget it and drop
+            // the answer of a request still in flight (it checks `isCancelled`).
+            fetchTask?.cancel()
+            fetchTask = nil
+            expiryTask?.cancel()
+            expiryTask = nil
+            publicState = nil
+        }
+        localAddress = address
+        vpn = tunnel
         rebuild()
     }
 

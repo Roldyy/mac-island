@@ -11,12 +11,13 @@ enum StatusChipProviders {
     @MainActor
     static func builtin(openMonitor: (@MainActor () -> Void)?,
                         temperature: (@MainActor () -> Double?)?,
+                        temperatureStop: (@MainActor () -> Void)? = nil,
                         nameProvider: WiFiNameProvider? = nil,
                         liveWiFiName: Bool = true) -> [any StatusChipSource] {
         let names = nameProvider ?? (liveWiFiName ? WiFiNameProvider(reader: LiveSSIDReader()) : nil)
         return [
             NetworkChipSource(openMonitor: openMonitor, nameProvider: names),
-            LoadChipSource(temperatureProvider: temperature, openMonitor: openMonitor),
+            LoadChipSource(temperatureProvider: temperature, temperatureStop: temperatureStop, openMonitor: openMonitor),
             DiskChipSource(openMonitor: openMonitor),
         ]
     }

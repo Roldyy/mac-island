@@ -185,12 +185,53 @@ import Testing
         #expect(reading.primary == "Safari 72 % CPU")
         #expect(reading.level == .attention)
         let quit = try #require(reading.actions.first)
-        #expect(quit.title == "Quitter")
+        #expect(quit.title == "Quitter Safari")
+        #expect(quit.id == "quit-500-1234")
         #expect(quit.isDestructive)
         #expect(quit.needsConfirmation)
         #expect(quits.calls.isEmpty)   // building the chip kills nothing
         quit.handler()
         #expect(quits.calls == [Quit(pid: 500, name: "Safari", startedAt: 1_234)])
+        source.stop()
+    }
+
+    /// The blocking finding: "Confirmer" armed for Safari must not survive a refresh to Xcode.
+    @Test func aConfirmationArmedForOneAppNeverQuitsTheNextOne() throws {
+        let quits = Quits()
+        let source = TopAppChipSource(hooks: topAppHooks(quits: quits))
+        source.start()
+        source.apply([row("Safari", pid: 500, value: 72, startedAt: 1_234)])
+        let safari = try #require(source.reading?.actions.first)
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        #expect(StatusChipConfirmation.decide(safari, armed: nil, now: t0) == .arm)
+        let armed = StatusChipConfirmation.Armed(actionID: safari.id, title: safari.title, at: t0)
+        #expect(StatusChipConfirmation.decide(safari, armed: armed, now: t0.addingTimeInterval(1)) == .perform)
+
+        source.apply([row("Xcode", pid: 612, value: 80, startedAt: 5_678)])
+        let xcode = try #require(source.reading?.actions.first)
+        #expect(xcode.id != safari.id && xcode.title == "Quitter Xcode")
+        #expect(StatusChipConfirmation.decide(xcode, armed: armed, now: t0.addingTimeInterval(1)) == .arm)
+        #expect(quits.calls.isEmpty)
+        source.stop()
+    }
+
+    /// `StatusChipAction ==` ignores the handler, so the id carries the target: the same app name on a restarted
+    /// process (new pid or start time) is a new action and the source republishes it.
+    @Test func theSourceRepublishesWhenOnlyTheTargetProcessChanges() throws {
+        let quits = Quits()
+        let source = TopAppChipSource(hooks: topAppHooks(quits: quits))
+        var changes = 0
+        source.onChange = { changes += 1 }
+        source.start()
+        source.apply([row("Safari", pid: 500, value: 72, startedAt: 1_234)])
+        source.apply([row("Safari", pid: 500, value: 72, startedAt: 1_234)])
+        #expect(changes == 1, "same target, same text: nothing to redraw")
+        source.apply([row("Safari", pid: 777, value: 72, startedAt: 1_234)])
+        #expect(changes == 2, "another pid, same text")
+        source.apply([row("Safari", pid: 777, value: 72, startedAt: 9_999)])
+        #expect(changes == 3, "same pid reused, another start time")
+        try #require(source.reading?.actions.first).handler()
+        #expect(quits.calls == [Quit(pid: 777, name: "Safari", startedAt: 9_999)], "the handler follows the last publish")
         source.stop()
     }
 
@@ -392,9 +433,9 @@ import Testing
         var balance: Int { appeared - disappeared }
     }
 
-    private func lease(_ panel: Panel, idle: Duration = .seconds(8), sleep: @escaping @Sendable (Duration) async throws -> Void = StatusChipsBridgeLifecycleTests.parked) -> CPUTemperatureLease {
+    private func lease(_ panel: Panel) -> CPUTemperatureLease {
         CPUTemperatureLease(hooks: .init(acquire: { panel.appeared += 1 }, release: { panel.disappeared += 1 },
-                                         read: { panel.temperature }, sleep: sleep), idleTimeout: idle)
+                                         read: { panel.temperature }))
     }
 
     @Test func leaseTakesOneReferenceHoweverManyTimesItIsCalled() {
@@ -404,41 +445,30 @@ import Testing
         for _ in 0..<10 { #expect(lease.temperature() == 61) }
         #expect(panel.appeared == 1)
         #expect(panel.disappeared == 0)
-        lease.expire()
+        lease.release()
         #expect(panel.balance == 0)
-        lease.expire()
+        lease.release()
         #expect(panel.disappeared == 1)   // idempotent
     }
 
     @Test func leaseReacquiresAfterARelease() {
         let panel = Panel()
         let lease = lease(panel)
-        _ = lease.temperature(); lease.expire()
-        _ = lease.temperature(); lease.expire()
+        _ = lease.temperature(); lease.release()
+        _ = lease.temperature(); lease.release()
         #expect(panel.appeared == 2)
         #expect(panel.disappeared == 2)
     }
 
-    @Test func leaseGivesTheReferenceBackWhenTheLoadChipStopsCalling() async {
+    @Test func leaseHoldsNothingWithoutATimerOnceReleased() async {
         let panel = Panel()
-        let lease = lease(panel, idle: .milliseconds(1), sleep: { _ in })   // the idle wait elapses at once
+        let lease = lease(panel)
         _ = lease.temperature()
         #expect(panel.balance == 1)
-        await until { panel.balance == 0 }
+        lease.release()
+        await pause()
         #expect(panel.balance == 0)
         #expect(lease.isHeld == false)
-    }
-
-    @Test func leaseStaysHeldWhileCallsKeepComing() async {
-        let panel = Panel()
-        let lease = lease(panel)   // the idle wait never elapses on its own
-        _ = lease.temperature()
-        await settle()
-        _ = lease.temperature()
-        await settle()
-        #expect(panel.balance == 1)
-        lease.expire()
-        #expect(panel.balance == 0)
     }
 
     @Test func staleOrBrokenTemperaturesAreNotShown() {

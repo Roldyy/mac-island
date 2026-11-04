@@ -15,6 +15,9 @@ public final class WiFiNameProvider {
 
     public init(reader: any SSIDReading) { self.reader = reader }
 
+    /// The door the Network chip's detached tick reads the raw name through (off the main actor).
+    var ssidReader: any SSIDReading { reader }
+
     /// Starts listening for an authorization change (the user answers the prompt, or flips the switch in Settings).
     public func begin(onChange: @escaping @MainActor () -> Void) {
         reader.onAuthorizationChange = onChange
@@ -23,9 +26,10 @@ public final class WiFiNameProvider {
     /// Stops listening. The request flag stays: one prompt per run, at most.
     public func end() { reader.onAuthorizationChange = nil }
 
-    /// The name to show for this link: nil off Wi-Fi, while undetermined (after raising the prompt once), when
-    /// denied, or when the system gives no name.
-    public func name(forWiFi onWiFi: Bool) -> String? {
+    /// The name to show for this link, given the raw name the tick read off the main thread (`sampled`): nil off
+    /// Wi-Fi, while undetermined (after raising the prompt once), when denied, or when the system gives no name.
+    /// Nothing here blocks: the permission is the reader's cached answer.
+    public func name(forWiFi onWiFi: Bool, sampled: String?) -> String? {
         guard onWiFi else { return nil }
         switch reader.authorization {
         case .notDetermined:
@@ -37,7 +41,7 @@ public final class WiFiNameProvider {
         case .denied:
             return nil
         case .authorized:
-            return Self.sanitized(reader.readSSID())
+            return Self.sanitized(sampled)
         }
     }
 

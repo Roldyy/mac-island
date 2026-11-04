@@ -32,13 +32,24 @@ enum TopAppChip {
         return "\(label.isEmpty ? "Appli" : label) \(shown) % CPU"
     }
 
+    /// The Quit action's id: tied to the process it targets (pid + kernel start time, what the kill re-checks), so a
+    /// "Confirmer" armed for one app never counts for the next one after a refresh.
+    static func quitID(pid: pid_t, startedAt: UInt64) -> String { "quit-\(pid)-\(startedAt)" }
+
+    /// "Quitter Safari" (name cut at `nameLimit`).
+    static func quitTitle(name: String) -> String {
+        let label = StatusChipBridgeFormat.truncated(name, limit: nameLimit)
+        return label.isEmpty ? "Quitter" : "Quitter \(label)"
+    }
+
     /// The reading for the busiest app. `quit` is nil when Quit is not allowed: no action at all then (the chip is
     /// not tappable). When it is allowed, the action is destructive, so the row asks for a second click.
-    static func reading(name: String, percent: Double, quit: (@MainActor () -> Void)?) -> StatusChipReading {
+    static func reading(name: String, percent: Double, pid: pid_t = 0, startedAt: UInt64 = 0,
+                        quit: (@MainActor () -> Void)?) -> StatusChipReading {
         var actions: [StatusChipAction] = []
         if let quit {
-            actions.append(StatusChipAction(id: "quit", title: "Quitter", systemImage: "xmark.circle",
-                                            isDestructive: true, handler: quit))
+            actions.append(StatusChipAction(id: quitID(pid: pid, startedAt: startedAt), title: quitTitle(name: name),
+                                            systemImage: "xmark.circle", isDestructive: true, handler: quit))
         }
         return StatusChipReading(kind: .topApp, primary: primary(name: name, percent: percent),
                                  level: level(percent: percent), actions: actions)
@@ -122,7 +133,7 @@ final class TopAppChipSource: StatusChipBridgeSource {
             let (pid, name, hooks) = (top.pid, top.name, hooks)
             quit = { hooks.quit(pid, name, startedAt) }
         }
-        publish(TopAppChip.reading(name: top.name, percent: top.value, quit: quit))
+        publish(TopAppChip.reading(name: top.name, percent: top.value, pid: top.pid, startedAt: top.startedAt ?? 0, quit: quit))
     }
 
     /// Every condition of the Quit action except the start time (checked by the caller).

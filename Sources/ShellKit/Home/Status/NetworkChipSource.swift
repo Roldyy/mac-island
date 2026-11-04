@@ -20,6 +20,9 @@ final class NetworkChipSource: StatusChipPolledSource {
         var up: Double?
         /// The Wi-Fi name, already sanitised; nil keeps the title "Wi-Fi".
         var name: String?
+        /// The raw Wi-Fi name read inside the tick (off the main thread, only on Wi-Fi). It goes through the
+        /// permission and the sanitiser in `apply`; the system hides it without Location anyway.
+        var ssid: String? = nil
     }
 
     private struct Memory {
@@ -28,7 +31,7 @@ final class NetworkChipSource: StatusChipPolledSource {
         var link: NetworkLink = .other
     }
 
-    private let state = SamplerState(Memory())
+    private let state: SamplerState<Memory>
     private let read: @Sendable () -> [InterfaceReading]
     private let watchPath: Bool
     private let interval: Duration
@@ -46,8 +49,10 @@ final class NetworkChipSource: StatusChipPolledSource {
          watchPath: Bool = true,
          read: @escaping @Sendable () -> [InterfaceReading] = { SystemCounters.interfaces() },
          openMonitor: (@MainActor () -> Void)? = nil,
-         nameProvider: WiFiNameProvider? = nil) {
+         nameProvider: WiFiNameProvider? = nil,
+         initialLink: NetworkLink = .other) {
         self.nameProvider = nameProvider
+        self.state = SamplerState(Memory(link: initialLink))
         self.interval = interval
         self.sleep = sleep
         self.watchPath = watchPath
@@ -85,12 +90,13 @@ final class NetworkChipSource: StatusChipPolledSource {
 
     override func begin() {
         let state = self.state, read = self.read
+        let ssidReader = self.nameProvider?.ssidReader
         let tick: @Sendable () -> Void = { [weak self] in
             let readings = read()
             let counters = SamplingMath.counters(from: readings)
             let vpn = SamplingMath.vpnActive(readings)
             let now = ContinuousClock.now
-            let snapshot: Snapshot = state.withValue { memory in
+            var snapshot: Snapshot = state.withValue { memory in
                 defer { memory.counters = counters; memory.at = now }
                 var rates: (down: Double, up: Double)?
                 if let before = memory.counters, let at = memory.at {
@@ -100,12 +106,21 @@ final class NetworkChipSource: StatusChipPolledSource {
                 }
                 return Snapshot(link: memory.link, vpn: vpn, down: rates?.down, up: rates?.up)
             }
-            Task { @MainActor in self?.apply(snapshot) }
+            // CoreWLAN blocks: read the name here, next to the rates, never on the main thread.
+            if snapshot.link == .wifi { snapshot.ssid = ssidReader?.readSSID() }
+            let sampled = snapshot
+            Task { @MainActor in self?.apply(sampled) }
         }
-        // The user answered the Location prompt (or changed it in Settings): show the name now.
+        // The user answered the Location prompt (or changed it in Settings): read the name again (off the main
+        // thread) and show it now.
         nameProvider?.begin { [weak self] in
-            guard let self, let last = self.lastSnapshot else { return }
-            self.apply(last)
+            guard let self, self.lastSnapshot != nil, let ssidReader else { return }
+            Task { [weak self] in
+                let ssid = await Task.detached(priority: .utility) { ssidReader.readSSID() }.value
+                guard let self, var last = self.lastSnapshot else { return }
+                last.ssid = ssid
+                self.apply(last)
+            }
         }
         poller = AmbientPoller(interval: interval, sleep: sleep, tick: tick)
         poller?.start()
@@ -143,7 +158,7 @@ final class NetworkChipSource: StatusChipPolledSource {
         guard isRunning else { return }
         lastSnapshot = snapshot
         var named = snapshot
-        named.name = nameProvider?.name(forWiFi: snapshot.link == .wifi)
+        named.name = nameProvider?.name(forWiFi: snapshot.link == .wifi, sampled: snapshot.ssid)
         publish(Self.reading(named, openMonitor: openMonitor))
     }
 }

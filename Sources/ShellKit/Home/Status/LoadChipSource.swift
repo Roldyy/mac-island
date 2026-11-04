@@ -29,6 +29,7 @@ final class LoadChipSource: StatusChipPolledSource {
     /// Bumped by every `end()`: a tick of an older run recognises itself and drops its baseline.
     private let runGeneration = SamplerState<Int>(0)
     private let temperatureProvider: (@MainActor () -> Double?)?
+    private let temperatureStop: (@MainActor () -> Void)?
     private let openMonitor: (@MainActor () -> Void)?
     private var poller: AmbientPoller?
 
@@ -41,6 +42,7 @@ final class LoadChipSource: StatusChipPolledSource {
          totalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory,
          primeDelay: UInt32 = 250_000,
          temperatureProvider: (@MainActor () -> Double?)? = nil,
+         temperatureStop: (@MainActor () -> Void)? = nil,
          openMonitor: (@MainActor () -> Void)? = nil) {
         self.interval = interval
         self.sleep = sleep
@@ -50,6 +52,7 @@ final class LoadChipSource: StatusChipPolledSource {
         self.totalMemory = totalMemory
         self.primeDelay = primeDelay
         self.temperatureProvider = temperatureProvider
+        self.temperatureStop = temperatureStop
         self.openMonitor = openMonitor
         super.init(kind: .load)
     }
@@ -116,9 +119,13 @@ final class LoadChipSource: StatusChipPolledSource {
         // The next run measures from its own first reading, not from ticks taken before the island closed.
         runGeneration.withValue { $0 += 1 }
         state.withValue { $0 = nil }
+        // Gives back whatever the provider took, now and not after an idle delay.
+        temperatureStop?()
     }
 
     private func apply(_ snapshot: Snapshot) {
+        // A tick that lands after `stop()` must not call the provider: it would take the reference again.
+        guard isRunning else { return }
         publish(Self.reading(snapshot, temperature: temperatureProvider?(), openMonitor: openMonitor))
     }
 }

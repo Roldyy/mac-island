@@ -214,7 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // already feeds network, load and disk itself. PortKit's bridge brings battery health, next event, top app,
             // devices and timer, plus the temperature of the Load chip; the IP chip comes from the IP scanner feature.
             statusSources: { PortStatusChips.sources() + [ipChip] },
-            statusTemperature: { PortStatusChips.temperature() })
+            statusTemperature: { PortStatusChips.temperature() },
+            statusTemperatureStop: { PortStatusChips.releaseTemperature() })
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }

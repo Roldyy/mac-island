@@ -90,6 +90,30 @@ private final class TickCounter: @unchecked Sendable {
         #expect(ContinuousClock.now - began < .milliseconds(100), "stop() must not wait for the prime delay")
     }
 
+    @Test func theTemperatureTakenWhileRunningIsGivenBackAtStopAcrossRestarts() async throws {
+        // A lease like the app's: the first provider call of a run takes a reference, the stop hook gives it back.
+        final class Lease {
+            var held = false, acquired = 0, released = 0, calls = 0
+            func temperature() -> Double? { calls += 1; if !held { held = true; acquired += 1 }; return 60 }
+            func release() { if held { held = false; released += 1 } }
+        }
+        let lease = Lease()
+        let source = LoadChipSource(
+            sleep: sleeper(ticks: 1), readTicks: { nil }, readMemory: { 1 }, readPressure: { .normal },
+            totalMemory: 2, primeDelay: 0,
+            temperatureProvider: { lease.temperature() }, temperatureStop: { lease.release() })
+        for run in 1...3 {
+            source.start()
+            try await wait(source) { $0 != nil }
+            #expect(lease.held && lease.acquired == run)
+            source.stop()
+            #expect(!lease.held && lease.released == run, "released at stop, no idle delay")
+            let calls = lease.calls
+            try await Task.sleep(for: .milliseconds(60))
+            #expect(lease.calls == calls && !lease.held, "a late tick after stop must not take the reference again")
+        }
+    }
+
     @Test func startAndStopAreIdempotent() async throws {
         let source = LoadChipSource(sleep: sleeper(ticks: 1), readTicks: { nil }, readMemory: { 1 },
                                     readPressure: { .normal }, totalMemory: 2, primeDelay: 0)

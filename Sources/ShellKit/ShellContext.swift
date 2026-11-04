@@ -53,6 +53,8 @@ public struct ShellContext {
     /// Temperature in degrees Celsius for the "Charge" chip, nil when unreadable. Read on the main actor each time the
     /// chip refreshes, only while the island is open.
     public var statusTemperature: (@MainActor () -> Double?)?
+    /// Called when the "Charge" chip stops (the island closed), so whatever `statusTemperature` took is given back.
+    public var statusTemperatureStop: (@MainActor () -> Void)?
 
     public init(tabs: [IslandTab], registry: FeatureRegistry, navigation: ShellNavigation,
                 quickAccess: QuickAccessModel,
@@ -72,10 +74,12 @@ public struct ShellContext {
                 dockExtras: DockCommandRegistry? = nil,
                 openSettingsPage: (@MainActor (String) -> Void)? = nil,
                 statusSources: @escaping @MainActor () -> [any StatusChipSource] = { [] },
-                statusTemperature: (@MainActor () -> Double?)? = nil) {
+                statusTemperature: (@MainActor () -> Double?)? = nil,
+                statusTemperatureStop: (@MainActor () -> Void)? = nil) {
         self.dockExtras = dockExtras ?? DockCommandRegistry()
         self.statusSources = statusSources
         self.statusTemperature = statusTemperature
+        self.statusTemperatureStop = statusTemperatureStop
         self.openSettingsPage = openSettingsPage
         self.tabGate = tabGate
         self.tabs = tabs
@@ -103,7 +107,8 @@ public struct ShellContext {
         var openMonitor: (@MainActor () -> Void)?
         if tabs.contains(where: { $0.id == "monitor" }) { openMonitor = { navigation.open(tabID: "monitor") } }
         home.statusChips.setSources(
-            StatusChipProviders.builtin(openMonitor: openMonitor, temperature: statusTemperature) + statusSources())
+            StatusChipProviders.builtin(openMonitor: openMonitor, temperature: statusTemperature,
+                                        temperatureStop: statusTemperatureStop) + statusSources())
     }
 
     /// Whether the panel is on: its own switch, or the switches `tabGate` names for it.

@@ -67,8 +67,8 @@ let package = Package(
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
-        // ShellKit joins here only so the foundation tests can drive a real FeatureRegistry (kill switch, permission
-        // grant) through PortFeatureBinding; PortKit itself still does not depend on ShellKit.
+        // PortKit depends on ShellKit since MIS_0102 (Bridge/StatusChipsBridge.swift); the foundation tests also drive a
+        // real FeatureRegistry (kill switch, permission grant) through PortFeatureBinding.
         .testTarget(name: "PortKitTests", dependencies: ["PortKit", "FansFeature", "ShellKit", "IslandKit", "IslandTestSupport"]),
         .testTarget(name: "SettingsKitTests", dependencies: ["SettingsKit"]),
         .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),

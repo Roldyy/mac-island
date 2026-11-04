@@ -9,6 +9,9 @@ import Foundation
 public final class LiveSSIDReader: NSObject, SSIDReading, @preconcurrency CLLocationManagerDelegate {
     public var onAuthorizationChange: (@MainActor () -> Void)?
     private var manager: CLLocationManager?
+    /// The permission as CoreLocation last said it: read once at creation, then from the delegate. Asking the
+    /// manager (or `locationServicesEnabled()`, which blocks) on every 2 s tick would stall the main thread.
+    private var status: CLAuthorizationStatus = .notDetermined
 
     public override init() { super.init() }
 
@@ -16,25 +19,26 @@ public final class LiveSSIDReader: NSObject, SSIDReading, @preconcurrency CLLoca
         if let manager { return manager }
         let created = CLLocationManager()
         created.delegate = self
+        status = created.authorizationStatus
         manager = created
         return created
     }
 
     public var authorization: LocationAuthorization {
-        let manager = locationManager()
-        guard CLLocationManager.locationServicesEnabled() else { return .denied }
-        switch manager.authorizationStatus {
+        _ = locationManager()
+        switch status {
         case .notDetermined: return .notDetermined
         case .authorizedAlways, .authorizedWhenInUse: return .authorized
         default: return .denied
         }
     }
 
-    public func readSSID() -> String? { CWWiFiClient.shared().interface()?.ssid() }
+    public nonisolated func readSSID() -> String? { CWWiFiClient.shared().interface()?.ssid() }
 
     public func requestAuthorization() { locationManager().requestWhenInUseAuthorization() }
 
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        status = manager.authorizationStatus
         onAuthorizationChange?()
     }
 }

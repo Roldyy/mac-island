@@ -189,10 +189,11 @@ import Testing
 
     @MainActor @Test func topAppQuitIsDestructiveAndNeedsConfirmation() throws {
         var quit = 0
-        let reading = TopAppChip.reading(name: "Safari", percent: 70, quit: { quit += 1 })
+        let reading = TopAppChip.reading(name: "Safari", percent: 70, pid: 500, startedAt: 9, quit: { quit += 1 })
         let action = try #require(reading.actions.first)
         #expect(reading.actions.count == 1)
-        #expect(action.title == "Quitter")
+        #expect(action.title == "Quitter Safari")
+        #expect(action.id == "quit-500-9")
         #expect(action.isDestructive)
         #expect(action.needsConfirmation)
         #expect(quit == 0)
