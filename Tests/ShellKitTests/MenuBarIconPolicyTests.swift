@@ -11,16 +11,16 @@ import Testing
         return defaults
     }
 
-    @Test func hiddenWhenTheKeyIsAbsent() {
-        #expect(!MenuBarIconPolicy.isShown(defaults: freshDefaults()))
+    @Test func shownWhenTheKeyIsAbsent() {
+        #expect(MenuBarIconPolicy.isShown(defaults: freshDefaults()))
     }
 
-    @Test func shownOnceSwitchedOnAndHiddenAgainWhenSwitchedOff() {
+    @Test func hiddenOnceSwitchedOffAndShownAgainWhenSwitchedOn() {
         let defaults = freshDefaults()
-        defaults.set(true, forKey: MenuBarIconPolicy.key)
-        #expect(MenuBarIconPolicy.isShown(defaults: defaults))
         defaults.set(false, forKey: MenuBarIconPolicy.key)
         #expect(!MenuBarIconPolicy.isShown(defaults: defaults))
+        defaults.set(true, forKey: MenuBarIconPolicy.key)
+        #expect(MenuBarIconPolicy.isShown(defaults: defaults))
     }
 
     @Test func theKeyIsNotTheDeadUpstreamOne() {

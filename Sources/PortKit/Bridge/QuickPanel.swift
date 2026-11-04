@@ -134,14 +134,14 @@ public final class PortQuickPanel: NSObject, NSPopoverDelegate {
 /// added there, next to this card, by registering a composite body for the same page id.
 struct MenuBarPanelPage: View {
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(MenuBarIconPolicy.key) private var iconShown = false
+    @AppStorage(MenuBarIconPolicy.key) private var iconShown = true
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
 
     var body: some View {
         SettingsCard(title: l10n.s.menuBarSection) {
             Toggle("Afficher l’icône Mac Island dans la barre des menus", isOn: $iconShown)
-            Text("Désactivée par défaut : tout est dans l’île. Le panneau rapide s’ouvre depuis cette icône.")
+            Text("Le panneau rapide s’ouvre depuis cette icône. Les réglages restent aussi dans l’île.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
