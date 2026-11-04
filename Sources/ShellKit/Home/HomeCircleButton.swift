@@ -2,9 +2,13 @@ import IslandUI
 import SwiftUI
 
 /// A round black button around the island. Right-click moves, reorders or removes it.
+///
+/// A home action (the ids the layout always had) renders as before. Any other command of the app is a dock-catalog
+/// command (`HomeDockCircleButton`): `dock` maps their ids to the commands, built once by the island.
 struct HomeCircleButton: View {
     let button: HomeButton
     let context: ShellContext
+    var dock: [String: DockCommand] = [:]
 
     var body: some View {
         if let action = HomeActionCatalog.action(button.actionID) {
@@ -34,15 +38,26 @@ struct HomeCircleButton: View {
             .overlay(alignment: .bottomTrailing) {
                 if HomeClaude.isClaude(action) { ClaudeOpenAppButton(context: context).offset(x: 5, y: 5) }
             }
-            .contextMenu { menu(for: action) }
+            .contextMenu { HomeCircleMenu(button: button, context: context, isClaude: HomeClaude.isClaude(action)) }
+        } else {
+            HomeDockCircleButton(button: button, context: context,
+                                 command: HomeActionCatalog.identity(of: button.actionID).flatMap { dock[$0] })
         }
     }
+}
 
-    @ViewBuilder private func menu(for action: HomeAction) -> some View {
-        if HomeClaude.isClaude(action) {
+/// Right-click menu of a round button: move, reorder, remove. The Claude shortcut adds its "open the app" item.
+struct HomeCircleMenu: View {
+    let button: HomeButton
+    let context: ShellContext
+    var isClaude = false
+
+    var body: some View {
+        if isClaude {
             ClaudeOpenAppMenuItem(context: context)
             Divider()
         }
+
         let layout = context.home.buttons
         let row = layout.buttons(on: button.side)
         let index = row.firstIndex { $0.id == button.id } ?? 0

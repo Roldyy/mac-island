@@ -32,15 +32,12 @@ import Testing
     }
 
     @Test func aFullLayoutIsLeftAloneAndAFreshInstallHasItByDefault() {
-        let full = HomeButtonLayout(buttons: [
-            HomeButton(actionID: "explore", side: .left), HomeButton(actionID: "clipboard", side: .left),
-            HomeButton(actionID: "mixer", side: .left), HomeButton(actionID: "settings", side: .right),
-            HomeButton(actionID: "capture", side: .right), HomeButton(actionID: "lockScreen", side: .right),
-            HomeButton(actionID: "commands", side: .bottom), HomeButton(actionID: "keepawake", side: .bottom),
-            HomeButton(actionID: "cleaning", side: .bottom),
-        ])
+        func filler(_ count: Int, _ side: HomeButtonSide, from start: Int) -> [HomeButton] {
+            (start..<start + count).map { HomeButton(actionID: "port.fill\($0)", side: side) }
+        }
+        let full = HomeButtonLayout(buttons: filler(8, .left, from: 0) + filler(8, .right, from: 8) + filler(6, .bottom, from: 16))
         #expect(full.addingClaudeShortcut() == full)
-        let spill = HomeButtonLayout(buttons: Array(full.buttons.prefix(3)))
+        let spill = HomeButtonLayout(buttons: filler(8, .left, from: 0))
         #expect(spill.addingClaudeShortcut().buttons(on: .right).map(\.actionID) == ["agents"])
         let bench = TestDefaults.make()
         defer { bench.cleanup() }

@@ -28,11 +28,18 @@ public struct HomeButton: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-/// The user's round buttons: at most three per side, no action twice, order = order in `buttons`.
-/// Stored as `{"version":1,"buttons":[{"id","actionID","side","label"}]}` under the island layout key.
+/// The user's round buttons: at most eight per side and six at the bottom, no action twice, order = order in `buttons`.
+/// Stored as `{"version":1,"buttons":[{"id","actionID","side","label"}]}` under the island layout key. The shape did
+/// not change when the caps rose (a 3-per-side layout is a valid layout), so the version stays 1 and an older build
+/// still reads what a newer one wrote. `actionID` is a `HomeActionCatalog` id ("terminal") or, for every other command
+/// of the app, the id `ShellContext.dockCatalog()` gives it ("port.ocr", "feature.fans"): see `HomeActionCatalog.stored`.
 public struct HomeButtonLayout: Codable, Equatable, Sendable {
     public static let version = 1
-    public static let maxPerSide = 3
+    public static let maxPerSide = 8
+    public static let maxBottom = 6
+
+    /// Most buttons a side holds: eight on each side column, six on the bottom row.
+    public static func capacity(of side: HomeButtonSide) -> Int { side == .bottom ? maxBottom : maxPerSide }
 
     public var buttons: [HomeButton]
 
@@ -51,17 +58,22 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
 
     public func buttons(on side: HomeButtonSide) -> [HomeButton] { buttons.filter { $0.side == side } }
 
-    public func hasRoom(on side: HomeButtonSide) -> Bool { buttons(on: side).count < Self.maxPerSide }
+    public func hasRoom(on side: HomeButtonSide) -> Bool { buttons(on: side).count < Self.capacity(of: side) }
 
-    public func contains(actionID: String) -> Bool { buttons.contains { $0.actionID == actionID } }
+    /// Whether the action is already shown, whichever id form (legacy or dock-catalog) either side uses.
+    public func contains(actionID: String) -> Bool {
+        guard let identity = HomeActionCatalog.identity(of: actionID) else { return false }
+        return buttons.contains { HomeActionCatalog.identity(of: $0.actionID) == identity }
+    }
 
     /// The first side with room, left to right to bottom.
     public var firstFreeSide: HomeButtonSide? { HomeButtonSide.allCases.first(where: hasRoom) }
 
-    /// Adds a button for a known action nobody shows yet. False when refused (unknown, already there, side full).
+    /// Adds a button for an action nobody shows yet: a home action or any command of the dock catalog. False when
+    /// refused (unknown, already there, side full).
     @discardableResult
     public mutating func add(actionID: String, side: HomeButtonSide? = nil) -> Bool {
-        guard let resolved = HomeActionCatalog.resolve(actionID), !contains(actionID: resolved),
+        guard let resolved = HomeActionCatalog.stored(actionID), !contains(actionID: resolved),
               let target = side ?? firstFreeSide, hasRoom(on: target) else { return false }
         buttons.append(HomeButton(actionID: resolved, side: target))
         return true
@@ -117,15 +129,17 @@ public struct HomeButtonLayout: Codable, Equatable, Sendable {
         return true
     }
 
-    /// Known actions only (aliases mapped), no repeated action or id, at most three per side.
+    /// Known actions only (aliases mapped, a dock-catalog id kept in its stored form), no repeated action or id, at
+    /// most `capacity(of:)` per side.
     public func sanitized() -> HomeButtonLayout {
         var seenActions = Set<String>(), seenIDs = Set<UUID>()
         var perSide: [HomeButtonSide: Int] = [:]
         var kept: [HomeButton] = []
         for var button in buttons {
-            guard let action = HomeActionCatalog.resolve(button.actionID),
-                  seenActions.insert(action).inserted, seenIDs.insert(button.id).inserted,
-                  perSide[button.side, default: 0] < Self.maxPerSide else { continue }
+            guard let action = HomeActionCatalog.stored(button.actionID),
+                  let identity = HomeActionCatalog.identity(of: action),
+                  seenActions.insert(identity).inserted, seenIDs.insert(button.id).inserted,
+                  perSide[button.side, default: 0] < Self.capacity(of: button.side) else { continue }
             button.actionID = action
             perSide[button.side, default: 0] += 1
             kept.append(button)

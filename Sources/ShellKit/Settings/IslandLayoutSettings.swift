@@ -21,13 +21,19 @@ public struct IslandLayoutSettings: View {
     /// Every command the extra dock can hold (`ShellContext.dockCatalog`). Nil leaves the editor without names.
     var dockCatalog: (@MainActor () -> [DockCommand])?
 
+    /// Whether a command can run now (`ShellContext.dockAvailability`), for the reasons the picker shows.
+    /// Nil lists every command as available.
+    var dockAvailability: (@MainActor (DockCommand) -> DockAvailability)?
+
     public init(home: HomeModel, openIsland: (@MainActor () -> Void)? = nil,
                 extras: (@MainActor () -> AnyView)? = nil,
-                dockCatalog: (@MainActor () -> [DockCommand])? = nil) {
+                dockCatalog: (@MainActor () -> [DockCommand])? = nil,
+                dockAvailability: (@MainActor (DockCommand) -> DockAvailability)? = nil) {
         self.home = home
         self.openIsland = openIsland
         self.extras = extras
         self.dockCatalog = dockCatalog
+        self.dockAvailability = dockAvailability
     }
 
     public var body: some View {
@@ -138,10 +144,15 @@ public struct IslandLayoutSettings: View {
 
     // MARK: - Round buttons
 
+    /// The cap line under the card title, from the real caps.
+    static var buttonsCaption: String {
+        "Jusqu’à \(HomeButtonLayout.maxPerSide) boutons par côté, \(HomeButtonLayout.maxBottom) en bas, chaque action une seule fois."
+    }
+
     private var buttonsCard: some View {
         VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             IslandHeader("Boutons autour de l’îlot",
-                         subtitle: "Trois boutons au plus par côté, chaque action une seule fois.")
+                         subtitle: Self.buttonsCaption)
             SettingsCard {
                 VStack(alignment: .leading, spacing: IslandSpacing.m) {
                     ForEach(HomeButtonSide.allCases, id: \.self) { side in
@@ -159,37 +170,43 @@ public struct IslandLayoutSettings: View {
 
     private func sideSection(_ side: HomeButtonSide) -> some View {
         let row = home.buttons.buttons(on: side)
+        let catalog = dockCatalog?() ?? []
         return VStack(alignment: .leading, spacing: IslandSpacing.xs) {
             HStack {
                 Text(side.title).font(.islandBodyEmphasis)
+                Text("\(row.count) sur \(HomeButtonLayout.capacity(of: side))")
+                    .font(.islandCaption).foregroundStyle(IslandPalette.textSecondary.color)
                 Spacer()
-                addMenu(for: side)
+                HomeButtonAddControl(side: side, layout: home.buttons, catalog: catalog,
+                                     availability: { dockAvailability?($0) ?? .available },
+                                     add: { home.buttons.add(actionID: $0, side: side) })
             }
             if row.isEmpty {
                 caption("Aucun bouton de ce côté.")
             }
-            ForEach(row) { button in buttonRow(button, in: row) }
+            ForEach(row) { button in buttonRow(button, in: row, catalog: catalog) }
         }
     }
 
-    private func addMenu(for side: HomeButtonSide) -> some View {
-        let free = HomeActionCatalog.all.filter { !home.buttons.contains(actionID: $0.id) }
-        return Menu("Ajouter un bouton") {
-            ForEach(free) { action in
-                Button(action.title, systemImage: action.systemImage) { home.buttons.add(actionID: action.id, side: side) }
-            }
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .disabled(free.isEmpty || !home.buttons.hasRoom(on: side))
+    /// What a stored button stands for: its home action, else the dock-catalog command of the same identity.
+    private func buttonFace(_ button: HomeButton, catalog: [DockCommand]) -> (title: String, symbol: String, known: Bool) {
+        if let action = HomeActionCatalog.action(button.actionID) { return (action.title, action.systemImage, true) }
+        if let identity = HomeActionCatalog.identity(of: button.actionID),
+           let command = catalog.first(where: { $0.id == identity }) { return (command.title, command.systemImage, true) }
+        return ("Commande introuvable", "questionmark.circle", false)
     }
 
-    private func buttonRow(_ button: HomeButton, in row: [HomeButton]) -> some View {
-        let action = HomeActionCatalog.action(button.actionID)
+    private func buttonRow(_ button: HomeButton, in row: [HomeButton], catalog: [DockCommand]) -> some View {
+        let face = buttonFace(button, catalog: catalog)
         let index = row.firstIndex(where: { $0.id == button.id }) ?? 0
         return HStack(spacing: IslandSpacing.s) {
-            Image(systemName: action?.systemImage ?? "questionmark").frame(width: 20).accessibilityHidden(true)
-            Text(action?.title ?? button.actionID).font(.islandBody)
+            Image(systemName: face.symbol).frame(width: 20).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(face.title).font(.islandBody)
+                if !face.known {
+                    Text(button.actionID).font(.islandFootnote).foregroundStyle(IslandPalette.textSecondary.color)
+                }
+            }
             Spacer()
             Button("Monter", systemImage: "chevron.up") { home.buttons.reorder(id: button.id, by: -1) }
                 .labelStyle(.iconOnly).buttonStyle(.plain).disabled(index == 0)

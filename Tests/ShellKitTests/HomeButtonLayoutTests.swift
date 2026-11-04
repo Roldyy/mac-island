@@ -20,12 +20,14 @@ import Testing
         #expect(!ok2)
         let ok3 = layout.add(actionID: "nope")
         #expect(!ok3)
-        let ok4 = layout.add(actionID: "lockScreen", side: .left)
-        #expect(ok4)
-        let ok5 = layout.add(actionID: "cleaning", side: .left)
-        #expect(ok5)
-        let ok6 = layout.add(actionID: "monitor", side: .left)
-        #expect(!ok6)
+        // Fill the left side to its cap with dock commands, then one more is refused.
+        for index in 1..<HomeButtonLayout.capacity(of: .left) {
+            let ok = layout.add(actionID: "port.fill\(index)", side: .left)
+            #expect(ok)
+        }
+        #expect(layout.buttons(on: .left).count == 8)
+        let full = layout.add(actionID: "monitor", side: .left)
+        #expect(!full)
         let ok7 = layout.add(actionID: "monitor")
         #expect(ok7)
         #expect(layout.buttons(on: .right).map(\.actionID) == ["monitor"])
@@ -45,6 +47,8 @@ import Testing
         #expect(ok10)
         #expect(layout.buttons(on: .bottom).map(\.actionID) == ["commands", "keepawake", "terminal"])
         let clipboard = layout.buttons(on: .left)[0].id
+        // Fill the bottom row to its cap of six: the next move there is refused.
+        for index in 0..<3 { layout.add(actionID: "port.fill\(index)", side: .bottom) }
         let ok11 = layout.move(id: clipboard, to: .bottom)
         #expect(!ok11)
         layout.remove(id: clipboard)
@@ -58,7 +62,8 @@ import Testing
             HomeButton(actionID: "capture", side: .bottom), HomeButton(actionID: "lockScreen", side: .bottom),
             HomeButton(actionID: "cleaning", side: .bottom), HomeButton(actionID: "monitor", side: .bottom),
         ])
-        #expect(raw.sanitized().buttons.map(\.actionID) == ["explore", "capture", "lockScreen", "cleaning"])
+        // Bottom holds six now, so all four of its buttons stay; the repeated Explorer and the ghost go.
+        #expect(raw.sanitized().buttons.map(\.actionID) == ["explore", "capture", "lockScreen", "cleaning", "monitor"])
     }
 
     @Test func aliasesFromAnotherBuildMapToHereActions() {

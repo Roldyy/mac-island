@@ -228,7 +228,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     PortIslandExtrasSettings()
                 })
             },
-                                         dockCatalog: { context.dockCatalog() }))
+                                         dockCatalog: { context.dockCatalog() },
+                                         dockAvailability: { context.dockAvailability($0) }))
         }
         // "Open the island on tab X" from the ported code: the same two steps as the command bar's tab commands.
         PortBridge.connectIsland(

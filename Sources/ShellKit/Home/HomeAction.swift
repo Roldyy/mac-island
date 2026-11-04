@@ -57,6 +57,40 @@ public enum HomeActionCatalog {
         "control.commandBar": "commands", "control.screenshot": "capture", "control.mixer": "mixer",
     ]
 
+    /// Prefixes of the ids `ShellContext.dockCatalog()` hands out.
+    static let dockPrefixes = ["nav.", "tab.", "quick.", "feature.", "settings.", "app.", "port.", "scene."]
+
+    /// True for the shape of a dock-catalog id ("tab.terminal", "port.ocr"). The pure layer cannot know which ones
+    /// exist right now (the app registers some at launch), so it keeps any well-formed one.
+    public static func isDockID(_ id: String) -> Bool {
+        dockPrefixes.contains { id.hasPrefix($0) && id.count > $0.count }
+    }
+
+    /// The dock-catalog id of the same command, for a legacy round-button id ("terminal" -> "tab.terminal").
+    public static func dockID(forLegacy id: String) -> String? {
+        guard let action = action(id) else { return nil }
+        switch action.kind {
+        case .explore: return "nav.explore"
+        case .settings: return "nav.settings"
+        case .quick(let quickID): return "quick.\(quickID)"
+        case .page(let tabID): return "tab.\(tabID)"
+        }
+    }
+
+    /// The form a round button stores: the legacy id when the action has one (the stored layout stays readable by
+    /// older builds), otherwise the dock id. Nil for an unknown id.
+    public static func stored(_ id: String) -> String? {
+        if let legacy = resolve(id) { return legacy }
+        guard isDockID(id) else { return nil }
+        return all.first { dockID(forLegacy: $0.id) == id }?.id ?? id
+    }
+
+    /// One identity per command, whichever form it is stored in: the dock id.
+    public static func identity(of id: String) -> String? {
+        guard let form = stored(id) else { return nil }
+        return dockID(forLegacy: form) ?? form
+    }
+
     public static func resolve(_ id: String) -> String? {
         let mapped = aliases[id] ?? id
         return all.contains { $0.id == mapped } ? mapped : nil

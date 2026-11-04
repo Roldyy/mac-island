@@ -19,16 +19,20 @@ struct HomeIslandContent: View {
         let left = home.buttons.buttons(on: .left), right = home.buttons.buttons(on: .right)
         let bottom = home.buttons.buttons(on: .bottom)
         let sides = !left.isEmpty || !right.isEmpty
+        let dock = dockCommands()
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 0) {
-                if sides { column(left) }
+                if sides { column(left, body: body, dock: dock) }
                 bodyView
                     .frame(width: body.width, height: body.height)
-                if sides { column(right) }
+                if sides { column(right, body: body, dock: dock) }
             }
             if !bottom.isEmpty {
-                HStack(spacing: IslandSpacing.m) {
-                    ForEach(bottom) { HomeCircleButton(button: $0, context: context) }
+                HomeButtonStackView(axis: .horizontal, count: bottom.count,
+                                    available: HomeButtonStack.bottomAvailable(panelWidth: home.panelSize(body: body).width)) {
+                    HStack(spacing: HomeButtonStack.spacing) {
+                        ForEach(bottom) { HomeCircleButton(button: $0, context: context, dock: dock) }
+                    }
                 }
                 // The row is exactly `bottomRow` tall and is the last thing in the panel: an extra bottom padding made
                 // the content 4 pt taller than the panel, so the foot of the round buttons was cut off.
@@ -122,12 +126,23 @@ struct HomeIslandContent: View {
 
     // MARK: - Round buttons
 
-    private func column(_ buttons: [HomeButton]) -> some View {
-        VStack(spacing: IslandSpacing.m) {
-            ForEach(buttons) { HomeCircleButton(button: $0, context: context) }
+    /// The dock-catalog commands the round buttons that are not home actions point at, by id. Built once per pass and
+    /// only when such a button exists, so the usual three-button layout pays nothing.
+    private func dockCommands() -> [String: DockCommand] {
+        let needed = home.buttons.buttons.contains { HomeActionCatalog.action($0.actionID) == nil }
+        guard needed else { return [:] }
+        return Dictionary(context.dockCatalog().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func column(_ buttons: [HomeButton], body: CGSize, dock: [String: DockCommand]) -> some View {
+        HomeButtonStackView(axis: .vertical, count: buttons.count,
+                            available: HomeButtonStack.sideAvailable(bodyHeight: body.height, band: home.bandHeight),
+                            inset: home.bandHeight + HomeGeometry.bandGap) {
+            VStack(spacing: HomeButtonStack.spacing) {
+                ForEach(buttons) { HomeCircleButton(button: $0, context: context, dock: dock) }
+            }
         }
         .frame(width: HomeGeometry.sideColumn, alignment: .top)
-        .padding(.top, home.bandHeight + HomeGeometry.bandGap)
     }
 
     // MARK: - Right-click menu
@@ -147,9 +162,15 @@ struct HomeIslandContent: View {
         }
         Toggle("Fond translucide", isOn: Binding(get: { home.translucentBackground }, set: { home.translucentBackground = $0 }))
         Toggle("Afficher le contour", isOn: Binding(get: { home.showsOutline }, set: { home.showsOutline = $0 }))
+        // Every command of the app, by category (the settings page offers the same list with a search field).
         Menu("Ajouter un bouton") {
-            ForEach(HomeActionCatalog.all.filter { !home.buttons.contains(actionID: $0.id) }) { action in
-                Button(action.title, systemImage: action.systemImage) { home.buttons.add(actionID: action.id) }
+            let free = context.dockCatalog().filter { !home.buttons.contains(actionID: $0.id) }
+            ForEach(ExtraDockCatalog.grouped(free), id: \.category) { group in
+                Menu(group.category.title) {
+                    ForEach(group.commands) { command in
+                        Button(command.title, systemImage: command.systemImage) { home.buttons.add(actionID: command.id) }
+                    }
+                }
             }
         }
         .disabled(home.buttons.firstFreeSide == nil)
