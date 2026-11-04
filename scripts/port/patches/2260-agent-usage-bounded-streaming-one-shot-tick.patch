@@ -1,0 +1,53 @@
+--- a/Services/AgentUsage/AgentUsageService.swift
++++ b/Services/AgentUsage/AgentUsageService.swift
+@@ -34,6 +34,10 @@
+     /// The history the island can show: thirteen weeks for the activity map.
+     static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
+     private static let tick: TimeInterval = 30
++    /// The same sweep while nobody looks: the AI page is closed and no Claude session shows on the closed
++    /// island. File events and the 2 s poller still read what the agents write; this only keeps prices,
++    /// limits and sliding windows fresh, which nothing on screen needs every 30 s.
++    private static let idleTick: TimeInterval = 180
+     /// File events report a written file only once it closes, and some
+     /// agents keep their log open for the whole session: logs written in the
+     /// last half hour, or holding a turn, are checked this often instead.
+@@ -243,6 +247,7 @@
+     func pageDidAppear(preview: Bool = false) {
+         if !preview { pageVisible = true }
+         guard running else { return }
++        if !paused, timer != nil { armTimer(after: Self.tick) }   // leave a slow cadence at once
+         refreshClaudeLimits(pageShows: true)
+         queue.async { [self] in
+             guard readerSession >= 0 else { return }
+@@ -259,13 +264,28 @@
+ 
+     // MARK: Reading
+ 
+-    private func startTimer() {
+-        let timer = Timer(timeInterval: Self.tick, repeats: true) { [weak self] _ in self?.tickTimer() }
+-        timer.tolerance = 10
++    private func startTimer() { armTimer(after: Self.tick) }
++
++    /// One-shot, re-armed after each sweep with the rhythm the screen needs at that moment.
++    private func armTimer(after delay: TimeInterval) {
++        timer?.invalidate()
++        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
++            guard let self else { return }
++            self.tickTimer()
++            // A stop or pause during the sweep leaves no timer behind.
++            guard self.running, !self.paused else { return }
++            self.armTimer(after: self.nextTickDelay())
++        }
++        timer.tolerance = delay >= Self.idleTick ? 30 : 10
+         RunLoop.main.add(timer, forMode: .common)
+         self.timer = timer
+     }
+ 
++    /// Full rhythm only while the AI page is open or a live session is on the closed island.
++    private func nextTickDelay() -> TimeInterval {
++        pageVisible || !snapshot.live.isEmpty ? Self.tick : Self.idleTick
++    }
++
+     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
+         startTimer()
+         queue.async { [self] in
