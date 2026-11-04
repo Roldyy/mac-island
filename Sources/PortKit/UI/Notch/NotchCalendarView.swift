@@ -19,6 +19,7 @@ struct NotchCalendarView: View {
     /// The strip's month grid, in place of the strip and the cards.
     @State private var showingMonth = false
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
+    private var account: CalendarAccountStrings { CalendarAccountStrings.strings(l10n.language) }
     /// A month grid needs six rows beside an agenda; anything shorter shows
     /// the week as a strip above a vertical agenda.
     private var showsMonth: Bool { size.height >= 300 && size.width >= 420 }
@@ -263,9 +264,10 @@ struct NotchCalendarView: View {
                         if selectedDay == nil { dayLabel(group.day, now: now) }
                         ForEach(group.events) { event in
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
-                                                  isNext: event.id == next?.id, text: text,
+                                                  isNext: event.id == next?.id, text: text, account: account,
                                                   countdown: countdownChoice(event, now: now),
-                                                  choose: { calendar.setCountdown($0, for: event) }) {
+                                                  choose: { calendar.setCountdown($0, for: event) },
+                                                  join: { joinCall($0) }) {
                                 openCalendar(showing: event)
                             }
                             .id(event.id)
@@ -302,23 +304,55 @@ struct NotchCalendarView: View {
                 if !rowOpensCalendar {
                     NotchPillButton(title: text.openCalendar) { openCalendar() }
                 }
+                if calendar.needsGoogleAccount { googleAccountCard }
             }
         }
         .padding(.horizontal, 12)
     }
 
+    /// Shown while only local or iCloud calendars exist: the way to add a Google account. Opens a pane on click only.
+    private var googleAccountCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(account.googleTitle, systemImage: "person.crop.circle.badge.plus")
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(account.googleHint)
+                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            NotchPillButton(title: account.openAccounts, prominent: true) { openInternetAccounts() }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func openInternetAccounts() {
+        for url in CalendarAccountHint.settingsURLs where NSWorkspace.shared.open(url) { return }
+    }
+
+    /// Opens the exact link that passed the host allow-list, on a click, checked again here.
+    private func joinCall(_ url: URL) {
+        guard let checked = CalendarConferenceLink.validated(url) else { return }
+        NSWorkspace.shared.open(checked)
+    }
+
     private var permissionCard: some View {
-        VStack(spacing: 10) {
+        let denied = CalendarAccessState.map(permissions.calendarAccess) == .denied
+        return VStack(spacing: 10) {
             Image(systemName: "calendar.badge.clock").font(.system(size: 28))
-            Text(permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted
-                 ? text.denied : text.permission)
+                .accessibilityHidden(true)
+            Text(account.accessRequired)
+                .font(.callout.weight(.semibold)).foregroundStyle(.white.opacity(0.9))
+                .accessibilityAddTraits(.isHeader)
+            Text(denied ? text.denied : text.permission)
                 .font(.callout).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
-                if permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted {
+                if denied {
                     Button(text.settings) { permissions.openCalendarSettings() }
                 } else {
-                    Button(text.allow) {
+                    Button(account.authorize) {
                         NotchService.shared.open(.calendar)
                         permissions.requestCalendar()
                     }
@@ -374,9 +408,11 @@ private struct NotchCalendarEventRow: View {
     let now: Date
     let isNext: Bool
     let text: NotchCalendarStrings
+    let account: CalendarAccountStrings
     /// Whether the event counts down on its own; nil when it cannot.
     let countdown: Bool?
     let choose: (Bool) -> Void
+    let join: (URL) -> Void
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -384,16 +420,29 @@ private struct NotchCalendarEventRow: View {
     private var ended: Bool { event.end <= now }
 
     var body: some View {
-        Button(action: open) { card }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
-            .help(text.openCalendar)
-            .accessibilityHint(text.openCalendar)
-            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+        VStack(alignment: .leading, spacing: 5) {
+            Button(action: open) { card }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
+                .help(text.openCalendar)
+                .accessibilityHint(text.openCalendar)
+                .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+            // Beside the card, not inside it: a button never sits in a button. Hidden once the event is over.
+            if let url = event.joinURL, !ended, !event.declined {
+                NotchPillButton(title: account.join, prominent: true) { join(url) }
+                    .help(url.host ?? "")
+                    .accessibilityLabel(String(format: account.joinLabel, event.title.isEmpty ? text.untitled : event.title))
+            }
+        }
     }
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if ongoing || isNext {
+            if event.declined {
+                Text(account.declined)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            } else if ongoing || isNext {
                 Text(ongoing ? text.ongoing : text.next)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
@@ -401,7 +450,8 @@ private struct NotchCalendarEventRow: View {
             }
             Text(event.title.isEmpty ? text.untitled : event.title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
+                .foregroundStyle(.white.opacity(ended || event.declined ? 0.65 : 1))
+                .strikethrough(event.declined)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Group {

@@ -27,6 +27,10 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     /// How a countdown chosen from the event's menu remembers it; see
     /// `NotchCalendarSupport.countdownKey`.
     var countdownKey = ""
+    /// Declined by the current user; only read when the option to show declined events is on.
+    var declined = false
+    /// A video-call link found in the event, already checked against the host allow-list.
+    var joinURL: URL?
 }
 
 /// What the closed island counts down to: an event's start or, while the
@@ -51,6 +55,7 @@ struct NotchCalendarChoice: Equatable, Identifiable, Sendable {
     let sourceID: String
     let source: String
     var color: NotchCalendarColor = .fallback
+    var kind: CalendarSourceKind = .other
 }
 
 enum NotchCalendarSupport {
@@ -234,7 +239,7 @@ enum NotchCalendarSupport {
     }
 
     static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
-        upcoming(events, now: now).first { !$0.allDay }
+        upcoming(events, now: now).first { !$0.allDay && !$0.declined }
     }
 
     /// The compact island counts down to the nearer of the moments it follows:
@@ -243,7 +248,7 @@ enum NotchCalendarSupport {
     /// start that coincides with an end leaves the event under way.
     static func countdown(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
                           chosen: Set<String> = []) -> NotchCalendarCountdown? {
-        ordered(events).filter { !$0.allDay }
+        ordered(events).filter { !$0.allDay && !$0.declined }
             .flatMap { event in
                 followedMoments(event, starts: starts, ends: ends, chosen: chosen)
                     .map { NotchCalendarCountdown(event: event, ongoing: $0) }
@@ -266,7 +271,7 @@ enum NotchCalendarSupport {
     static func tileEvent(_ events: [NotchCalendarEvent], now: Date,
                           calendar: Calendar = .current) -> NotchCalendarEvent? {
         let week = readInterval(month: nil, now: now, calendar: calendar)
-        return ordered(events).first { !$0.allDay && $0.start > now && $0.start < week.end }
+        return ordered(events).first { !$0.allDay && !$0.declined && $0.start > now && $0.start < week.end }
     }
 
     /// A start later today reads as its time; a later day adds its weekday.
@@ -284,7 +289,7 @@ enum NotchCalendarSupport {
     /// opens no earlier than its event's start.
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
                                     chosen: Set<String> = []) -> Date? {
-        ordered(events).filter { !$0.allDay }
+        ordered(events).filter { !$0.allDay && !$0.declined }
             .flatMap { event in
                 followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
                     ongoing ? [max(event.start, event.end.addingTimeInterval(-countdownLeadTime)), event.end]

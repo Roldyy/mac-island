@@ -1,0 +1,487 @@
+--- a/Services/Notch/NotchCalendarService.swift
++++ b/Services/Notch/NotchCalendarService.swift
+@@ -10,36 +10,36 @@
+ private actor NotchCalendarReader {
+     private lazy var store = EKEventStore()
+ 
+-    func read(interval: DateInterval, excluded: Set<String>) -> [NotchCalendarEvent] {
++    func read(interval: DateInterval, excluded: Set<String>, showDeclined: Bool) -> [NotchCalendarEvent] {
+         guard !Task.isCancelled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+         let calendars = NotchCalendarSupport.calendarsToRead(store.calendars(for: .event), excluded: excluded,
+                                                              identifier: \.calendarIdentifier)
+         if calendars?.isEmpty == true { return [] }
+         let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: calendars)
+         return store.events(matching: predicate).compactMap { event in
+-            guard event.status != .canceled,
+-                  event.attendees?.contains(where: { $0.isCurrentUser && $0.participantStatus == .declined }) != true,
++            let declined = event.attendees?.contains(where: { $0.isCurrentUser && $0.participantStatus == .declined }) == true
++            guard let facts = CalendarEventFacts.make(
++                    CalendarEventRaw(title: event.title, location: event.location, notes: event.notes, url: event.url,
++                                     cancelled: event.status == .canceled, currentUserDeclined: declined),
++                    showDeclined: showDeclined),
+                   let identifier = event.eventIdentifier,
+                   let start = event.startDate, let end = event.endDate else { return nil }
+             let recurring = event.hasRecurrenceRules || event.isDetached
+             let countdownKey = NotchCalendarSupport.countdownKey(
+                 identifier: identifier, occurrence: recurring ? event.occurrenceDate ?? start : nil)
+             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
+-                                      title: event.title ?? "", calendar: event.calendar.title,
++                                      title: facts.title, calendar: CalendarText.clean(event.calendar.title, limit: 80),
+                                       start: start, end: end, allDay: event.isAllDay,
+-                                      location: event.location ?? "", color: Self.tint(event.calendar),
++                                      location: facts.location, color: Self.tint(event.calendar),
+                                       calendarItemIdentifier: event.calendarItemIdentifier,
+-                                      recurring: recurring, countdownKey: countdownKey)
++                                      recurring: recurring, countdownKey: countdownKey,
++                                      declined: facts.declined, joinURL: facts.joinURL)
+         }
+     }
+ 
+     func calendars() -> [NotchCalendarChoice] {
+         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
+-        return store.calendars(for: .event).map {
+-            NotchCalendarChoice(id: $0.calendarIdentifier, title: $0.title,
+-                                sourceID: $0.source?.sourceIdentifier ?? "", source: $0.source?.title ?? "",
+-                                color: Self.tint($0))
+-        }
++        return CalendarCatalog.choices(from: EKCalendarCatalogReader(store: store, tint: Self.tint))
+     }
+ 
+     private static func tint(_ calendar: EKCalendar) -> NotchCalendarColor {
+@@ -56,6 +56,9 @@
+     @Published private(set) var events: [NotchCalendarEvent] = []
+     @Published private(set) var countdown: NotchCalendarCountdown?
+     @Published private(set) var loading = false
++    /// True when the calendars read are only local, iCloud, subscribed or birthdays: the island then offers the
++    /// way to add a Google account in System Settings.
++    @Published private(set) var needsGoogleAccount = false
+     /// The event the Calendar page scrolls to once, after a click on the countdown.
+     @Published var revealing: String?
+     /// Countdown keys of the events chosen from their menu.
+@@ -63,13 +66,14 @@
+     private var reader: NotchCalendarReader?
+     private var task: Task<Void, Never>?
+     private var refreshTimer: Timer?
+-    private var observers: [NSObjectProtocol] = []
++    private var refreshObserver: CalendarRefreshObserver?
+     private var permissionSubscription: AnyCancellable?
+     private var generation = UUID()
+     private var visibleMonth: Date?
+     private var countdownEnabled = false
+     private var timeLeftEnabled = false
+     private var excludedCalendars = Set<String>()
++    private var showDeclined = false
+ 
+     private override init() { super.init() }
+ 
+@@ -108,14 +112,17 @@
+         let countdownEnabled = NotchCalendarSupport.showsCountdown()
+         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
+         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
++        let showDeclined = CalendarEventFacts.showsDeclined()
+         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
+         guard reader == nil else {
+             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
+-                || self.excludedCalendars != excludedCalendars || self.chosenCountdowns != chosenCountdowns {
+-                if !excludedCalendars.isSubset(of: self.excludedCalendars) {
++                || self.excludedCalendars != excludedCalendars || self.chosenCountdowns != chosenCountdowns
++                || self.showDeclined != showDeclined {
++                if !excludedCalendars.isSubset(of: self.excludedCalendars) || self.showDeclined != showDeclined {
+                     events = []
+                     countdown = nil
+                 }
++                self.showDeclined = showDeclined
+                 self.countdownEnabled = countdownEnabled
+                 self.timeLeftEnabled = timeLeftEnabled
+                 self.excludedCalendars = excludedCalendars
+@@ -128,14 +135,12 @@
+         self.countdownEnabled = countdownEnabled
+         self.timeLeftEnabled = timeLeftEnabled
+         self.excludedCalendars = excludedCalendars
++        self.showDeclined = showDeclined
+         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
+         reader = NotchCalendarReader()
+-        for name in [Notification.Name.EKEventStoreChanged, NSApplication.didBecomeActiveNotification,
+-                     .NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged] {
+-            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) {
+-                [weak self] _ in self?.refresh()
+-            })
+-        }
++        // Pushed by EventKit (a Google sync is a store change), by a wake and by the clock: never a fast poll.
++        refreshObserver = CalendarRefreshObserver { [weak self] in self?.refresh() }
++        refreshObserver?.start()
+         permissionSubscription = Permissions.shared.$calendarAccess.removeDuplicates().dropFirst()
+             .sink { [weak self] _ in self?.refresh() }
+         refresh()
+@@ -147,7 +152,7 @@
+         generation = UUID()
+         guard NotchCalendarSupport.isEnabled(), let reader else { stop(); return }
+         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+-            events = []; countdown = nil; loading = false
++            events = []; countdown = nil; loading = false; needsGoogleAccount = false
+             return
+         }
+         let requested = generation
+@@ -158,18 +163,28 @@
+             visible: interval, current: currentInterval,
+             countdownEnabled: countdownEnabled || timeLeftEnabled || !chosenCountdowns.isEmpty)
+         let excluded = excludedCalendars
++        let showDeclined = showDeclined
+         loading = events.isEmpty
+         task = Task { @MainActor [weak self] in
+-            let result = await reader.read(interval: interval, excluded: excluded)
++            let result = await reader.read(interval: interval, excluded: excluded, showDeclined: showDeclined)
+             let currentResult = needsCurrentRead
+-                ? await reader.read(interval: currentInterval, excluded: excluded) : result
++                ? await reader.read(interval: currentInterval, excluded: excluded, showDeclined: showDeclined) : result
++            let known = await reader.calendars()
+             guard !Task.isCancelled, let self, self.generation == requested,
+                   NotchCalendarSupport.isEnabled() else { return }
+             let now = Date()
+             guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+                 self.events = []; self.countdown = nil; self.loading = false; self.task = nil
++                self.needsGoogleAccount = false
+                 return
+             }
++            self.needsGoogleAccount = CalendarAccountHint.needsGoogleAccount(known)
++            // A calendar that vanished (account removed) leaves the stored selection quietly.
++            let pruned = CalendarSelection.pruned(self.excludedCalendars, known: known)
++            if pruned != self.excludedCalendars {
++                CalendarSelection.store(pruned)
++                self.excludedCalendars = pruned
++            }
+             self.events = NotchCalendarSupport.ordered(result)
+             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
+             self.updateChosenCountdowns(currentEvents, now: now)
+@@ -209,15 +224,16 @@
+         generation = UUID()
+         task?.cancel(); task = nil
+         refreshTimer?.invalidate(); refreshTimer = nil
+-        observers.forEach(NotificationCenter.default.removeObserver)
+-        observers.removeAll()
++        refreshObserver?.stop()
++        refreshObserver = nil
+         permissionSubscription = nil
+         reader = nil
+         visibleMonth = nil
+         countdownEnabled = false
+         timeLeftEnabled = false
+         excludedCalendars = []
++        showDeclined = false
+         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
+-        events = []; countdown = nil; loading = false
++        events = []; countdown = nil; loading = false; needsGoogleAccount = false
+     }
+ }
+--- a/Services/Notch/NotchCalendarSupport.swift
++++ b/Services/Notch/NotchCalendarSupport.swift
+@@ -27,6 +27,10 @@
+     /// How a countdown chosen from the event's menu remembers it; see
+     /// `NotchCalendarSupport.countdownKey`.
+     var countdownKey = ""
++    /// Declined by the current user; only read when the option to show declined events is on.
++    var declined = false
++    /// A video-call link found in the event, already checked against the host allow-list.
++    var joinURL: URL?
+ }
+ 
+ /// What the closed island counts down to: an event's start or, while the
+@@ -51,6 +55,7 @@
+     let sourceID: String
+     let source: String
+     var color: NotchCalendarColor = .fallback
++    var kind: CalendarSourceKind = .other
+ }
+ 
+ enum NotchCalendarSupport {
+@@ -234,7 +239,7 @@
+     }
+ 
+     static func next(_ events: [NotchCalendarEvent], now: Date) -> NotchCalendarEvent? {
+-        upcoming(events, now: now).first { !$0.allDay }
++        upcoming(events, now: now).first { !$0.allDay && !$0.declined }
+     }
+ 
+     /// The compact island counts down to the nearer of the moments it follows:
+@@ -243,7 +248,7 @@
+     /// start that coincides with an end leaves the event under way.
+     static func countdown(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
+                           chosen: Set<String> = []) -> NotchCalendarCountdown? {
+-        ordered(events).filter { !$0.allDay }
++        ordered(events).filter { !$0.allDay && !$0.declined }
+             .flatMap { event in
+                 followedMoments(event, starts: starts, ends: ends, chosen: chosen)
+                     .map { NotchCalendarCountdown(event: event, ongoing: $0) }
+@@ -266,7 +271,7 @@
+     static func tileEvent(_ events: [NotchCalendarEvent], now: Date,
+                           calendar: Calendar = .current) -> NotchCalendarEvent? {
+         let week = readInterval(month: nil, now: now, calendar: calendar)
+-        return ordered(events).first { !$0.allDay && $0.start > now && $0.start < week.end }
++        return ordered(events).first { !$0.allDay && !$0.declined && $0.start > now && $0.start < week.end }
+     }
+ 
+     /// A start later today reads as its time; a later day adds its weekday.
+@@ -284,7 +289,7 @@
+     /// opens no earlier than its event's start.
+     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
+                                     chosen: Set<String> = []) -> Date? {
+-        ordered(events).filter { !$0.allDay }
++        ordered(events).filter { !$0.allDay && !$0.declined }
+             .flatMap { event in
+                 followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
+                     ongoing ? [max(event.start, event.end.addingTimeInterval(-countdownLeadTime)), event.end]
+--- a/UI/Notch/NotchCalendarView.swift
++++ b/UI/Notch/NotchCalendarView.swift
+@@ -19,6 +19,7 @@
+     /// The strip's month grid, in place of the strip and the cards.
+     @State private var showingMonth = false
+     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
++    private var account: CalendarAccountStrings { CalendarAccountStrings.strings(l10n.language) }
+     /// A month grid needs six rows beside an agenda; anything shorter shows
+     /// the week as a strip above a vertical agenda.
+     private var showsMonth: Bool { size.height >= 300 && size.width >= 420 }
+@@ -263,9 +264,10 @@
+                         if selectedDay == nil { dayLabel(group.day, now: now) }
+                         ForEach(group.events) { event in
+                             NotchCalendarEventRow(event: event, day: group.day, now: now,
+-                                                  isNext: event.id == next?.id, text: text,
++                                                  isNext: event.id == next?.id, text: text, account: account,
+                                                   countdown: countdownChoice(event, now: now),
+-                                                  choose: { calendar.setCountdown($0, for: event) }) {
++                                                  choose: { calendar.setCountdown($0, for: event) },
++                                                  join: { joinCall($0) }) {
+                                 openCalendar(showing: event)
+                             }
+                             .id(event.id)
+@@ -302,23 +304,55 @@
+                 if !rowOpensCalendar {
+                     NotchPillButton(title: text.openCalendar) { openCalendar() }
+                 }
++                if calendar.needsGoogleAccount { googleAccountCard }
+             }
+         }
+         .padding(.horizontal, 12)
+     }
+ 
++    /// Shown while only local or iCloud calendars exist: the way to add a Google account. Opens a pane on click only.
++    private var googleAccountCard: some View {
++        VStack(alignment: .leading, spacing: 6) {
++            Label(account.googleTitle, systemImage: "person.crop.circle.badge.plus")
++                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
++                .fixedSize(horizontal: false, vertical: true)
++            Text(account.googleHint)
++                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
++                .fixedSize(horizontal: false, vertical: true)
++            NotchPillButton(title: account.openAccounts, prominent: true) { openInternetAccounts() }
++        }
++        .padding(10)
++        .frame(maxWidth: .infinity, alignment: .leading)
++        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
++        .accessibilityElement(children: .contain)
++    }
++
++    private func openInternetAccounts() {
++        for url in CalendarAccountHint.settingsURLs where NSWorkspace.shared.open(url) { return }
++    }
++
++    /// Opens the exact link that passed the host allow-list, on a click, checked again here.
++    private func joinCall(_ url: URL) {
++        guard let checked = CalendarConferenceLink.validated(url) else { return }
++        NSWorkspace.shared.open(checked)
++    }
++
+     private var permissionCard: some View {
+-        VStack(spacing: 10) {
++        let denied = CalendarAccessState.map(permissions.calendarAccess) == .denied
++        return VStack(spacing: 10) {
+             Image(systemName: "calendar.badge.clock").font(.system(size: 28))
+-            Text(permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted
+-                 ? text.denied : text.permission)
++                .accessibilityHidden(true)
++            Text(account.accessRequired)
++                .font(.callout.weight(.semibold)).foregroundStyle(.white.opacity(0.9))
++                .accessibilityAddTraits(.isHeader)
++            Text(denied ? text.denied : text.permission)
+                 .font(.callout).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
+                 .fixedSize(horizontal: false, vertical: true)
+             HStack(spacing: 10) {
+-                if permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted {
++                if denied {
+                     Button(text.settings) { permissions.openCalendarSettings() }
+                 } else {
+-                    Button(text.allow) {
++                    Button(account.authorize) {
+                         NotchService.shared.open(.calendar)
+                         permissions.requestCalendar()
+                     }
+@@ -374,9 +408,11 @@
+     let now: Date
+     let isNext: Bool
+     let text: NotchCalendarStrings
++    let account: CalendarAccountStrings
+     /// Whether the event counts down on its own; nil when it cannot.
+     let countdown: Bool?
+     let choose: (Bool) -> Void
++    let join: (URL) -> Void
+     let open: () -> Void
+     @Environment(\.colorSchemeContrast) private var contrast
+ 
+@@ -384,16 +420,29 @@
+     private var ended: Bool { event.end <= now }
+ 
+     var body: some View {
+-        Button(action: open) { card }
+-            .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
+-            .help(text.openCalendar)
+-            .accessibilityHint(text.openCalendar)
+-            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
++        VStack(alignment: .leading, spacing: 5) {
++            Button(action: open) { card }
++                .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
++                .help(text.openCalendar)
++                .accessibilityHint(text.openCalendar)
++                .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
++            // Beside the card, not inside it: a button never sits in a button. Hidden once the event is over.
++            if let url = event.joinURL, !ended, !event.declined {
++                NotchPillButton(title: account.join, prominent: true) { join(url) }
++                    .help(url.host ?? "")
++                    .accessibilityLabel(String(format: account.joinLabel, event.title.isEmpty ? text.untitled : event.title))
++            }
++        }
+     }
+ 
+     private var card: some View {
+         VStack(alignment: .leading, spacing: 4) {
+-            if ongoing || isNext {
++            if event.declined {
++                Text(account.declined)
++                    .font(.system(size: 9, weight: .semibold))
++                    .foregroundStyle(.orange)
++                    .lineLimit(1)
++            } else if ongoing || isNext {
+                 Text(ongoing ? text.ongoing : text.next)
+                     .font(.system(size: 9, weight: .semibold))
+                     .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+@@ -401,7 +450,8 @@
+             }
+             Text(event.title.isEmpty ? text.untitled : event.title)
+                 .font(.system(size: 13, weight: .semibold))
+-                .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
++                .foregroundStyle(.white.opacity(ended || event.declined ? 0.65 : 1))
++                .strikethrough(event.declined)
+                 .fixedSize(horizontal: false, vertical: true)
+             HStack(alignment: .firstTextBaseline, spacing: 5) {
+                 Group {
+--- a/UI/Settings/NotchCalendarSelection.swift
++++ b/UI/Settings/NotchCalendarSelection.swift
+@@ -2,6 +2,7 @@
+ // Copyright (C) 2026 Vorssaint
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
++import AppKit
+ import EventKit
+ import SwiftUI
+ 
+@@ -14,13 +15,26 @@
+ 
+     var body: some View {
+         let groups = NotchCalendarSupport.grouped(choices)
++        let text = FeatureStrings.notchCalendar(l10n.language)
++        let account = CalendarAccountStrings.strings(l10n.language)
+         VStack(alignment: .leading, spacing: 6) {
+             if !groups.isEmpty {
+                 Divider()
+-                Text(FeatureStrings.notchCalendar(l10n.language).calendars).font(.subheadline.weight(.medium))
++                Text(text.calendars).font(.subheadline.weight(.medium))
++                if CalendarAccountHint.needsGoogleAccount(choices) {
++                    VStack(alignment: .leading, spacing: 4) {
++                        Label(account.googleTitle, systemImage: "person.crop.circle.badge.plus").font(.callout.weight(.medium))
++                        Text(account.googleHint).font(.caption).foregroundStyle(.secondary)
++                        Button(account.openAccounts) {
++                            for url in CalendarAccountHint.settingsURLs where NSWorkspace.shared.open(url) { return }
++                        }
++                    }
++                    .padding(8)
++                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
++                }
+                 ForEach(groups, id: \.first?.sourceID) { group in
+-                    if let source = group.first?.source, !source.isEmpty {
+-                        Text(source).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
++                    if let first = group.first {
++                        accountHeader(first, group, text, account)
+                     }
+                     ForEach(group) { choice in
+                         Toggle(isOn: shown(choice.id)) {
+@@ -41,8 +55,35 @@
+         }
+     }
+ 
++    /// The account's title with its icon, and Tout / Aucun for its calendars alone.
++    private func accountHeader(_ first: NotchCalendarChoice, _ group: [NotchCalendarChoice],
++                               _ text: NotchCalendarStrings, _ account: CalendarAccountStrings) -> some View {
++        let state = CalendarSelection.accountState(group, excluded: excluded)
++        let name = first.source.isEmpty ? text.calendars : first.source
++        return HStack(spacing: 6) {
++            Label(name, systemImage: first.kind.symbol)
++                .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
++            Spacer(minLength: 8)
++            Button(account.selectAll) { setAccount(group, shown: true) }
++                .disabled(state == .all)
++                .accessibilityLabel(String(format: account.selectAllLabel, name))
++            Button(account.selectNone) { setAccount(group, shown: false) }
++                .disabled(state == .none)
++                .accessibilityLabel(String(format: account.selectNoneLabel, name))
++        }
++        .buttonStyle(.link).font(.caption)
++        .padding(.top, 4)
++    }
++
++    private func setAccount(_ group: [NotchCalendarChoice], shown: Bool) {
++        CalendarSelection.store(CalendarSelection.setAccount(group, shown: shown, excluded: excluded))
++        excluded = NotchCalendarSupport.excludedCalendars()
++        NotchCalendarService.shared.syncWithPreferences()
++    }
++
+     private func reload() async {
+         choices = await NotchCalendarService.shared.calendarChoices()
++        excluded = NotchCalendarSupport.excludedCalendars()
+     }
+ 
+     private func shown(_ identifier: String) -> Binding<Bool> {
+--- a/UI/Settings/NotchSettings.swift
++++ b/UI/Settings/NotchSettings.swift
+@@ -23,6 +23,7 @@
+     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
+     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
+     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
++    @AppStorage(CalendarEventFacts.showDeclinedKey) private var calendarShowDeclined = false
+     @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
+     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
+     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
+@@ -461,11 +462,15 @@
+                 .toggleStyle(TrailingSwitchToggleStyle())
+         case .calendar:
+             let calendar = FeatureStrings.notchCalendar(l10n.language)
++            let accountText = CalendarAccountStrings.strings(l10n.language)
+             Text(calendar.permission).font(.callout).foregroundStyle(.secondary)
+             if permissions.calendarAccess == .fullAccess {
+                 Label(l10n.s.permissionGranted, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+             } else {
+-                Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
++                Text(accountText.accessRequired).font(.callout.weight(.semibold))
++                if CalendarAccessState.map(permissions.calendarAccess) == .notAsked {
++                    Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
++                }
+                 Button(calendar.settings, action: permissions.openCalendarSettings)
+             }
+             Divider()
+@@ -473,6 +478,9 @@
+                       isOn: $calendarCountdown)
+             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
+             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
++            switchRow("person.crop.circle.badge.xmark", accountText.showDeclined, caption: accountText.showDeclinedHint,
++                      isOn: $calendarShowDeclined)
++                .onChange(of: calendarShowDeclined) { _, _ in NotchCalendarService.shared.syncWithPreferences() }
+             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
+         case .timer:
+             let activities = FeatureStrings.notchActivities(l10n.language)

@@ -23,6 +23,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
+    @AppStorage(CalendarEventFacts.showDeclinedKey) private var calendarShowDeclined = false
     @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
@@ -461,11 +462,15 @@ struct NotchSettings: View {
                 .toggleStyle(TrailingSwitchToggleStyle())
         case .calendar:
             let calendar = FeatureStrings.notchCalendar(l10n.language)
+            let accountText = CalendarAccountStrings.strings(l10n.language)
             Text(calendar.permission).font(.callout).foregroundStyle(.secondary)
             if permissions.calendarAccess == .fullAccess {
                 Label(l10n.s.permissionGranted, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             } else {
-                Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
+                Text(accountText.accessRequired).font(.callout.weight(.semibold))
+                if CalendarAccessState.map(permissions.calendarAccess) == .notAsked {
+                    Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
+                }
                 Button(calendar.settings, action: permissions.openCalendarSettings)
             }
             Divider()
@@ -473,6 +478,9 @@ struct NotchSettings: View {
                       isOn: $calendarCountdown)
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
+            switchRow("person.crop.circle.badge.xmark", accountText.showDeclined, caption: accountText.showDeclinedHint,
+                      isOn: $calendarShowDeclined)
+                .onChange(of: calendarShowDeclined) { _, _ in NotchCalendarService.shared.syncWithPreferences() }
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
         case .timer:
             let activities = FeatureStrings.notchActivities(l10n.language)
