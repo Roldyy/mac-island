@@ -15,6 +15,8 @@ public final class DefaultAppsModel {
     public private(set) var isActive = false
     public private(set) var phase: Phase = .idle
     public private(set) var scan: ScanResult = .empty
+    /// Replacement candidates for the selected source, computed off the main thread when the source or the scan changes.
+    public private(set) var candidates: [ReplacementCandidate] = []
 
     // Replace flow
     public private(set) var selectedSourceID: String?
@@ -49,7 +51,12 @@ public final class DefaultAppsModel {
     @ObservationIgnored let applier: DefaultAppsApplier
     @ObservationIgnored let keeper: DefaultAppsGuard
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
-    @ObservationIgnored private var scanTask: Task<Void, Never>?
+    @ObservationIgnored private var scanTask: Task<ScanResult, Never>?
+    @ObservationIgnored private var guardTask: Task<Void, Never>?
+    @ObservationIgnored private var candidatesTask: Task<Void, Never>?
+    /// What the applier and the guard ask before every write (they are built before `self` exists).
+    @ObservationIgnored private let activity = Activity()
+    @ObservationIgnored let gate = DefaultAppsWriteGate()
 
     public init(environment: DefaultAppsEnvironment) {
         self.environment = environment
@@ -60,10 +67,14 @@ public final class DefaultAppsModel {
         choices = DefaultAppsChoicesStore(defaults: environment.defaults)
         // The log sink needs `self`, so the collaborators are built with a forwarding closure.
         let sink = LogSink()
+        let activity = activity
+        let gate = gate
         applier = DefaultAppsApplier(launchServices: environment.launchServices, planner: planner, journal: journal,
-                                     choices: choices, now: environment.now, log: { sink.write($0) })
+                                     choices: choices, now: environment.now, log: { sink.write($0) },
+                                     gate: gate, shouldContinue: { activity.active })
         keeper = DefaultAppsGuard(settings: settings, choices: choices, launchServices: environment.launchServices,
-                                  now: environment.now, log: { sink.write($0) })
+                                  now: environment.now, log: { sink.write($0) },
+                                  gate: gate, allowed: { activity.active && !activity.applying })
         sink.target = { [weak self] line in self?.appendLog(line) }
         sink.forward = environment.log
     }
@@ -75,6 +86,7 @@ public final class DefaultAppsModel {
     public func start() {
         guard !isActive else { return }
         isActive = true
+        activity.active = true
         reloadJournal()
         activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
@@ -87,8 +99,14 @@ public final class DefaultAppsModel {
     /// Switch off, kill switch, safe mode: forgets everything on screen. The journal and the choices stay in defaults.
     public func stop() {
         isActive = false
+        activity.active = false
         scanTask?.cancel()
         scanTask = nil
+        guardTask?.cancel()
+        guardTask = nil
+        candidatesTask?.cancel()
+        candidatesTask = nil
+        candidates = []
         if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
         activationObserver = nil
         phase = .idle
@@ -105,11 +123,15 @@ public final class DefaultAppsModel {
         guard isActive, phase != .scanning else { return }
         phase = .scanning
         let scanner = scanner
-        let result = await Task.detached(priority: .userInitiated) { scanner.scan() }.value
-        guard isActive else { return }
+        let task = Task { await Task.detached(priority: .userInitiated) { scanner.scan() }.value }
+        scanTask = task
+        let result = await task.value
+        guard isActive, !task.isCancelled else { return }
+        scanTask = nil
         scan = result
         phase = .ready
         if let id = selectedSourceID, scan.replaceable.first(where: { $0.id == id }) == nil { resetFlow() }
+        updateCandidates()
         reloadJournal()
     }
 
@@ -119,9 +141,21 @@ public final class DefaultAppsModel {
 
     public var replacement: AppProfile? { selectedReplacementID.flatMap(scan.app) }
 
-    public var candidates: [ReplacementCandidate] {
-        guard let source else { return [] }
-        return planner.candidates(for: source, among: scan.apps)
+    /// Waits for the candidate list of the current source (the tests, and nothing else, need this).
+    public func settleCandidates() async { await candidatesTask?.value }
+
+    private func updateCandidates() {
+        candidatesTask?.cancel()
+        candidatesTask = nil
+        candidates = []
+        guard isActive, let source else { return }
+        let planner = planner
+        let apps = scan.apps
+        candidatesTask = Task { [weak self] in
+            let list = await Task.detached(priority: .userInitiated) { planner.candidates(for: source, among: apps) }.value
+            guard !Task.isCancelled, let self, self.isActive, self.selectedSourceID == source.id else { return }
+            self.candidates = list
+        }
     }
 
     // MARK: replace flow
@@ -131,6 +165,7 @@ public final class DefaultAppsModel {
         resetFlow()
         selectedSourceID = id
         report = nil
+        updateCandidates()
     }
 
     public func selectReplacement(_ id: String?) {
@@ -204,9 +239,11 @@ public final class DefaultAppsModel {
     public func confirmAndApply() async {
         guard isActive, !isApplying, let preview, !preview.items.isEmpty else { return }
         confirmedPreviewID = preview.id
-        isApplying = true
+        setApplying(true)
         let result = await applier.apply(preview, confirmedPreviewID: confirmedPreviewID)
-        isApplying = false
+        setApplying(false)
+        // Switched off while it ran (kill switch): nothing more is shown or re-read.
+        guard isActive else { return }
         report = result
         self.preview = nil
         confirmedPreviewID = nil
@@ -231,9 +268,10 @@ public final class DefaultAppsModel {
         case .restoreAll: targets = entries
         }
         guard !targets.isEmpty else { return }
-        isApplying = true
-        let result = await applier.undo(entries: targets)
-        isApplying = false
+        setApplying(true)
+        let result = await applier.undo(entries: targets, restoringOriginals: action == .restoreAll)
+        setApplying(false)
+        guard isActive else { return }
         report = result
         preview = nil
         reloadJournal()
@@ -248,8 +286,14 @@ public final class DefaultAppsModel {
     }
 
     func guardCheck(reason: String) {
-        guard isActive, settings.guardEnabled else { return }
-        Task { [keeper] in await keeper.check(reason: reason) }
+        // Never during an apply or an undo (they own the writes), never once the feature is off.
+        guard isActive, !isApplying, settings.guardEnabled else { return }
+        guardTask = Task { [keeper] in await keeper.check(reason: reason) }
+    }
+
+    private func setApplying(_ on: Bool) {
+        isApplying = on
+        activity.applying = on
     }
 
     // MARK: helpers
@@ -277,6 +321,9 @@ public final class DefaultAppsModel {
     }
 
     private func resetFlow() {
+        candidatesTask?.cancel()
+        candidatesTask = nil
+        candidates = []
         selectedSourceID = nil
         selectedReplacementID = nil
         mode = .all
@@ -295,12 +342,18 @@ public final class DefaultAppsModel {
         phase = .idle
         await refresh()
         report = keep
-        if let source, scan.replaceable.contains(where: { $0.id == source }) { selectedSourceID = source }
+        if let source, scan.replaceable.contains(where: { $0.id == source }) { selectedSourceID = source; updateCandidates() }
     }
 
     private func appendLog(_ line: String) {
         recentLog.append(line)
         if recentLog.count > 8 { recentLog.removeFirst(recentLog.count - 8) }
+    }
+
+    /// The two flags the collaborators read before each write. Main actor only, like the loops that read them.
+    @MainActor private final class Activity {
+        var active = false
+        var applying = false
     }
 
     /// Lets collaborators built before `self` exists write to the model and the system log.

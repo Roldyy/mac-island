@@ -70,11 +70,12 @@ import Testing
     }
 
     @Test func theJournalChoicesAndGuardTimesNeverTravelInABackup() {
-        for key in ["defaultAppsJournal", "defaultAppsJournal.corrupt", "defaultAppsChoices", "defaultAppsGuardLast"] {
+        for key in ["defaultAppsJournal", "defaultAppsJournal.corrupt", "defaultAppsChoices", "defaultAppsGuardLast",
+                    DefaultAppsSettings.guardKey] {
             #expect(SettingsMachineState.isExcluded(key), Comment(rawValue: key))
         }
         #expect(DefaultAppsJournalStore.key == "defaultAppsJournal")
-        #expect(!SettingsMachineState.isExcluded(DefaultAppsSettings.guardKey), "the opt-in switch is a plain preference")
+        #expect(SettingsMachineState.isExcluded(DefaultAppsSettings.guardKey), "a restored file must never turn the guard on")
     }
 
     @Test func logsUseTheDefaultappsCategory() throws {

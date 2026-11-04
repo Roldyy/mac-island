@@ -55,4 +55,16 @@ import Testing
         #expect(defaults.object(forKey: "bluetoothSleepRestorePending") == nil)
         #expect(defaults.bool(forKey: "macIslandClosedLidConfirmed"))
     }
+
+    /// The guard's switch re-applies default handlers on its own, so a restored file must never turn it on.
+    @Test func theDefaultAppsGuardSwitchIsThisMacsConsentNeverBackedUpNorPurged() {
+        #expect(SettingsMachineState.isExcluded("defaultAppsGuardEnabled"))
+        #expect(SettingsMachineState.ownStateKeys.contains("defaultAppsGuardEnabled"))
+        #expect(!VorssaintMigrator.runtimeMarkerKeysV2.contains("defaultAppsGuardEnabled"), "the user's own choice is not purged either")
+        let name = "mis-test-guard-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        #expect(VorssaintMigrator.purgeRuntimeKeysV2(in: defaults) == 0)
+        #expect(defaults.bool(forKey: "defaultAppsGuardEnabled") == false)
+    }
 }

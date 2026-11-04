@@ -40,6 +40,8 @@ final class FakeLaunchServices: LaunchServicesFacading, @unchecked Sendable {
     /// Called before each write is recorded (a test checks the journal from here).
     var beforeWrite: (@Sendable (ChangeKind, String) -> Void)?
     var delay: Duration = .zero
+    /// Writes that macOS answers too late: the new value lands, but the caller gets a timeout.
+    var timingOut: Set<String> = []
 
     private var _writes: [Write] = []
     private var current = 0
@@ -70,6 +72,16 @@ final class FakeLaunchServices: LaunchServicesFacading, @unchecked Sendable {
         lock.lock(); current += 1; peak = max(peak, current); _writes.append(Write(kind: kind, identifier: id, app: app)); lock.unlock()
         if delay > .zero { try? await Task.sleep(for: delay) }
         lock.lock(); current -= 1; lock.unlock()
+        if timingOut.contains(id) {
+            let bundle = urls.first { $0.value == app }?.key
+            lock.lock()
+            switch kind {
+            case .contentType: handlers[id] = bundle
+            case .scheme: schemeHandlers[id] = bundle
+            }
+            lock.unlock()
+            throw LaunchServicesError("macOS n’a pas répondu à temps.", timedOut: true)
+        }
         if cancelling.contains(id) { throw LaunchServicesError("Refusé dans la fenêtre de macOS.", userCancelled: true) }
         if failing.contains(id) { throw LaunchServicesError("Échec simulé.") }
         if ignoring.contains(id) { return }

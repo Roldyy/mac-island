@@ -37,8 +37,11 @@ public protocol LaunchServicesFacading: Sendable {
 public struct LaunchServicesError: Error, Equatable, Sendable {
     public let message: String
     public let userCancelled: Bool
-    public init(_ message: String, userCancelled: Bool = false) {
+    /// macOS did not answer in time: the write may still land later, so the outcome is unknown (not "failed").
+    public let timedOut: Bool
+    public init(_ message: String, userCancelled: Bool = false, timedOut: Bool = false) {
         self.message = message
         self.userCancelled = userCancelled
+        self.timedOut = timedOut
     }
 }

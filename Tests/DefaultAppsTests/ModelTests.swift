@@ -18,6 +18,7 @@ import Testing
         await m.refresh()
         m.selectSource(Fixture.textEdit)
         m.selectReplacement(Fixture.sublime)
+        await m.settleCandidates()
         return m
     }
 

@@ -26,7 +26,19 @@ public final class DefaultAppsJournalStore: @unchecked Sendable {
     /// change nothing.
     @discardableResult
     public func append(_ entry: JournalEntry) -> Bool {
-        mutate { $0.entries.append(entry) }
+        mutate { journal in
+            journal.entries.append(entry)
+            // The first known handler of a type is kept for good.
+            for change in entry.changes where journal.originals[change.key] == nil {
+                if let previous = change.previousBundleID { journal.originals[change.key] = previous }
+            }
+        }
+    }
+
+    /// The original handler of every type this feature ever changed (see `DefaultAppsJournal.originals`).
+    public var originals: [String: String] {
+        if case .journal(let journal) = load() { return journal.originals }
+        return [:]
     }
 
     /// Sets the state of one change of one entry.

@@ -96,7 +96,7 @@ public final class LiveLaunchServices: LaunchServicesFacading, @unchecked Sendab
             }
             Task {
                 try? await Task.sleep(for: Self.writeTimeout)
-                if gate.resume(continuation, with: .failure(LaunchServicesError("macOS n’a pas répondu à temps."))) {
+                if gate.resume(continuation, with: .failure(LaunchServicesError("macOS n’a pas répondu à temps : le réglage peut encore changer.", timedOut: true))) {
                     worker.cancel()
                 }
             }

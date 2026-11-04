@@ -26,17 +26,46 @@ import Testing
         #expect(JournalCodec.decode(String(repeating: "x", count: JournalCodec.maxBytes * 2 + 1)) == .corrupt)
     }
 
-    @Test func theSizeIsCappedByDroppingTheOldestEntriesAndTheLongestLists() throws {
-        let many = (0..<100).map { i in entry("r\(i)", changes: [JournalChange(kind: .contentType, identifier: "t\(i)", previousBundleID: "p")]) }
-        let text = try #require(JournalCodec.encode(DefaultAppsJournal(entries: many)))
-        guard case .journal(let decoded) = JournalCodec.decode(text) else { Issue.record("not decodable"); return }
-        #expect(decoded.entries.count == JournalCodec.maxEntries)
-        #expect(decoded.entries.last?.replacementBundleID == "r99", "the newest entries are kept")
-        let fat = entry(changes: (0..<2000).map { JournalChange(kind: .contentType, identifier: "t\($0)", previousBundleID: "p") })
-        guard case .journal(let capped) = JournalCodec.decode(try #require(JournalCodec.encode(DefaultAppsJournal(entries: [fat])))) else {
-            Issue.record("not decodable"); return
-        }
-        #expect(capped.entries[0].changes.count == JournalCodec.maxChangesPerEntry)
+    @Test func anEntryThatDoesNotFitWholeIsRefusedNeverCut() {
+        let fat = entry(changes: (0..<(JournalCodec.maxChangesPerEntry + 1)).map { JournalChange(kind: .contentType, identifier: "t\($0)", previousBundleID: "p") })
+        #expect(JournalCodec.encode(DefaultAppsJournal(entries: [fat])) == nil)
+        let exact = entry(changes: (0..<JournalCodec.maxChangesPerEntry).map { JournalChange(kind: .contentType, identifier: "t\($0)", previousBundleID: "p") })
+        #expect(JournalCodec.encode(DefaultAppsJournal(entries: [exact])) != nil)
+    }
+
+    @Test func anEntryWithSomethingToUndoIsNeverDroppedToMakeRoom() throws {
+        defer { bench.cleanup() }
+        let store = DefaultAppsJournalStore(defaults: bench.defaults)
+        let live = { (i: Int) in entry("r\(i)", changes: [JournalChange(kind: .contentType, identifier: "t\(i)", previousBundleID: "p", state: .applied)]) }
+        for i in 0..<JournalCodec.maxEntries { #expect(store.append(live(i))) }
+        let before = store.entries
+        #expect(!store.append(live(99)), "full of undoable entries: the new one is refused")
+        #expect(store.entries == before && store.entries.first?.replacementBundleID == "r0")
+        // An entry whose changes all failed changed nothing: it is the only kind that makes room.
+        store.replaceEntries([entry("failed", changes: [JournalChange(kind: .contentType, identifier: "f", previousBundleID: "p", state: .failed)])]
+                             + before.dropFirst())
+        #expect(store.append(live(100)))
+        #expect(!store.entries.contains { $0.replacementBundleID == "failed" } && store.entries.last?.replacementBundleID == "r100")
+        #expect(store.entries.count == JournalCodec.maxEntries && store.entries.contains { $0.replacementBundleID == "r1" })
+    }
+
+    @Test func theOriginalHandlerOfATypeIsKeptForeverAndSurvivesTheEntries() {
+        defer { bench.cleanup() }
+        let store = DefaultAppsJournalStore(defaults: bench.defaults)
+        let first = entry("r1", changes: [JournalChange(kind: .contentType, identifier: "A", previousBundleID: "orig", state: .applied)])
+        let second = entry("r2", changes: [JournalChange(kind: .contentType, identifier: "A", previousBundleID: "r1", state: .applied),
+                                           JournalChange(kind: .contentType, identifier: "B", previousBundleID: nil, state: .applied)])
+        #expect(store.append(first) && store.append(second))
+        #expect(store.originals == ["contentType:A": "orig"], "the first one wins, an unknown one is not invented")
+        store.replaceEntries([])
+        #expect(store.originals == ["contentType:A": "orig"], "undoing everything does not forget it")
+        #expect(UndoPlanner.plan(entries: [second], originals: store.originals).first?.restoreTo == "orig")
+        #expect(UndoPlanner.plan(entries: [second]).first?.restoreTo == "r1")
+    }
+
+    @Test func aJournalWrittenBeforeTheOriginalsExistedStillDecodes() {
+        let old = "{\"version\":1,\"entries\":[]}"
+        #expect(JournalCodec.decode(old) == .journal(DefaultAppsJournal()))
     }
 
     @Test func theStoreWritesAJsonStringUnderTheDocumentedKey() throws {

@@ -22,11 +22,18 @@ public final class DefaultAppsGuard {
     let launchServices: any LaunchServicesFacading
     let now: () -> Date
     let log: (String) -> Void
+    /// Shared with apply and undo: one LaunchServices writer at a time.
+    let gate: DefaultAppsWriteGate
+    /// False while the feature is off (kill switch, safe mode) or an apply / undo owns the writes.
+    let allowed: @MainActor () -> Bool
     private var running = false
     private var lastCheck: Date?
 
     public init(settings: DefaultAppsSettings, choices: DefaultAppsChoicesStore, launchServices: any LaunchServicesFacading,
-                now: @escaping () -> Date = Date.init, log: @escaping (String) -> Void = { _ in }) {
+                now: @escaping () -> Date = Date.init, log: @escaping (String) -> Void = { _ in },
+                gate: DefaultAppsWriteGate = DefaultAppsWriteGate(), allowed: @escaping @MainActor () -> Bool = { true }) {
+        self.gate = gate
+        self.allowed = allowed
         self.settings = settings
         self.choices = choices
         self.launchServices = launchServices
@@ -37,18 +44,23 @@ public final class DefaultAppsGuard {
     /// One pass over the stored choices. `reason` goes to the log ("launch", "activation").
     @discardableResult
     public func check(reason: String) async -> [GuardAction] {
-        guard settings.guardEnabled, !running else { return [] }
+        guard settings.guardEnabled, allowed(), !running else { return [] }
         let started = now()
         if let last = lastCheck, started.timeIntervalSince(last) < Self.debounce { return [] }
         lastCheck = started
         running = true
         defer { running = false }
+        // Waits for a running apply or undo, and re-checks everything once it has the turn: the stored choices are
+        // read only now, so a choice the undo just removed is never re-applied.
+        await gate.acquire()
+        defer { gate.release() }
+        guard settings.guardEnabled, allowed(), !Task.isCancelled else { return [] }
 
         var actions: [GuardAction] = []
         var breaker = RunBreaker()
         for choice in choices.choices {
             let key = choice.key
-            guard settings.guardEnabled else { break }
+            guard settings.guardEnabled, allowed(), !Task.isCancelled else { break }
             let current = live(choice)
             if current == choice.bundleID { continue }
             if ProtectionPolicy.isProtected(kind: choice.kind, identifier: choice.identifier) && !choice.explicitlyPicked {

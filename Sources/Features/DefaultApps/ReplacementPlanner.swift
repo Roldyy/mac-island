@@ -18,6 +18,7 @@ public struct ReplacementCandidate: Identifiable, Equatable, Sendable {
 /// Builds the preview and answers "can this app open that type". Pure: nothing here touches LaunchServices.
 public struct ReplacementPlanner: Sendable {
     let catalog: any ContentTypeCataloging
+    private let memo = ConformanceMemo()
 
     public init(catalog: any ContentTypeCataloging) { self.catalog = catalog }
 
@@ -25,7 +26,7 @@ public struct ReplacementPlanner: Sendable {
     public func canOpen(_ app: AppProfile, contentType id: String) -> Bool {
         if app.declared.contentTypes.contains(id) { return true }
         return app.declared.contentTypes.contains { parent in
-            !ProtectionPolicy.tooGenericToDeclare.contains(parent) && catalog.conforms(id, to: parent)
+            !ProtectionPolicy.tooGenericToDeclare.contains(parent) && memo.conforms(id, parent, catalog)
         }
     }
 
@@ -90,5 +91,24 @@ public struct ReplacementPlanner: Sendable {
                                      previousName: currentName, isProtected: protected, explicitlyPicked: protected))
         }
         return ReplacementPreview(sourceName: currentName, replacement: replacement, items: items, refused: refused)
+    }
+}
+
+/// Remembers `conforms(_:to:)` answers (each one builds two UTTypes in the live catalog). Thread-safe, per planner.
+final class ConformanceMemo: @unchecked Sendable {
+    private let lock = NSLock()
+    private var answers: [String: Bool] = [:]
+
+    func conforms(_ id: String, _ parent: String, _ catalog: any ContentTypeCataloging) -> Bool {
+        let key = id + "\u{0}" + parent
+        lock.lock()
+        if let known = answers[key] { lock.unlock(); return known }
+        lock.unlock()
+        let answer = catalog.conforms(id, to: parent)
+        lock.lock()
+        if answers.count > 200_000 { answers.removeAll() }
+        answers[key] = answer
+        lock.unlock()
+        return answer
     }
 }

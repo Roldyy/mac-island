@@ -53,10 +53,23 @@ public struct DefaultAppsJournal: Codable, Equatable, Sendable {
     public static let currentVersion = 1
     public var version: Int
     public var entries: [JournalEntry]
+    /// The handler each type or scheme had the FIRST time this feature changed it (key "kind:identifier"). Never
+    /// trimmed with the entries, so "Tout restaurer" always reaches the true original.
+    public var originals: [String: String]
 
-    public init(version: Int = DefaultAppsJournal.currentVersion, entries: [JournalEntry] = []) {
+    public init(version: Int = DefaultAppsJournal.currentVersion, entries: [JournalEntry] = [], originals: [String: String] = [:]) {
         self.version = version
         self.entries = entries
+        self.originals = originals
+    }
+
+    private enum CodingKeys: String, CodingKey { case version, entries, originals }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decode(Int.self, forKey: .version)
+        entries = try c.decode([JournalEntry].self, forKey: .entries)
+        originals = try c.decodeIfPresent([String: String].self, forKey: .originals) ?? [:]
     }
 }
 
@@ -81,19 +94,19 @@ public enum JournalCodec {
         return encoder
     }
 
-    /// Caps the journal (oldest entries go first until it fits) and returns its JSON, nil when even one entry is too big.
+    /// The journal's JSON, nil when it does not fit WHOLE: an entry over the change cap is refused (never cut), and
+    /// an entry that still has something to undo is never dropped to make room. Only entries whose changes all
+    /// failed (nothing was changed) are pruned, oldest first.
     public static func encode(_ journal: DefaultAppsJournal) -> String? {
         var capped = journal
-        capped.entries = capped.entries.suffix(maxEntries).map { entry in
-            var entry = entry
-            entry.changes = Array(entry.changes.prefix(maxChangesPerEntry))
-            return entry
-        }
+        guard !capped.entries.contains(where: { $0.changes.count > maxChangesPerEntry }) else { return nil }
         while true {
-            guard let data = try? encoder().encode(capped) else { return nil }
-            if data.count <= maxBytes { return String(data: data, encoding: .utf8) }
-            if capped.entries.count <= 1 { return nil }
-            capped.entries.removeFirst()
+            if capped.entries.count <= maxEntries {
+                guard let data = try? encoder().encode(capped) else { return nil }
+                if data.count <= maxBytes { return String(data: data, encoding: .utf8) }
+            }
+            guard let spare = capped.entries.firstIndex(where: { $0.changes.allSatisfy { $0.state == .failed } }) else { return nil }
+            capped.entries.remove(at: spare)
         }
     }
 

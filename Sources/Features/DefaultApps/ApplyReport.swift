@@ -43,8 +43,13 @@ struct RunBreaker {
 
     mutating func record(_ error: Error) {
         consecutiveFailures += 1
-        if (error as? LaunchServicesError)?.userCancelled == true || consecutiveFailures >= Self.limit { tripped = true }
+        let ls = error as? LaunchServicesError
+        // A timeout stops the run too: the pending macOS call or sheet may still be open, never queue another behind it.
+        if ls?.userCancelled == true || ls?.timedOut == true || consecutiveFailures >= Self.limit { tripped = true }
     }
+
+    /// Stops the run without counting a failure (the feature was switched off).
+    mutating func stop() { tripped = true }
 
     mutating func recordSuccess() { consecutiveFailures = 0 }
 }
@@ -62,7 +67,9 @@ public struct UndoItem: Identifiable, Equatable, Sendable {
 
 /// Builds the undo of some journal entries (oldest first). Pure.
 public enum UndoPlanner {
-    public static func plan(entries: [JournalEntry]) -> [UndoItem] {
+    /// `originals` (when given) wins over the previous handler of the entries: "Tout restaurer" goes back to what the
+    /// type had before this feature ever touched it.
+    public static func plan(entries: [JournalEntry], originals: [String: String] = [:]) -> [UndoItem] {
         var order: [String] = []
         var restore: [String: (kind: ChangeKind, id: String, to: String?)] = [:]
         var expected: [String: String] = [:]
@@ -77,7 +84,7 @@ public enum UndoPlanner {
         }
         return order.compactMap { key in
             guard let r = restore[key], let e = expected[key] else { return nil }
-            return UndoItem(kind: r.kind, identifier: r.id, restoreTo: r.to, expectedCurrent: e)
+            return UndoItem(kind: r.kind, identifier: r.id, restoreTo: originals[key] ?? r.to, expectedCurrent: e)
         }
     }
 }
