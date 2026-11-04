@@ -190,6 +190,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let home = HomeModel(defaults: defaults, keyboardLight: .keyboardBacklight(PortKeyboardBacklight()))
         let ambientCenter = ambient
         weak var islandRef: IslandController?  // weak: the island owns this context
+        // "Adresse IP" status chip (local address, "VPN actif"; the public address only on a click).
+        let ipChip = IPChipSource(openScanner: { navigation.open(tabID: IPScannerFeature.id) },
+                                  scannerAvailable: { registry.isEnabled(IPScannerFeature.id) })
         let context = ShellContext(
             tabs: tabs, registry: registry, navigation: navigation, quickAccess: quickAccess, home: home,
             closedStrip: { AnyView(ClosedStrip(ambient: ambientCenter)) },
@@ -209,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettingsPage: { settings.show(page: $0) },
             // Extra status chips (monitor, calendar, timer...) are added here by the lanes that own them; ShellKit
             // already feeds network, load and disk itself.
-            statusSources: { [] })
+            statusSources: { [ipChip] })
         // The panel measures the ambient center's width proxy, not the raw activity layout: two indicators per
         // wing need more room than the arbiter's one item per wing says.
         let island = IslandController(activityCenter: ambientCenter.widthProxy) { IslandShellView(context: context) }

@@ -43,7 +43,8 @@ let package = Package(
         .target(name: "DockFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Dock"),
         .target(name: "AudioFeature", dependencies: ["IslandKit", "PortKit"], path: "Sources/Features/Audio"),
         // IP scanner: Network.framework + getifaddrs + SystemConfiguration only, no PortKit, nothing depends on it but the app.
-        .target(name: "IPScannerFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/IPScanner"),
+        // ShellKit joins only for the "Adresse IP" status chip (IPChipSource implements ShellKit's StatusChipSource).
+        .target(name: "IPScannerFeature", dependencies: ["IslandKit", "IslandUI", "ShellKit"], path: "Sources/Features/IPScanner"),
         // Default apps: LaunchServices (NSWorkspace) + Info.plist reading only; every write goes through one facade, nothing depends on it but the app.
         .target(name: "DefaultAppsFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/DefaultApps"),
 

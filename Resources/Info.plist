@@ -47,6 +47,10 @@
     <string>Mac Island lit vos calendriers pour afficher vos prochains rendez-vous dans l’île. Les événements restent sur ce Mac.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Mac Island coupe le Bluetooth quand le Mac s’endort et le rétablit au réveil, uniquement si vous activez cette option.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Mac Island lit le nom du réseau Wi-Fi auquel vous êtes connecté pour l’afficher dans l’île. Votre position n’est ni enregistrée ni envoyée.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Mac Island lit le nom du réseau Wi-Fi auquel vous êtes connecté pour l’afficher dans l’île. Votre position n’est ni enregistrée ni envoyée.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Mac Island parcourt votre réseau local pour lister les appareils, uniquement quand vous lancez un scan vous-même. Rien ne quitte votre réseau.</string>
     <key>NSBonjourServices</key>

@@ -1,0 +1,174 @@
+import Foundation
+import IslandKit
+import Testing
+@testable import ShellKit
+
+/// A reader driven by hand: no CoreLocation, no CoreWLAN.
+@MainActor
+private final class FakeSSIDReader: SSIDReading {
+    var authorization: LocationAuthorization
+    var ssid: String?
+    var onAuthorizationChange: (@MainActor () -> Void)?
+    private(set) var requests = 0
+    private(set) var reads = 0
+
+    init(_ authorization: LocationAuthorization, ssid: String? = nil) {
+        self.authorization = authorization
+        self.ssid = ssid
+    }
+
+    func readSSID() -> String? { reads += 1; return ssid }
+    func requestAuthorization() { requests += 1 }
+}
+
+@MainActor
+@Suite struct WiFiNameTests {
+    // MARK: Sanitiser
+
+    @Test func aPlainNameIsKept() {
+        #expect(WiFiNameProvider.sanitized("Maison 5G") == "Maison 5G")
+        #expect(WiFiNameProvider.sanitized("Café du Port") == "Café du Port")
+    }
+
+    @Test func controlsLineBreaksAndBidiOverridesAreDropped() {
+        #expect(WiFiNameProvider.sanitized("Bu\u{0000}reau\n\r\t2") == "Bureau2")
+        // U+202E (right-to-left override), U+2066 (isolate), U+200B (zero-width space), U+FEFF.
+        #expect(WiFiNameProvider.sanitized("\u{202E}moc.evil\u{2066}\u{200B}\u{FEFF}") == "moc.evil")
+        #expect(WiFiNameProvider.sanitized("a\u{2028}b\u{2029}c") == "abc")
+    }
+
+    @Test func spacesCollapseAndTrim() {
+        #expect(WiFiNameProvider.sanitized("  Wi   Fi \u{00A0} Box  ") == "Wi Fi Box")
+    }
+
+    @Test func anEmptyNameIsNil() {
+        #expect(WiFiNameProvider.sanitized(nil) == nil)
+        #expect(WiFiNameProvider.sanitized("") == nil)
+        #expect(WiFiNameProvider.sanitized("\u{202E}\u{200B}  \n") == nil)
+    }
+
+    @Test func aLongNameIsCutAt24CharactersWithAnEllipsis() throws {
+        let exactly = String(repeating: "a", count: 24)
+        #expect(WiFiNameProvider.sanitized(exactly) == exactly)
+        let long = try #require(WiFiNameProvider.sanitized(String(repeating: "b", count: 60)))
+        #expect(long.count == 24 && long.hasSuffix("…"))
+        // Counted in characters, not bytes: 30 emoji never split one.
+        let emoji = try #require(WiFiNameProvider.sanitized(String(repeating: "📶", count: 30)))
+        #expect(emoji.count == 24 && emoji.hasPrefix("📶"))
+    }
+
+    // MARK: Provider states
+
+    @Test func authorizedGivesTheSanitisedName() {
+        let reader = FakeSSIDReader(.authorized, ssid: "\u{202E}Box\n")
+        let provider = WiFiNameProvider(reader: reader)
+        #expect(provider.name(forWiFi: true) == "Box")
+        #expect(reader.requests == 0)
+    }
+
+    @Test func authorizedWithoutANameGivesNil() {
+        let provider = WiFiNameProvider(reader: FakeSSIDReader(.authorized, ssid: nil))
+        #expect(provider.name(forWiFi: true) == nil)
+    }
+
+    @Test func deniedGivesNilAndNeverAsksNorReads() {
+        let reader = FakeSSIDReader(.denied, ssid: "Box")
+        let provider = WiFiNameProvider(reader: reader)
+        for _ in 0..<5 { #expect(provider.name(forWiFi: true) == nil) }
+        #expect(reader.requests == 0 && reader.reads == 0)
+    }
+
+    @Test func undeterminedAsksOnceOnWiFiAndGivesNil() {
+        let reader = FakeSSIDReader(.notDetermined, ssid: "Box")
+        let provider = WiFiNameProvider(reader: reader)
+        for _ in 0..<5 { #expect(provider.name(forWiFi: true) == nil) }
+        #expect(reader.requests == 1, "one prompt, never two")
+        #expect(reader.reads == 0, "the SSID is not read before the permission")
+    }
+
+    @Test func offWiFiNeverAsks() {
+        let reader = FakeSSIDReader(.notDetermined, ssid: "Box")
+        let provider = WiFiNameProvider(reader: reader)
+        #expect(provider.name(forWiFi: false) == nil)
+        #expect(reader.requests == 0)
+        // The first time on Wi-Fi is the first request.
+        _ = provider.name(forWiFi: true)
+        #expect(reader.requests == 1)
+    }
+
+    @Test func theRequestFlagSurvivesAStopAndARestart() {
+        let reader = FakeSSIDReader(.notDetermined)
+        let provider = WiFiNameProvider(reader: reader)
+        provider.begin {}
+        _ = provider.name(forWiFi: true)
+        provider.end()
+        provider.begin {}
+        _ = provider.name(forWiFi: true)
+        #expect(reader.requests == 1)
+    }
+
+    @Test func beginAndEndHookTheAuthorizationCallback() {
+        let reader = FakeSSIDReader(.notDetermined)
+        let provider = WiFiNameProvider(reader: reader)
+        provider.begin {}
+        #expect(reader.onAuthorizationChange != nil)
+        provider.end()
+        #expect(reader.onAuthorizationChange == nil)
+    }
+
+    // MARK: The chip
+
+    private func snapshot(_ link: NetworkLink, name: String? = nil) -> NetworkChipSource.Snapshot {
+        .init(link: link, vpn: false, down: nil, up: nil, name: name)
+    }
+
+    @Test func theTitleIsTheNameWhenKnownAndWiFiOtherwise() {
+        #expect(NetworkChipSource.reading(snapshot(.wifi, name: "Maison 5G")).primary == "Maison 5G")
+        #expect(NetworkChipSource.reading(snapshot(.wifi)).primary == "Wi-Fi")
+        // A name never replaces the other titles.
+        #expect(NetworkChipSource.reading(snapshot(.wired, name: "Maison")).primary == "Ethernet")
+        #expect(NetworkChipSource.reading(snapshot(.offline, name: "Maison")).primary == "Hors ligne")
+    }
+
+    @Test func theDebitStaysSecondaryNextToTheName() {
+        let reading = NetworkChipSource.reading(.init(link: .wifi, vpn: true, down: 1_200_000, up: 50_000, name: "Box"))
+        #expect(reading.primary == "Box")
+        #expect(reading.secondary?.hasPrefix("VPN · ↓ ") == true)
+    }
+
+    @Test func aRunningChipShowsTheNameOnceAuthorizedAndKeepsWiFiWhenDenied() async throws {
+        for (authorization, expected) in [(LocationAuthorization.authorized, "Box"), (.denied, "Wi-Fi"), (.notDetermined, "Wi-Fi")] {
+            let reader = FakeSSIDReader(authorization, ssid: "Box")
+            let source = NetworkChipSource(sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, watchPath: false,
+                                           read: { [] }, nameProvider: WiFiNameProvider(reader: reader))
+            // No path monitor in the test: feed the wifi link through the same `apply` the tick uses.
+            source.start()
+            source.apply(snapshot(.wifi))
+            #expect(source.reading?.primary == expected)
+            source.stop()
+            #expect(source.reading == nil)
+        }
+    }
+
+    @Test func answeringThePromptRedrawsTheChipWithTheName() {
+        let reader = FakeSSIDReader(.notDetermined, ssid: "Box")
+        let source = NetworkChipSource(sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, watchPath: false,
+                                       read: { [] }, nameProvider: WiFiNameProvider(reader: reader))
+        source.start()
+        source.apply(snapshot(.wifi))
+        #expect(source.reading?.primary == "Wi-Fi" && reader.requests == 1)
+        var changes = 0
+        source.onChange = { changes += 1 }
+        reader.authorization = .authorized
+        reader.onAuthorizationChange?()
+        #expect(source.reading?.primary == "Box" && changes == 1)
+        source.stop()
+        #expect(reader.onAuthorizationChange == nil, "stop() unhooks the delegate callback")
+    }
+
+    @Test func builtinWiresTheLiveProviderUnlessToldOtherwise() {
+        let network = StatusChipProviders.builtin(openMonitor: nil, temperature: nil, liveWiFiName: false)
+        #expect(network.map(\.kind) == [.network, .load, .disk])
+        #expect(StatusChipProviders.builtin(openMonitor: nil, temperature: nil).map(\.kind) == [.network, .load, .disk])
+    }
+}

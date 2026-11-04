@@ -2,7 +2,8 @@ import Foundation
 import IslandKit
 import Network
 
-/// "Réseau": the connection type ("Wi-Fi", "Ethernet", "Hors ligne") and the live rates. No network name yet.
+/// "Réseau": the connection type ("Wi-Fi", "Ethernet", "Hors ligne") and the live rates. On Wi-Fi the title is the
+/// network name when a `WiFiNameProvider` knows it (Location allowed), otherwise "Wi-Fi".
 ///
 /// Counters are read every 2 seconds off the main thread (the same `getifaddrs` delta as the closed island's pill);
 /// the connection type comes from `NWPathMonitor`, which calls back only when the path changes. Both run only
@@ -17,6 +18,8 @@ final class NetworkChipSource: StatusChipPolledSource {
         var vpn: Bool
         var down: Double?
         var up: Double?
+        /// The Wi-Fi name, already sanitised; nil keeps the title "Wi-Fi".
+        var name: String?
     }
 
     private struct Memory {
@@ -31,6 +34,8 @@ final class NetworkChipSource: StatusChipPolledSource {
     private let interval: Duration
     private let sleep: @Sendable (Duration) async throws -> Void
     private let openMonitor: (@MainActor () -> Void)?
+    private let nameProvider: WiFiNameProvider?
+    private var lastSnapshot: Snapshot?
     private var poller: AmbientPoller?
     private var monitor: NWPathMonitor?
     private let pathQueue = DispatchQueue(label: "be.roldy.macisland.chip-network-path", qos: .utility)
@@ -40,7 +45,9 @@ final class NetworkChipSource: StatusChipPolledSource {
          sleep: @escaping @Sendable (Duration) async throws -> Void = StatusChipPolledSource.sleeper(tolerance: .milliseconds(500)),
          watchPath: Bool = true,
          read: @escaping @Sendable () -> [InterfaceReading] = { SystemCounters.interfaces() },
-         openMonitor: (@MainActor () -> Void)? = nil) {
+         openMonitor: (@MainActor () -> Void)? = nil,
+         nameProvider: WiFiNameProvider? = nil) {
+        self.nameProvider = nameProvider
         self.interval = interval
         self.sleep = sleep
         self.watchPath = watchPath
@@ -60,7 +67,7 @@ final class NetworkChipSource: StatusChipPolledSource {
         }
         let title: String, symbol: String
         switch snapshot.link {
-        case .wifi: (title, symbol) = ("Wi-Fi", "wifi")
+        case .wifi: (title, symbol) = (snapshot.name ?? "Wi-Fi", "wifi")
         case .wired: (title, symbol) = ("Ethernet", "cable.connector.horizontal")
         case .other: (title, symbol) = ("Réseau", "network")
         case .offline: (title, symbol) = ("Hors ligne", "wifi.slash")
@@ -95,6 +102,11 @@ final class NetworkChipSource: StatusChipPolledSource {
             }
             Task { @MainActor in self?.apply(snapshot) }
         }
+        // The user answered the Location prompt (or changed it in Settings): show the name now.
+        nameProvider?.begin { [weak self] in
+            guard let self, let last = self.lastSnapshot else { return }
+            self.apply(last)
+        }
         poller = AmbientPoller(interval: interval, sleep: sleep, tick: tick)
         poller?.start()
         guard watchPath else { return }
@@ -120,11 +132,18 @@ final class NetworkChipSource: StatusChipPolledSource {
         poller = nil
         monitor?.cancel()
         monitor = nil
+        nameProvider?.end()
+        lastSnapshot = nil
         // The next run measures from its own first reading.
         state.withValue { $0.counters = nil; $0.at = nil }
     }
 
-    private func apply(_ snapshot: Snapshot) {
-        publish(Self.reading(snapshot, openMonitor: openMonitor))
+    /// Internal (not private) so a test can feed a link without a path monitor.
+    func apply(_ snapshot: Snapshot) {
+        guard isRunning else { return }
+        lastSnapshot = snapshot
+        var named = snapshot
+        named.name = nameProvider?.name(forWiFi: snapshot.link == .wifi)
+        publish(Self.reading(named, openMonitor: openMonitor))
     }
 }

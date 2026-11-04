@@ -19,5 +19,10 @@
     <!-- Bluetooth sleep restore: CoreBluetooth/IOBluetooth need this under the hardened runtime (and a usage string). -->
     <key>com.apple.security.device.bluetooth</key>
     <true/>
+    <!-- Wi-Fi name in the Network chip: macOS hides the SSID until the app may use Location (CoreLocation asks once,
+         when the chip first runs on Wi-Fi; NSLocationWhenInUseUsageDescription). Name to check after a signed install:
+         codesign -d --entitlements - "/Applications/Mac Island.app" -->
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
 </dict>
 </plist>
