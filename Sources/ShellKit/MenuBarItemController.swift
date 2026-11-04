@@ -17,6 +17,7 @@ public final class MenuBarItemController: NSObject {
     private let onRelaunch: (@MainActor () -> Void)?
     private let onTogglePanel: (@MainActor (NSStatusBarButton) -> Void)?
     private let onOpenHistory: (@MainActor () -> Void)?
+    private let onHidden: (@MainActor () -> Void)?
     private let menu: NSMenu
     private var observer: NSObjectProtocol?
 
@@ -26,18 +27,21 @@ public final class MenuBarItemController: NSObject {
                 onRelaunch: (@MainActor () -> Void)? = nil,
                 onTogglePanel: (@MainActor (NSStatusBarButton) -> Void)? = nil,
                 onOpenHistory: (@MainActor () -> Void)? = nil,
+                onHidden: (@MainActor () -> Void)? = nil,
                 defaults: UserDefaults = .standard) {
         self.onOpenSettings = onOpenSettings
         self.onQuit = onQuit
         self.onRelaunch = onRelaunch
         self.onTogglePanel = onTogglePanel
         self.onOpenHistory = onOpenHistory
+        self.onHidden = onHidden
         self.defaults = defaults
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         menu = NSMenu()
         super.init()
         Self.fill(menu, target: self, canRelaunch: onRelaunch != nil)
         applyIcon()
+        applyVisibility()
         if onTogglePanel == nil {
             item.menu = menu
         } else {
@@ -49,7 +53,10 @@ public final class MenuBarItemController: NSObject {
         observer = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: defaults, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyIcon() }
+            MainActor.assumeIsolated {
+                self?.applyIcon()
+                self?.applyVisibility()
+            }
         }
     }
 
@@ -141,9 +148,26 @@ public final class MenuBarItemController: NSObject {
         button.cell?.imageRect(forBounds: button.bounds).maxX ?? 0
     }
 
-    /// Shows or hides the icon. Only the ported menu bar metrics ask (their "hide the app icon" option), and only
-    /// while a metric item of their own is on screen.
-    public func setIconVisible(_ visible: Bool) { item.isVisible = visible }
+    /// The ported menu bar metrics' say (their "hide the app icon" option, only while a metric item shows). It never
+    /// shows the icon on its own: the person's switch (`MenuBarIconPolicy`) must be on too.
+    public func setIconVisible(_ visible: Bool) {
+        metricsAllowIcon = visible
+        applyVisibility()
+    }
+
+    private var metricsAllowIcon = true
+
+    /// Whether the icon is on screen now.
+    public var isIconVisible: Bool { item.isVisible }
+
+    private func applyVisibility() {
+        let visible = MenuBarIconPolicy.isVisible(userWantsIcon: MenuBarIconPolicy.isShown(defaults: defaults),
+                                                  metricsAllowIcon: metricsAllowIcon)
+        guard item.isVisible != visible else { return }
+        item.isVisible = visible
+        // A hidden item cannot anchor a panel: close whatever is open on it.
+        if !visible { onHidden?() }
+    }
 
     // MARK: - Menu
 

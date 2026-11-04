@@ -3,6 +3,7 @@
 // Lane W9A (quick panel). The lane owns this file.
 
 import AppKit
+import ShellKit
 import SwiftUI
 
 /// The menu bar panel of the port: Vorssaint's `MenuPanelView` (keep awake, displays, mixer, system, network, disks,
@@ -126,18 +127,25 @@ public final class PortQuickPanel: NSObject, NSPopoverDelegate {
 // MARK: - Page "Barre des menus"
 
 /// The body of Settings page `menubar`: which sections the panel shows, in which order, and the icon in the menu bar.
-/// It is the upstream panel configuration card; the "icon is missing" row is left out, because Mac Island's status
-/// item is never hidden by a setting.
+/// It is the upstream panel configuration card; the "icon is missing" row is left out. The one switch that shows or
+/// hides Mac Island's status item (`MenuBarIconPolicy`, hidden by default) sits at the top of the card.
 ///
 /// Page 02 also carries the live menu bar metrics (CPU, memory, network...): those belong to the monitor lane and are
 /// added there, next to this card, by registering a composite body for the same page id.
 struct MenuBarPanelPage: View {
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(MenuBarIconPolicy.key) private var iconShown = false
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
 
     var body: some View {
         SettingsCard(title: l10n.s.menuBarSection) {
+            Toggle("Afficher l’icône Mac Island dans la barre des menus", isOn: $iconShown)
+            Text("Désactivée par défaut : tout est dans l’île. Le panneau rapide s’ouvre depuis cette icône.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
             Text(text.panelIntro)
                 .font(.callout)
                 .foregroundStyle(.secondary)

@@ -179,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRelaunch: Self.relaunchAction,
             onTogglePanel: { button in PortQuickPanel.shared.toggle(from: button) },
             onOpenHistory: { ClipboardFeature.openHistory() },
+            onHidden: { PortQuickPanel.shared.close(force: true) },
             defaults: defaults)
         // The clipboard history's "last copy in the menu bar": the model publishes the text, already cut to the
         // chosen length. Called at once with the current value, so a preview published before this line is not lost.
