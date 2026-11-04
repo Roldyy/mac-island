@@ -309,6 +309,36 @@ private final class Launches {
         #expect(launches.pids.count == 2)  // ensureRunning did not start a third one
     }
 
+    @Test func resetEndsTheOldShellAndStartsAFreshOneInTheHomeFolder() async throws {
+        let folder = try scratchFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = TerminalProfileStore(defaults: freshDefaults())
+        let spy = SpyTerminator()
+        let launches = Launches()
+        let session = makeSession(folder: folder, launches: launches, store: store, spy: spy)
+
+        session.resetToFresh()  // before the first display: nothing to reset, nothing starts
+        #expect(launches.pids.isEmpty)
+
+        let oldView = session.ensureRunning()
+        let oldPid = try #require(launches.pids.first)
+        #expect(await settle { TerminalProcessInfo.currentDirectory(of: oldPid) == folder.path })
+        #expect(session.resetDecision() == .restart)  // a lone shell: no question
+
+        session.resetToFresh()
+        #expect(launches.pids.count == 2)
+        let newPid = launches.pids[1]
+        defer { kill(newPid, SIGKILL) }
+        #expect(newPid != oldPid)
+        #expect(launches.directories[1] == NSHomeDirectory())  // clean: home, not the old folder
+        #expect(spy.hangUps.count == 1 && spy.hangUps[0].shellPid == oldPid)
+        #expect(await settle { gone(oldPid) })
+
+        let newView = session.ensureRunning()
+        #expect(newView !== oldView && session.hasSession)
+        #expect(launches.pids.count == 2)
+    }
+
     @Test func aProgramInFrontAsksFirstAndOnlyAnAnswerEndsIt() async throws {
         let folder = try scratchFolder()
         defer { try? FileManager.default.removeItem(at: folder) }

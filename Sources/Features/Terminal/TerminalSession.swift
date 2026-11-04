@@ -97,7 +97,21 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
     /// (read from the defaults). The caller has already asked the user when a program was running.
     func restartWithActiveProfile() {
         guard let old = terminalView, !exited else { return }  // not running: the next start reads the profile
-        let directory = TerminalProcessInfo.usableDirectory(of: old.process.shellPid)
+        replaceShell(old, directory: TerminalProcessInfo.usableDirectory(of: old.process.shellPid))
+    }
+
+    /// What a reset must ask first: nothing when only the shell is in front, the program's name otherwise.
+    /// A session that already ended (or never started) needs no question.
+    func resetDecision() -> TerminalRestartDecision { restartDecision() }
+
+    /// A brand new terminal: the shell and its program end, a fresh login shell starts in the home folder with an
+    /// empty screen and scrollback. Works when the shell already exited. Does nothing before the first display.
+    func resetToFresh() {
+        guard let old = terminalView else { return }
+        replaceShell(old, directory: NSHomeDirectory())
+    }
+
+    private func replaceShell(_ old: ActivityTerminalView, directory: String) {
         let hadFocus = old.window?.firstResponder === old
         let host = old.superview
         let frame = old.frame
@@ -105,15 +119,18 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate, Termina
         let onClick = old.onClick
 
         // Read before ending anything: SwiftTerm's terminate() closes the PTY and forgets its descriptor.
+        let wasRunning = !exited
         let pid = old.process.shellPid
-        let foreground = foregroundGroup(old.process.childfd)
+        let foreground = wasRunning ? foregroundGroup(old.process.childfd) : nil
 
         old.processDelegate = nil  // its exit must not mark the NEW session as ended
-        // SwiftTerm's terminate() alone leaves the shell and its program running (see TerminalShellTerminator):
-        // hang up the foreground program and the shell, close the PTY, then wait and reap off the main thread.
-        let target = terminator.hangUp(shellPid: pid, foregroundGroup: foreground)
-        old.terminate()
-        terminator.reap(target)
+        if wasRunning {
+            // SwiftTerm's terminate() alone leaves the shell and its program running (see TerminalShellTerminator):
+            // hang up the foreground program and the shell, close the PTY, then wait and reap off the main thread.
+            let target = terminator.hangUp(shellPid: pid, foregroundGroup: foreground)
+            old.terminate()
+            terminator.reap(target)
+        }
         old.removeFromSuperview()
 
         let view = start(directory: directory)
