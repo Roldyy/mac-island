@@ -58,21 +58,52 @@ enum ClaudeUsageParser {
         var committedOffset: UInt64 = 0
     }
 
-    static func parse(file url: URL, from offset: UInt64 = 0) throws -> FileParse {
+    /// Most records one file keeps in memory. A real log holds a few thousand messages; the cap only stops a
+    /// pathological file from growing the arrays without bound. Records past it are counted in `malformedLines`.
+    static let maxRecordsPerFile = 250_000
+
+    static func parse(file url: URL, from offset: UInt64 = 0, maxRecords: Int = maxRecordsPerFile) throws -> FileParse {
         var out = FileParse()
-        let parser = LineParser()
+        // Streams: a message id repeated once per content block is folded into one record as the lines arrive,
+        // so the array never holds the repeats (they were the bulk of a transient copy per big file).
+        let parser = LineParser(deduplicating: true, maxRecords: maxRecords)
         let outcome = try JSONLStream.read(url: url, from: offset) { parser.consume($0, into: &out.committed) }
         out.committed.malformedLines += outcome.oversizedLines
         out.committedOffset = outcome.committedOffset
         if let tail = outcome.tail {
             var scratch = Result()
-            parser.consume(tail, into: &scratch)
+            LineParser(deduplicating: false, maxRecords: maxRecords).consume(tail, into: &scratch)
             out.tail = scratch
         }
         return out
     }
 
+    /// Model and project names repeat across every record: one shared string each instead of a heap copy per
+    /// record. Bounded, so a hostile log of unique names cannot grow it.
+    private final class Interner: @unchecked Sendable {
+        static let shared = Interner()
+        private let lock = NSLock()
+        private var table: [String: String] = [:]
+        func intern(_ value: String) -> String {
+            lock.withLock {
+                if let known = table[value] { return known }
+                if table.count < 512 { table[value] = value }
+                return value
+            }
+        }
+    }
+
     private final class LineParser {
+        private let deduplicating: Bool
+        private let maxRecords: Int
+        /// message id -> index in the result being filled (streaming mode only, one result per parser).
+        private var index: [String: Int] = [:]
+
+        init(deduplicating: Bool = false, maxRecords: Int = ClaudeUsageParser.maxRecordsPerFile) {
+            self.deduplicating = deduplicating
+            self.maxRecords = maxRecords
+        }
+
         private let withFraction: ISO8601DateFormatter = {
             let f = ISO8601DateFormatter()
             f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -100,15 +131,25 @@ enum ClaudeUsageParser {
                 result.malformedLines += 1
                 return
             }
-            result.records.append(UsageRecord(
+            let record = UsageRecord(
                 messageID: line.message?.id,
-                model: line.message?.model ?? "unknown",
+                model: Interner.shared.intern(line.message?.model ?? "unknown"),
                 timestamp: date,
                 inputTokens: usage.input_tokens ?? 0,
                 outputTokens: usage.output_tokens ?? 0,
                 cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
                 cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-                project: line.cwd.map(ClaudeText.folderName(fromCwd:)) ?? ""))
+                project: Interner.shared.intern(line.cwd.map(ClaudeText.folderName(fromCwd:)) ?? ""))
+            guard deduplicating else { result.records.append(record); return }
+            // Same rule as `UsageRecord.deduplicated`: the largest output per id wins, first position kept.
+            if let id = record.messageID, let at = index[id] {
+                if record.outputTokens > result.records[at].outputTokens { result.records[at] = record }
+            } else if result.records.count >= maxRecords {
+                result.malformedLines += 1
+            } else {
+                if let id = record.messageID { index[id] = result.records.count }
+                result.records.append(record)
+            }
         }
     }
 }

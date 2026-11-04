@@ -36,7 +36,7 @@ enum UsagePipeline {
         // Sources run one after the other; a state reported by one source carries the records of those before it.
         for source in sources {
             var loaded = source.load(modifiedSince: since, shouldContinue: shouldContinue) { progress in
-                let records = settled + progress.result.records
+                let records = settled.isEmpty ? progress.result.records : settled + progress.result.records
                 if progress.fromCache {
                     // The open block needs only the last hours of the cache: say it before the whole snapshot
                     // (13-week heatmap and all) is built, so the session ring is right at the first paint.

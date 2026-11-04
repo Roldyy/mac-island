@@ -12,7 +12,7 @@ struct ClaudeUsageSource: UsageSource {
     /// Files read at the same time. Bounded: each worker holds one 1 MB chunk plus its parsed records.
     var workers = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount - 1))
     /// Minimum time between two progress reports (a report costs a merge and a snapshot build).
-    var reportInterval: TimeInterval = 0.3
+    var reportInterval: TimeInterval = 1
     let cache = UsageFileCache()
 
     init(directory: URL = FileManager.default.homeDirectoryForCurrentUser

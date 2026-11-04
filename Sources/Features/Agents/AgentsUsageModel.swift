@@ -42,7 +42,9 @@ final class AgentsUsageModel {
     @ObservationIgnored private let planLoader: @Sendable () -> PlanTier?
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let clock: @Sendable () -> Date
-    @ObservationIgnored private let sessionProbe: @Sendable () -> Bool
+    /// Test override. nil in the app: the warm-up asks the shared monitor, it never reads session files itself.
+    @ObservationIgnored private let sessionProbe: (@Sendable () -> Bool)?
+    @ObservationIgnored private let liveSessions: @MainActor () -> [ClaudeSession]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshIsInteractive = false
     @ObservationIgnored private var warmup: Task<Void, Never>?
@@ -54,7 +56,8 @@ final class AgentsUsageModel {
          planLoader: @escaping @Sendable () -> PlanTier? = { PlanTierSource.load() },
          calendar: Calendar = UsageFormat.calendar,
          clock: @escaping @Sendable () -> Date = { Date() },
-         sessionProbe: @escaping @Sendable () -> Bool = { AgentsUsageModel.claudeIsActive() }) {
+         sessionProbe: (@Sendable () -> Bool)? = nil,
+         liveSessions: @escaping @MainActor () -> [ClaudeSession] = { ClaudeLiveMonitor.shared.sessions }) {
         self.settings = settings
         self.period = settings.period
         self.cardOrder = settings.cardOrder
@@ -68,6 +71,7 @@ final class AgentsUsageModel {
         self.calendar = calendar
         self.clock = clock
         self.sessionProbe = sessionProbe
+        self.liveSessions = liveSessions
     }
 
     /// The model's clock: the page draws "in 40 min" from it, so a snapshot can pin the time.
@@ -189,8 +193,8 @@ final class AgentsUsageModel {
 
     private func shouldPoll() async -> Bool {
         if visibleCount > 0 { return true }
-        let probe = sessionProbe
-        return await Task.detached(priority: .utility) { probe() }.value
+        if let probe = sessionProbe { return await Task.detached(priority: .utility) { probe() }.value }
+        return liveSessions().contains { $0.state == .working || $0.state == .waiting }
     }
 
     /// The page is on screen: refresh now (joins a read in flight) and keep refreshing while it stays.
@@ -208,11 +212,5 @@ final class AgentsUsageModel {
             await refresh(interactive: true)
             try? await Task.sleep(for: interval)
         }
-    }
-
-    /// True when a Claude Code session is working or waiting for the user (a few small files to read).
-    nonisolated static func claudeIsActive() -> Bool {
-        ClaudeSessionReader(directory: ClaudeSessionReader.defaultDirectory).read()
-            .contains { $0.state == .working || $0.state == .waiting }
     }
 }

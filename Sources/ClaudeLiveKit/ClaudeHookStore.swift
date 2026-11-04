@@ -27,6 +27,24 @@ public struct ClaudeLiveSource: Sendable {
         Self.merge(sessions: reader.read(), hooks: hooks?.read(now: reader.clock()) ?? [:])
     }
 
+    /// What to watch: the sessions folder, each session file (rewritten in place) and the hook folder (its
+    /// files are replaced by rename, which the folder sees). Names pass the same strict check as the reader.
+    public func watchPaths() -> [String] {
+        let directory = reader.directory
+        var paths = [directory.path]
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        paths += names.filter { ClaudeSessionReader.pid(fromFileName: $0) != nil }.sorted().prefix(64)
+            .map { directory.appendingPathComponent($0).path }
+        if let hooks { paths.append(hooks.directory.path) }
+        return paths
+    }
+
+    /// A pid-named session file exists. Without one no session can exist, whatever the hook folder holds.
+    public func hasCandidates() -> Bool {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: reader.directory.path)) ?? []
+        return names.contains { ClaudeSessionReader.pid(fromFileName: $0) != nil }
+    }
+
     /// Hook state wins only while newer than the session file's own update time.
     static func merge(sessions: [ClaudeSession], hooks: [String: ClaudeHookRecord]) -> [ClaudeSession] {
         sessions.map { session in

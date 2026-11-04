@@ -95,9 +95,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PortCaptureTools.requestPermission = { _ in UserPermissionRequest.request(MonitoredPermission.screenRecording) }
 
         // Claude Code sessions (any terminal or VS Code) feed the closed island through the activity engine.
-        let live = ClaudeLiveMonitor(
-            source: ClaudeLiveSource(reader: ClaudeSessionReader(directory: ClaudeSessionReader.defaultDirectory)),
-            sink: ActivityCenterSink())
+        // One shared monitor: the Agents tab and the usage warm-up read it too. It runs only while a consumer
+        // holds it, and the "agents" switch is one consumer ("shell").
+        let live = ClaudeLiveMonitor.shared
+        live.sink = ActivityCenterSink()
         claudeLive = live
 
         // Each start() only arms what the user's settings and granted permissions allow; none prompts.
@@ -120,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // No "fans" here either: the bound Fans lane starts and stops the policy.
                     "monitor": { MonitorFeature.start() },
                     "nowplaying": { NowPlayingFeature.start() },
-                    "agents": { live.start() },
+                    "agents": { live.acquire("shell") },
                     "ipscanner": { IPScannerFeature.start() },
                     "defaultapps": { DefaultAppsFeature.start() },
                 ]) { _, ours in ours },
@@ -128,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
                     "monitor": { MonitorFeature.stop() },
                     "nowplaying": { NowPlayingFeature.stop() },
-                    "agents": { live.stop() },  // withdraws every Claude activity through the sink
+                    "agents": { live.release("shell") },  // withdraws every Claude activity through the sink
                     "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
                     "defaultapps": { DefaultAppsFeature.stop() },  // forgets the screen and unplugs the guard (journal stays)
                 ]) { _, ours in ours },

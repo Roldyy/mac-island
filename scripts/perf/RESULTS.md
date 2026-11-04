@@ -2,6 +2,22 @@
 
 One section per lane, appended.
 
+## Lane 2: Claude session reader and usage parsing (worktree-perf2)
+
+Offenders 2 and 8 of BASELINE.md. No live measurement yet: CPU and footprint numbers need the rebuilt app (UNKNOWN until then).
+
+Changes
+- One reader: `ClaudeLiveMonitor.shared` (ClaudeLiveKit). The shell ("agents" switch, consumer `shell`), the Agents tab (`agents-tab`, via `AgentsLiveModel`) and the usage warm-up (`AgentsUsageModel.liveSessions`, no file read, `claudeIsActive()` removed) all use it. Named consumers: the last `release` cancels the watchers and the poll and withdraws the activities.
+- Event driven: `DispatchFileWatcher` (O_EVTONLY, write/extend/delete/rename) on the sessions folder, each pid-named session file (rewritten in place, a folder source does not see that) and the hook folder; first event opens a 250 ms window, one read per burst; re-armed after delete/rename and at every slow tick. Slow poll 30 s with a session, 120 s without; with no pid-named file nothing is read. The 2 s loop is gone.
+- Security rules untouched (SafeFileRead, name regex, 16 KB cap, allow-listed fields, procStart +-2 s, unknown never idle); the watcher only gets names that pass `pid(fromFileName:)`.
+- `AgentUsageService`: the repeating 30 s Timer became a one-shot re-armed per sweep: 30 s while the AI page is open or `snapshot.live` is non-empty (closed-island rest indicator), 180 s otherwise; `pageDidAppear` leaves the slow cadence at once. File events and the 2 s poller (already off with no recent log) are unchanged.
+- Usage parsing (Features/Agents): repeated message ids folded while streaming (one record per id), 250 000 records per file cap (extra counted in malformedLines), model/project strings interned (bounded 512), `UsageFileCache.merged()` one pass and one array instead of two, progress reports every 1 s instead of 0.3 s, no `settled + x` copy when `settled` is empty. Suspected spike source: each 0.3 s cold-read report built 2-3 full `[UsageRecord]` arrays on top of un-folded repeats. Not measured with `heap`/`footprint`: confirm after rebuild.
+
+Tests (RED seen as compile failures first, then green)
+- ClaudeLiveKitTests 69 passed (new: single shared instance, one refresh after debounce, no read with an empty folder, slow poll only, stops with last consumer, hostile names never watched or read).
+- AgentsFeatureTests 133 passed (new: BoundedParsingTests, SharedMonitorTests). ActivityTests 231 passed. ShellKitTests: 1 timing test (SettingsPerformanceTests) failed under parallel load, passes alone.
+- Allocation peak test is opt-in (process-wide counters): `MIS_ALLOC_TEST=1 swift test --filter BoundedParsingTests` (peak growth < 25 MB on a 45 MB log, passes).
+
 ## Lane 3: closed strip animations, island hover, focus follows mouse (offenders 3, 4, 5)
 
 Not measured on a running app yet (needs the installed build and the BASELINE measurements); the changes below are

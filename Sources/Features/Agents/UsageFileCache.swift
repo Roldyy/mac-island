@@ -81,13 +81,25 @@ final class UsageFileCache: @unchecked Sendable {
     /// across files. Used to show the last known numbers before the folder has even been walked.
     func merged() -> (records: [UsageRecord], malformed: Int, files: Int) {
         let all = snapshot().values
+        // One pass and one array: the repeats across files (a resumed session copies its history) are folded as
+        // they come, instead of building the full list and then a second deduplicated copy of it.
         var records: [UsageRecord] = []
+        var best: [String: Int] = [:]
         var malformed = 0
+        func add(_ record: UsageRecord) {
+            guard let id = record.messageID else { records.append(record); return }
+            if let index = best[id] {
+                if record.outputTokens > records[index].outputTokens { records[index] = record }
+            } else {
+                best[id] = records.count
+                records.append(record)
+            }
+        }
         for entry in all {
-            records.append(contentsOf: entry.parse.committed.records)
-            records.append(contentsOf: entry.parse.tail.records)
+            entry.parse.committed.records.forEach(add)
+            entry.parse.tail.records.forEach(add)
             malformed += entry.parse.committed.malformedLines + entry.parse.tail.malformedLines
         }
-        return (UsageRecord.deduplicated(records), malformed, all.count)
+        return (records, malformed, all.count)
     }
 }

@@ -2,18 +2,18 @@ import ClaudeLiveKit
 import Foundation
 import Observation
 
-/// Live Claude sessions for the tab. Polls only while the tab is on screen (start/stop from the view).
+/// Live Claude sessions for the tab. A view of the shared monitor (`ClaudeLiveMonitor.shared`, the app's only
+/// session reader): the tab holds it while on screen (start/stop from the view) and never reads files itself.
 @MainActor @Observable
 final class AgentsLiveModel {
     static let shared = AgentsLiveModel()
 
-    @ObservationIgnored private let monitor: ClaudeLiveMonitor
+    @ObservationIgnored let monitor: ClaudeLiveMonitor
     @ObservationIgnored private var tracker = FinishTracker()
     private(set) var lastFinished: FinishedSession?
 
     init(monitor: ClaudeLiveMonitor? = nil) {
-        self.monitor = monitor ?? ClaudeLiveMonitor(
-            source: ClaudeLiveSource(reader: ClaudeSessionReader(directory: ClaudeSessionReader.defaultDirectory)))
+        self.monitor = monitor ?? .shared
     }
 
     /// Working first, then waiting, then idle; same state by folder name for a stable list.
@@ -22,8 +22,9 @@ final class AgentsLiveModel {
     /// Fixed list for snapshots and previews; nil in the app.
     var previewSessions: [ClaudeSession]?
 
-    func start() { monitor.start() }
-    func stop() { monitor.stop() }
+    static let consumerName = "agents-tab"
+    func start() { monitor.acquire(Self.consumerName) }
+    func stop() { monitor.release(Self.consumerName) }
 
     /// Called by the view whenever `sessions` changes.
     func observe(now: Date = Date()) {
