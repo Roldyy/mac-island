@@ -6,6 +6,7 @@ import SwiftUI
 struct AmbientGlyphView: View {
     let item: AmbientIndicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var ambient = AmbientClock.shared
 
     static let ringWidth: CGFloat = 1.75
 
@@ -40,7 +41,9 @@ struct AmbientGlyphView: View {
                 .rotationEffect(.degrees(-90))
         } else if item.isBusy {
             Circle().stroke(color.opacity(0.2), lineWidth: Self.ringWidth)
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { timeline in
+            TimelineView(.animation(
+                minimumInterval: AmbientClockPolicy.interval(forFPS: AmbientClockPolicy.ringFPS),
+                paused: !AmbientClockPolicy.animationsRun(ambient.inputs, reduceMotion: reduceMotion))) { timeline in
                 let turn = reduceMotion ? 0.12 : timeline.date.timeIntervalSinceReferenceDate / 1.1
                 Circle()
                     .trim(from: 0, to: 0.3)

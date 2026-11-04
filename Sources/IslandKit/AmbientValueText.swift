@@ -16,15 +16,17 @@ struct AmbientValueText: View {
     let tint: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var natural: CGFloat = 0
+    @ObservedObject private var ambient = AmbientClock.shared
 
     static var font: Font {
         .system(size: IslandType.caption, weight: .semibold, design: .rounded).monospacedDigit()
     }
 
     var body: some View {
-        if AmbientMetrics.textWidth(text) > slot, !reduceMotion {
+        let overflows = AmbientMetrics.textWidth(text) > slot
+        if AmbientClockPolicy.marqueeRuns(textWidth: AmbientMetrics.textWidth(text), slot: slot, reduceMotion: reduceMotion) {
             marquee
-        } else if AmbientMetrics.textWidth(text) > slot {
+        } else if overflows {
             Text(text)
                 .font(Self.font)
                 .foregroundStyle(tint)
@@ -44,7 +46,9 @@ struct AmbientValueText: View {
     }
 
     private var marquee: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(
+            minimumInterval: AmbientClockPolicy.interval(forFPS: AmbientClockPolicy.marqueeFPS),
+            paused: !AmbientClockPolicy.animationsRun(ambient.inputs, reduceMotion: false))) { timeline in
             let travel = max(0, natural - slot)
             let phase = AmbientMotion.marqueePhase(time: timeline.date.timeIntervalSinceReferenceDate, travel: travel)
             Text(text)

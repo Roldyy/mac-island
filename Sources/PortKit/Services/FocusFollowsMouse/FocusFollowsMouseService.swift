@@ -14,7 +14,11 @@ final class FocusFollowsMouseService {
     private var mouseMonitor: Any?
     private var observers: [NSObjectProtocol] = []
     private var state = FocusFollowsMouseState()
-    private var delayMilliseconds = FocusFollowsMouseSupport.defaultDelayMilliseconds
+    /// Read when the feature starts and when a preference changes, never on a mouse move; nil while off.
+    private var preferences: FocusFollowsMousePreferences?
+    private var settle = FocusFollowsMouseSettle()
+    /// The newest pointer position seen between two processed moves (moves are processed at most 20 times a second).
+    private var pendingPoint: CGPoint?
     private var isRunning = false
 
     private init() {
@@ -38,7 +42,7 @@ final class FocusFollowsMouseService {
     }
 
     func preferencesDidChange() {
-        delayMilliseconds = Self.savedDelay()
+        preferences?.refresh()
     }
 
     func stop() {
@@ -47,6 +51,7 @@ final class FocusFollowsMouseService {
         mouseMonitor = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
+        preferences = nil
         isRunning = false
     }
 
@@ -55,7 +60,7 @@ final class FocusFollowsMouseService {
             preferencesDidChange()
             return
         }
-        delayMilliseconds = Self.savedDelay()
+        preferences = FocusFollowsMousePreferences(read: Self.readPreferences)
         guard let mouseMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged],
             handler: { [weak self] event in
@@ -77,7 +82,18 @@ final class FocusFollowsMouseService {
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in self?.resetMovement() })
+        // The raise and wait-for-stop switches live in the settings views and do not call us: pick them up here.
+        observers.append(NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: PortHost.defaults, queue: .main) { [weak self] _ in
+            self?.preferencesDidChange()
+        })
         isRunning = true
+    }
+
+    private static func readPreferences() -> (raise: Bool, waitForStop: Bool, delayMilliseconds: Int) {
+        (PortHost.defaults.bool(forKey: DefaultsKey.focusFollowsMouseRaise),
+         PortHost.defaults.bool(forKey: DefaultsKey.focusFollowsMouseWaitForStop),
+         PortHost.defaults.integer(forKey: DefaultsKey.focusFollowsMouseDelay))
     }
 
     private func recordMovement(to point: CGPoint) {
@@ -88,33 +104,70 @@ final class FocusFollowsMouseService {
             return
         }
         guard isRunning else { return }
-        // Raising always waits for the pointer to stop, so windows passed on
-        // the way are not reshuffled. Without a raise, the user may instead
-        // have the delay count time over a window while the pointer moves.
-        let waitsForStop = PortHost.defaults.bool(forKey: DefaultsKey.focusFollowsMouseRaise)
-            || PortHost.defaults.bool(forKey: DefaultsKey.focusFollowsMouseWaitForStop)
-        state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime,
-                             windowID: waitsForStop ? nil : Self.receivingWindow(at: point))
-        startEvaluationTimerIfNeeded()
+        let now = ProcessInfo.processInfo.systemUptime
+        guard settle.shouldProcessMove(at: now) else {
+            pendingPoint = point
+            return
+        }
+        processMovement(to: point, at: now)
     }
 
-    private func startEvaluationTimerIfNeeded() {
-        guard isRunning, timer == nil, state.hasPendingEvaluation else { return }
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
-        timer.tolerance = 0.01
+    private func processMovement(to point: CGPoint, at now: TimeInterval) {
+        guard isRunning, let preferences else { return }
+        pendingPoint = nil
+        state.recordMovement(to: point, at: now,
+                             windowID: preferences.waitsForStop ? nil : Self.receivingWindow(at: point))
+        armSettleTimerIfNeeded()
+    }
+
+    /// One one-shot timer per wait, never a repeating one.
+    private func armSettleTimerIfNeeded() {
+        guard isRunning, let preferences,
+              let wait = settle.armIfNeeded(state: state, now: ProcessInfo.processInfo.systemUptime,
+                                            delayMilliseconds: preferences.delayMilliseconds)
+        else { return }
+        scheduleSettleTimer(after: wait)
+    }
+
+    private func scheduleSettleTimer(after wait: TimeInterval) {
+        timer?.invalidate()
+        let timer = Timer(timeInterval: wait, repeats: false) { [weak self] _ in self?.settleTimerFired() }
+        timer.tolerance = min(0.02, wait / 5)
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }
 
+    private func settleTimerFired() {
+        timer = nil
+        guard isRunning, let preferences else { return }
+        // A move that arrived inside the 50 ms window is picked up now.
+        if let point = pendingPoint {
+            processMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
+        }
+        switch settle.fired(state: state, now: ProcessInfo.processInfo.systemUptime,
+                            delayMilliseconds: preferences.delayMilliseconds) {
+        case .idle:
+            break
+        case .rearm(let wait):
+            scheduleSettleTimer(after: wait)
+        case .evaluate:
+            if evaluateIfSettled(delayMilliseconds: preferences.delayMilliseconds) {
+                scheduleSettleTimer(after: settle.retry())
+            }
+        }
+    }
+
     private func finishEvaluation(_ evaluation: FocusFollowsMouseEvaluation, succeeded: Bool) {
         state.finishEvaluation(evaluation, succeeded: succeeded)
-        startEvaluationTimerIfNeeded()
+        armSettleTimerIfNeeded()
     }
 
     private func resetMovement() {
         state.reset()
         timer?.invalidate()
         timer = nil
+        settle.reset()
+        pendingPoint = nil
     }
 
     /// Nothing held down: no mouse button pressed and no modifier. Asked
@@ -126,27 +179,23 @@ final class FocusFollowsMouseService {
             && NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
     }
 
-    private func evaluateIfSettled() {
-        defer {
-            if !state.hasPendingEvaluation {
-                timer?.invalidate()
-                timer = nil
-            }
-        }
-        guard AXIsProcessTrusted(),
-              nothingIsHeldDown,
-              let evaluation = state.nextEvaluation(
+    /// True when a button or a key is held and the look must be retried shortly.
+    private func evaluateIfSettled(delayMilliseconds: Int) -> Bool {
+        // No Accessibility grant: nothing to do until the next move arms the timer again.
+        guard AXIsProcessTrusted() else { return false }
+        guard nothingIsHeldDown else { return state.hasPendingEvaluation }
+        guard let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
                   delayMilliseconds: delayMilliseconds)
-        else { return }
+        else { return false }
         if MouseAppExceptions.shared.excludesPointerTarget(
             .focusFollowsMouse, at: evaluation.point) {
             finishEvaluation(evaluation, succeeded: true)
-            return
+            return false
         }
         guard let pointerWindowID = Self.receivingWindow(at: evaluation.point) else {
             finishEvaluation(evaluation, succeeded: false)
-            return
+            return false
         }
 
         // WindowServer cannot report ignoresMouseEvents. Read our windows on
@@ -219,6 +268,7 @@ final class FocusFollowsMouseService {
                 self.finishEvaluation(evaluation, succeeded: true)
             }
         }
+        return false
     }
 
     /// AppKit resolves the window that would receive a click, skipping

@@ -8,6 +8,7 @@ struct AmbientElementView: View {
     /// Tests freeze the clock here; the app leaves it nil and the clock runs.
     let clock: Date?
     let pulsePreview: Double?
+    @ObservedObject private var ambient = AmbientClock.shared
 
     var body: some View {
         HStack(spacing: AmbientMetrics.iconGap) {
@@ -36,8 +37,13 @@ struct AmbientElementView: View {
             if let clock {
                 clockText(since: since, now: clock)
             } else {
-                TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    clockText(since: since, now: timeline.date)
+                if AmbientClockPolicy.textClockRuns(ambient.inputs) {
+                    // Seconds are shown, so one redraw a second, and none at all while the strip is out of sight.
+                    TimelineView(.periodic(from: .now, by: AmbientClockPolicy.textTick(showsSeconds: true, after: .now))) { timeline in
+                        clockText(since: since, now: timeline.date)
+                    }
+                } else {
+                    clockText(since: since, now: Date())
                 }
             }
         } else if let text = item.text, !text.isEmpty {

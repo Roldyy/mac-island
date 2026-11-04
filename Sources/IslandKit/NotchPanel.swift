@@ -97,6 +97,8 @@ public final class IslandController {
         // The panel is sized by the controller only: no min/max/intrinsic size feedback from the content.
         host.sizingOptions = []
         panel.contentView = host
+        installHoverTracking(in: host)
+        AmbientClock.shared.follow(panel)
         updateNotchMetrics()
         applyFrame(closedFrame, display: false)
         // Receives the current layout at once, then every change.
@@ -152,6 +154,7 @@ public final class IslandController {
     /// content can keep the closed island on the notch whatever frame the panel holds at that moment.
     private func applyFrame(_ frame: CGRect, display: Bool) {
         panel.setFrame(frame, display: display)
+        hoverTracker?.refresh()
         let offset = frame.midX - idleGeometry.frame.midX
         if state.panelOffset != offset { state.panelOffset = offset }
     }
@@ -214,7 +217,6 @@ public final class IslandController {
         isShown = true
         HitchProbe.shared.startIfRequested()  // only with MIS_HITCH_LOG set; nothing is installed otherwise
         panel.orderFrontRegardless()
-        installHoverMonitors()
         let g = idleGeometry
         NSLog("IslandKit: screen=%@ frame=%@ safeTop=%f hasNotch=%d idle=%@ panelFrame=%@ visible=%d level=%d",
               screen.localizedName, NSStringFromRect(screen.frame), screen.safeAreaInsets.top,
@@ -234,6 +236,8 @@ public final class IslandController {
         closeWork?.cancel()
         guard isShown, !isOpen else { return }
         isOpen = true
+        AmbientClock.shared.setIslandOpen(true)
+        hoverTracker?.refresh()
         // Panel first (at its final size, at once), then the one animation that reveals the content inside it.
         move(to: NotchGeometry.expanded(from: idleGeometry, size: openSize, screenFrame: screen.frame))
         state.isOpen = true
@@ -242,6 +246,8 @@ public final class IslandController {
     public func close() {
         guard isOpen else { return }
         isOpen = false
+        AmbientClock.shared.setIslandOpen(false)
+        hoverTracker?.refresh()
         state.isOpen = false
         panel.acceptsKeyboard = false
         panel.resignKey()
@@ -256,30 +262,27 @@ public final class IslandController {
 
     // MARK: - Hover
 
-    /// Mouse position is read globally: it keeps working when another window sits on top of the
-    /// island and it does not depend on the notch area receiving events.
-    private func installHoverMonitors() {
-        guard monitors.isEmpty else { return }
-        let handler: (NSEvent) -> Void = { [weak self] _ in
-            MainActor.assumeIsolated { self?.pointerMoved() }
+    /// The hover zone is watched by a tracking area of the panel itself (`HoverTrackingView`), so the app is not
+    /// woken by every mouse move on the screen. The panel floats over the menu bar on every Space and over
+    /// full-screen apps, so its own enter and exit events cover the notch and both wings on any display.
+    private func installHoverTracking(in host: NSView) {
+        let tracker = HoverTrackingView(frame: host.bounds)
+        tracker.autoresizingMask = [.width, .height]
+        tracker.zone = { [weak self] in
+            guard let self else { return .zero }
+            return IslandHoverRegion.zone(closedFrame: self.closedFrame, panelFrame: self.panel.frame, isOpen: self.isOpen)
         }
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: handler) {
-            monitors.append(global)
-        }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved, handler: { event in
-            handler(event)
-            return event
-        }) {
-            monitors.append(local)
-        }
+        tracker.onChange = { [weak self] in self?.pointerMoved() }
+        host.addSubview(tracker)
+        hoverTracker = tracker
     }
 
+    private var hoverTracker: HoverTrackingView?
     private var pointerInside = false
 
     private func pointerMoved() {
         // Open: stay open over the whole panel. Closed: react to the wings and the notch strip.
-        var zone = isOpen ? panel.frame : closedFrame
-        zone.size.height += 2  // reach the very top edge, where the pointer stops
+        let zone = IslandHoverRegion.zone(closedFrame: closedFrame, panelFrame: panel.frame, isOpen: isOpen)
         let inside = zone.contains(NSEvent.mouseLocation)
         guard inside != pointerInside else { return }
         pointerInside = inside

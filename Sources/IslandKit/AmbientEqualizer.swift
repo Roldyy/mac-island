@@ -5,11 +5,14 @@ import SwiftUI
 struct AmbientEqualizer: View {
     let color: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var ambient = AmbientClock.shared
 
     private static let height: CGFloat = 11
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(
+            minimumInterval: AmbientClockPolicy.interval(forFPS: AmbientClockPolicy.equalizerFPS),
+            paused: !AmbientClockPolicy.animationsRun(ambient.inputs, reduceMotion: reduceMotion))) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             HStack(alignment: .bottom, spacing: 1.5) {
                 ForEach(0..<3, id: \.self) { index in
