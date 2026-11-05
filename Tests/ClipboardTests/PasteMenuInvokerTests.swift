@@ -70,11 +70,12 @@ struct FakeNode: PasteMenuNode {
         var keys = 0
         var t = 0
     }
-    func dispatcher(_ rig: Rig, front: pid_t?, press: MenuPressResult, keys: PasteSendResult = .posted) -> PasteDispatcher {
+    func dispatcher(_ rig: Rig, front: pid_t?, press: MenuPressResult, keys: PasteSendResult = .posted,
+                    ownKey: Bool = false) -> PasteDispatcher {
         PasteDispatcher(frontPID: { front }, ownPID: 1,
                         pressMenu: { rig.pressed.append($0); rig.t += 5; return press },
                         sendKeys: { rig.keys += 1; rig.t += 300; return keys },
-                        nowMs: { rig.t })
+                        nowMs: { rig.t }, ownKeyWindow: { ownKey })
     }
 
     @Test func aMenuPressIsEnoughAndNeverWaitsForKeys() async {
@@ -84,11 +85,32 @@ struct FakeNode: PasteMenuNode {
         #expect(rig.keys == 0)
     }
 
-    @Test(arguments: [MenuPressResult.notFound, .disabled, .error, .timedOut])
-    func anyMenuFailureFallsBackToTheKeySequencer(_ result: MenuPressResult) async {
+    /// Only failures BEFORE the press started fall back: nothing was pasted yet.
+    @Test(arguments: [MenuPressResult.notFound, .disabled, .error, .timedOut, .notFocused])
+    func aFailureBeforeThePressFallsBackToTheKeySequencer(_ result: MenuPressResult) async {
         let rig = Rig()
         #expect(await dispatcher(rig, front: 42, press: result).run() == .posted)
         #expect(rig.keys == 1)
+    }
+
+    @Test func anUnconfirmedPressNeverPastesAgain() async {
+        let rig = Rig()
+        #expect(await dispatcher(rig, front: 42, press: .unconfirmed).run() == .posted)
+        #expect(rig.pressed == [42])
+        #expect(rig.keys == 0)
+    }
+
+    @Test func ourKeyWindowWithAnotherAppInFrontGoesToKeysWithoutAMenuPress() async {
+        let rig = Rig()   // Safari in front, one of our non-activating panels holds the keys
+        #expect(await dispatcher(rig, front: 42, press: .pressed, ownKey: true).run() == .posted)
+        #expect(rig.pressed.isEmpty)
+        #expect(rig.keys == 1)
+    }
+
+    @Test func theFocusedAppMustBeTheFrontApp() {
+        #expect(PasteMenuInvoker.focusAllows(front: 42, focused: 42))
+        #expect(!PasteMenuInvoker.focusAllows(front: 42, focused: 7))     // a launcher panel holds the focus
+        #expect(!PasteMenuInvoker.focusAllows(front: 42, focused: nil))   // unreadable
     }
 
     @Test func theKeyFallbackReportsItsOwnFailure() async {
@@ -108,7 +130,7 @@ struct FakeNode: PasteMenuNode {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let text = try String(contentsOf: root.appendingPathComponent("Sources/Features/Clipboard/PasteMenuInvoker.swift"), encoding: .utf8)
         let lines = text.split(separator: "\n").filter { $0.contains("PasteLog.logger") }
-        #expect(lines.count == 4)
+        #expect(lines.count == 6)
         for l in lines { #expect(!l.contains("title") && !l.contains("pasteboard")) }
     }
 }
