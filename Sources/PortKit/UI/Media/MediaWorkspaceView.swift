@@ -1719,10 +1719,13 @@ struct MediaWorkspaceView: View {
     }
 
     private func copy(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareVorssaintSource()
-        pasteboard.setString(text, forType: .string)
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.declareVorssaintSource()
+            pasteboard.setString(text, forType: .string)
+        }
     }
 
     /// A size target is typed rather than stepped, so the formatter is what

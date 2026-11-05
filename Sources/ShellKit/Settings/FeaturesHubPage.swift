@@ -104,8 +104,10 @@ struct FeaturesHubPage: View {
 
     private func copyHooks() {
         guard let snippet = ClaudeHookSetup.snippet() else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(snippet, forType: .string)
+        GeneralPasteboardLane.shared.async {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(snippet, forType: .string)
+        }
         hooksCopied = true
     }
 

@@ -67,9 +67,10 @@ final class FakeHotkey: PlainPasteHotkeyRegistering {
         r.model.start()
         putRichText(r.pasteboard)
         r.hotkey.press()
-        #expect(r.pasteboard.string(forType: .string) == "Bonjour le monde")
-        #expect(r.pasteboard.data(forType: .rtf) == nil)
-        #expect(r.pasteboard.string(forType: .html) == nil)
+        let pb = r.pasteboard
+        #expect(await onLane { pb.string(forType: .string) } == "Bonjour le monde")
+        #expect(await onLane { pb.data(forType: .rtf) } == nil)
+        #expect(await onLane { pb.string(forType: .html) } == nil)
         #expect(await eventually { r.sent.value == 1 })
     }
 
@@ -109,7 +110,8 @@ final class FakeHotkey: PlainPasteHotkeyRegistering {
         #expect(r.hotkey.registered?.keyCode == 9)
         putRichText(r.pasteboard)
         r.hotkey.press()
-        #expect(r.pasteboard.data(forType: .rtf) == nil)
+        let pb = r.pasteboard
+        #expect(await onLane { pb.data(forType: .rtf) } == nil)
         #expect(await eventually { r.sent.value == 1 })
     }
 
@@ -144,8 +146,9 @@ final class FakeHotkey: PlainPasteHotkeyRegistering {
         r.model.start()
         putRichText(r.pasteboard)
         r.hotkey.press()
-        #expect(r.pasteboard.string(forType: .string) == "Bonjour le monde")
-        #expect(r.pasteboard.data(forType: .rtf) == nil)
+        let pb = r.pasteboard
+        #expect(await onLane { pb.string(forType: .string) } == "Bonjour le monde")
+        #expect(await onLane { pb.data(forType: .rtf) } == nil)
         try? await Task.sleep(nanoseconds: 300_000_000)
         #expect(r.sent.value == 0)
     }

@@ -1,4 +1,5 @@
 import AppKit
+import IslandKit
 import ImageIO
 import Observation
 
@@ -167,6 +168,9 @@ final class ClipboardModel {
     /// Looks at the pasteboard once, now (the watcher's own tick; tests drive it instead of waiting for the timer).
     func pollNow() { watcher.poll() }
 
+    /// True when no lane read of the watcher is pending (tests wait on it after `pollNow()`).
+    var watcherIsIdle: Bool { watcher.isIdle }
+
     /// True while the pasteboard watcher runs (it is what records the history).
     var isMonitoring: Bool { watcher.isRunning }
 
@@ -225,20 +229,37 @@ final class ClipboardModel {
     var unpinnedCount: Int { entries.filter { !$0.pinned }.count }
 
     func putBack(_ entry: ClipboardEntry) {
-        pasteboard.clearContents()
+        // Everything that touches the pasteboard runs on the shared lane; the image bytes are read from disk here.
+        enum Payload { case text(String), image(Data), files([String]) }
+        let payload: Payload
         switch entry.kind {
-        case .text:
-            pasteboard.setString(entry.text, forType: .string)
+        case .text: payload = .text(entry.text)
         case .image:
-            guard let url = store.imageURL(for: entry), let data = try? Data(contentsOf: url) else { return }
-            pasteboard.setData(data, forType: .png)
-        case .files:
-            pasteboard.writeObjects(entry.filePaths.map { URL(fileURLWithPath: $0) as NSURL })
+            guard let url = store.imageURL(for: entry), let data = try? Data(contentsOf: url) else {
+                GeneralPasteboardLane.shared.async { [pasteboard] in pasteboard.clearContents() }
+                return
+            }
+            payload = .image(data)
+        case .files: payload = .files(entry.filePaths)
         }
-        watcher.syncToCurrent()
+        let pasteboard = pasteboard
+        GeneralPasteboardLane.shared.async({
+            pasteboard.clearContents()
+            switch payload {
+            case .text(let t): pasteboard.setString(t, forType: .string)
+            case .image(let data): pasteboard.setData(data, forType: .png)
+            case .files(let paths): pasteboard.writeObjects(paths.map { URL(fileURLWithPath: $0) as NSURL })
+            }
+            return pasteboard.changeCount
+        }, then: { [weak self] count in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.watcher.syncToCurrent(count: count)
+                self.autoClear.schedule(delaySeconds: self.settings().autoClearDelay, expectedChangeCount: count)
+            }
+        })
         store.moveToFront(id: entry.id)
         syncHistory()
-        autoClear.schedule(delaySeconds: settings().autoClearDelay, expectedChangeCount: pasteboard.changeCount)
     }
 
     func togglePin(_ entry: ClipboardEntry) { store.togglePin(id: entry.id); syncHistory() }
@@ -382,9 +403,14 @@ final class ClipboardModel {
 
     /// Sleep, display sleep or screen lock: the system pasteboard is emptied, the saved history stays.
     func clearSystemPasteboard() {
-        pasteboard.clearContents()
-        watcher.syncToCurrent()
+        let pasteboard = pasteboard
         autoClear.cancel()
+        GeneralPasteboardLane.shared.async({
+            pasteboard.clearContents()
+            return pasteboard.changeCount
+        }, then: { [weak self] count in
+            MainActor.assumeIsolated { self?.watcher.syncToCurrent(count: count) }
+        })
     }
 
     /// The menu bar preview: the newest recorded copy, cut to the chosen length. Sent only when it changed.
@@ -431,32 +457,37 @@ final class ClipboardModel {
     /// False between `stop()` and the next `start()`: settings changes must not re-arm a released hotkey.
     @ObservationIgnored private var hotkeyWanted = false
 
-    @discardableResult
-    func plainPasteTriggered() -> PlainPasteOutcome {
+    /// The pasteboard rewrite runs on the shared lane: `completion` gets the outcome on main, later.
+    func plainPasteTriggered(completion: @escaping @MainActor (PlainPasteOutcome) -> Void = { _ in }) {
         PasteLog.logger.notice("hotkey fired")
         refreshAccessibility()
         let notify = self.notify
-        let outcome = PlainPasteHotkeyService.performPlainPaste(
+        PlainPasteHotkeyService.performPlainPaste(
             pasteboard: pasteboard, accessibilityTrusted: accessibilityCheck, postAccess: postAccessCheck,
             sendPaste: sendPaste,
             didSend: {
                 PasteLog.logger.notice("plain paste outcome: key send \($0 == .posted ? "posted" : "FAILED", privacy: .public)")
                 if $0 == .eventFailed { notify(.eventFailed) }
+            },
+            afterWrite: { [weak self] count in
+                // The rewrite is ours: do not record it back, and re-arm auto-clear on the NEW count
+                // so the old timer (bound to the previous count) cannot fire on, or be skipped for, it.
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.watcher.syncToCurrent(count: count)
+                    self.autoClear.schedule(delaySeconds: self.settings().autoClearDelay, expectedChangeCount: count)
+                }
             }
-        ) { [watcher, autoClear, pasteboard, settings] in
-            // The rewrite is ours: do not record it back, and re-arm auto-clear on the NEW count
-            // so the old timer (bound to the previous count) cannot fire on, or be skipped for, it.
-            watcher.syncToCurrent()
-            autoClear.schedule(delaySeconds: settings().autoClearDelay, expectedChangeCount: pasteboard.changeCount)
+        ) { outcome in
+            PasteLog.logger.notice("plain paste outcome: \(String(describing: outcome), privacy: .public)")
+            // Never silent: the plain text is on the pasteboard in every case but "nothing to paste".
+            switch outcome {
+            case .pasted: break
+            case .copiedOnly: notify(.needsPermission)
+            case .nothingToPaste: notify(.nothingToPaste)
+            }
+            completion(outcome)
         }
-        PasteLog.logger.notice("plain paste outcome: \(String(describing: outcome), privacy: .public)")
-        // Never silent: the plain text is on the pasteboard in every case but "nothing to paste".
-        switch outcome {
-        case .pasted: break
-        case .copiedOnly: notify(.needsPermission)
-        case .nothingToPaste: notify(.nothingToPaste)
-        }
-        return outcome
     }
 
     private func updatePlainPasteStatus() {

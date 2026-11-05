@@ -38,7 +38,7 @@ import Testing
         #expect(!SensitiveTextFilter.looksSensitive(text))
     }
 
-    @MainActor @Test func theSettingIsOffByDefaultAndOnlyAffectsText() {
+    @MainActor @Test func theSettingIsOffByDefaultAndOnlyAffectsText() async {
         final class Box { var captures: [PasteboardCapture?] = [] }
         let td = TempDefaults()
         let pb = makePasteboard()
@@ -49,16 +49,16 @@ import Testing
         watcher.onChange = { _, capture, _ in box.captures.append(capture) }
 
         pb.clearContents(); pb.setString("password: hunter2hunter2", forType: .string)
-        watcher.poll()
+        await pollAndSettle(watcher)
         #expect(box.captures == [.text("password: hunter2hunter2")], "off: recorded as before")
 
         td.defaults.set(true, forKey: "clipboardHistoryFilterSensitiveText")
         pb.clearContents(); pb.setString("password: hunter2hunter2", forType: .string)
-        watcher.poll()
+        await pollAndSettle(watcher)
         #expect(box.captures.count == 2 && box.captures[1] == nil, "on: reported as a change, nothing captured")
 
         pb.clearContents(); pb.setString("une phrase ordinaire", forType: .string)
-        watcher.poll()
+        await pollAndSettle(watcher)
         #expect(box.captures.last == .text("une phrase ordinaire"))
     }
 }

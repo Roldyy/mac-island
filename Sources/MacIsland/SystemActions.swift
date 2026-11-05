@@ -101,8 +101,10 @@ final class SystemActions {
                 return
             }
             if let image = NSImage(contentsOf: file) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.writeObjects([image])
+                GeneralPasteboardLane.shared.async {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.writeObjects([image])
+                }
             }
             notice(QuickActionNotice.captureDone, symbol: "camera.viewfinder", status: .success)
         }

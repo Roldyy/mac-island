@@ -57,10 +57,13 @@ final class ColorSamplerService: ObservableObject {
     @discardableResult
     func copyQuietly(_ color: NSColor) -> String? {
         guard let value = formattedValue(color) else { return nil }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareVorssaintSource()
-        pasteboard.setString(value, forType: .string)
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.declareVorssaintSource()
+            pasteboard.setString(value, forType: .string)
+        }
         return value
     }
 

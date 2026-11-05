@@ -172,9 +172,12 @@ final class ScreenTextService: ObservableObject {
     }
 
     static func copyToPasteboard(_ value: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareVorssaintSource()
-        pasteboard.setString(value, forType: .string)
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.declareVorssaintSource()
+            pasteboard.setString(value, forType: .string)
+        }
     }
 }

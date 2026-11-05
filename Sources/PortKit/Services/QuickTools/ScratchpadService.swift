@@ -274,10 +274,14 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     func copyAll() {
         guard !text.isEmpty else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareVorssaintSource()
-        pasteboard.setString(text, forType: .string)
+        let text = text
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.declareVorssaintSource()
+            pasteboard.setString(text, forType: .string)
+        }
     }
 
     /// Clearing goes through the text view when it is up, so one Cmd+Z brings

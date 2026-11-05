@@ -1799,10 +1799,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     func copySelectedText() {
         let text = model.selectedText
         guard !text.isEmpty else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.declareVorssaintSource()
-        pasteboard.setString(text, forType: .string)
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.declareVorssaintSource()
+            pasteboard.setString(text, forType: .string)
+        }
         QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
     }
 

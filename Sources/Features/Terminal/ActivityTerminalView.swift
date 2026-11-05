@@ -123,21 +123,35 @@ final class ActivityTerminalView: LocalProcessTerminalView {
     override func copy(_ sender: Any) {
         let text = selectedText
         guard !text.isEmpty else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        GeneralPasteboardLane.shared.async {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+        }
         showToast("Copié")
     }
 
     override func paste(_ sender: Any) {
-        insert(from: .general)
+        // The general pasteboard is read on its lane (never on main: AppKit's type cache is not thread-safe); the bytes
+        // go to the shell on main afterwards.
+        GeneralPasteboardLane.shared.async({ Self.pasteText(from: .general) }, then: { [weak self] text in
+            self?.sendPaste(text)
+        })
     }
 
-    private func insert(from pasteboard: NSPasteboard) {
+    /// A drag pasteboard is private to the drag and only valid inside the drop: read it right here.
+    private func insert(fromDrag pasteboard: NSPasteboard) {
+        sendPaste(Self.pasteText(from: pasteboard))
+    }
+
+    private static func pasteText(from pasteboard: NSPasteboard) -> String? {
         let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
             as? [URL] ?? []
-        guard let text = TerminalPaste.content(fileURLs: urls, string: pasteboard.string(forType: .string))
-        else { return }
+        return TerminalPaste.content(fileURLs: urls, string: pasteboard.string(forType: .string))
+    }
+
+    private func sendPaste(_ text: String?) {
+        guard let text else { return }
         send(data: TerminalPaste.payload(text: text, bracketed: getTerminal().bracketedPasteMode)[...])
     }
 
@@ -150,7 +164,7 @@ final class ActivityTerminalView: LocalProcessTerminalView {
         copyItem.isEnabled = hasSelection
         menu.addItem(copyItem)
         let pasteItem = item("Coller", #selector(menuPaste))
-        pasteItem.isEnabled = NSPasteboard.general.availableType(from: [.string, .fileURL]) != nil
+        pasteItem.isEnabled = true   // no pasteboard read on main while the menu opens; an empty paste does nothing
         menu.addItem(pasteItem)
         menu.addItem(item("Tout sélectionner", #selector(menuSelectAll)))
         menu.addItem(item("Effacer", #selector(menuClear)))
@@ -197,7 +211,7 @@ final class ActivityTerminalView: LocalProcessTerminalView {
         guard canAccept(sender.draggingPasteboard) else { return false }
         onClick?()
         window?.makeFirstResponder(self)
-        insert(from: sender.draggingPasteboard)
+        insert(fromDrag: sender.draggingPasteboard)
         return true
     }
 

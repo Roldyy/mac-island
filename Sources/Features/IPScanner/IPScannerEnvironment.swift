@@ -1,4 +1,5 @@
 import AppKit
+import IslandKit
 import Foundation
 
 /// Everything the model reaches outside itself. The live value is the only place that touches the network, the
@@ -33,8 +34,10 @@ public struct IPScannerEnvironment: Sendable {
         interfaces: SystemInterfaceProvider(), services: .live, ports: TCPPortProber(),
         publicIP: URLSessionPublicIPFetcher(), localNetwork: SystemLocalNetworkChecker(),
         copyToPasteboard: { text in
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+            GeneralPasteboardLane.shared.async {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
         },
         saveCSV: { csv in
             let directory = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false)

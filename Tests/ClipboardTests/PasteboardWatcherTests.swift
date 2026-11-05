@@ -15,31 +15,33 @@ import Testing
     }
     final class Box { var captures: [PasteboardCapture?] = [] }
 
-    @Test func capturesPlainText() {
+    @Test func capturesPlainText() async {
         let (w, pb, td, box) = make(); defer { _ = td }
         pb.clearContents(); pb.setString("hello", forType: .string)
         w.poll()
+        #expect(await eventually { box.captures.count == 1 })
         #expect(box.captures == [.text("hello")])
     }
 
-    @Test func dropsCaptureWhenPasteboardChangedMidRead() {
+    @Test func dropsCaptureWhenPasteboardChangedMidRead() async {
         let (w, pb, td, box) = make(); defer { _ = td }
         pb.clearContents(); pb.setString("hello", forType: .string)
         w.afterCaptureRead = {
             pb.clearContents(); pb.setString("other", forType: .string)
         }
         w.poll()
-        #expect(box.captures.count == 1)
+        #expect(await eventually { box.captures.count == 1 })
         #expect(box.captures[0] == nil)
     }
 
-    @Test func dropsCaptureWhenItemBecameConcealed() {
+    @Test func dropsCaptureWhenItemBecameConcealed() async {
         let (w, pb, td, box) = make(); defer { _ = td }
         pb.clearContents(); pb.setString("hello", forType: .string)
         w.afterCaptureRead = {
             pb.setData(Data(), forType: .init("org.nspasteboard.ConcealedType"))   // same item, new type
         }
         w.poll()
+        #expect(await eventually { box.captures.count == 1 })
         #expect(box.captures == [nil])
     }
 }

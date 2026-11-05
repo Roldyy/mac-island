@@ -1,5 +1,8 @@
 import AppKit
+import Testing
 import Foundation
+import IslandKit
+@testable import ClipboardFeature
 
 /// Directories created by the tests, removed when the test process exits (swift-testing has
 /// no global teardown). Synchronised: tests run in parallel.
@@ -67,5 +70,49 @@ final class TempDefaults {
     deinit {
         defaults.removePersistentDomain(forName: suite)
         try? FileManager.default.removeItem(atPath: suite + ".plist")
+    }
+}
+
+/// `PlainPasteHotkeyService.performPlainPaste` answers on main after its lane work: this awaits the outcome.
+@MainActor
+func plainPaste(_ pb: NSPasteboard,
+                accessibilityTrusted: @escaping () -> Bool = { false },
+                postAccess: @escaping () -> Bool = { true },
+                sendPaste: @escaping @MainActor () async -> PasteSendResult = { .posted },
+                afterWrite: @escaping (Int) -> Void = { _ in }) async -> PlainPasteOutcome {
+    await withCheckedContinuation { continuation in
+        PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: accessibilityTrusted,
+                                                  postAccess: postAccess, sendPaste: sendPaste,
+                                                  afterWrite: afterWrite) { continuation.resume(returning: $0) }
+    }
+}
+
+/// `ClipboardModel.plainPasteTriggered`, awaited.
+@MainActor
+func plainPasteOutcome(_ model: ClipboardModel) async -> PlainPasteOutcome {
+    await withCheckedContinuation { continuation in
+        model.plainPasteTriggered { continuation.resume(returning: $0) }
+    }
+}
+
+/// The watcher looks at the pasteboard on the lane: poll, then wait until every pending look has been reported.
+@MainActor
+func pollAndSettle(_ watcher: PasteboardWatcher) async {
+    watcher.poll()
+    #expect(await eventually { watcher.isIdle })
+}
+
+@MainActor
+func pollAndSettle(_ model: ClipboardModel) async {
+    model.pollNow()
+    #expect(await eventually { model.watcherIsIdle })
+}
+
+/// Runs `work` on the pasteboard lane and returns its result. A test that reads a pasteboard the production code
+/// writes on the lane must do the same: reading it from the main thread at the same time is the very race
+/// (AppKit's type cache) the lane exists to prevent.
+func onLane<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+    await withCheckedContinuation { continuation in
+        GeneralPasteboardLane.shared.queue.async { continuation.resume(returning: work()) }
     }
 }

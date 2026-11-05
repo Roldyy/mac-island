@@ -133,12 +133,12 @@ import Testing
         #expect(ClipboardPreview.line("é😀é😀é😀é😀é😀é😀é😀", limit: 6)?.count == 6, "characters, not bytes")
     }
 
-    @Test func previewShowsTheNewestCopyWhenOnAndNothingWhenOff() {
+    @Test func previewShowsTheNewestCopyWhenOnAndNothingWhenOff() async {
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview"); $0.set(10, forKey: "clipboardHistoryMenuBarPreviewLength") }
         r.model.start(); defer { r.model.stop() }
         #expect(r.sink.previews.isEmpty, "empty history: nothing to show")
         r.pasteboard.clearContents(); r.pasteboard.setString("une copie vraiment tres longue", forType: .string)
-        r.model.pollNow()
+        await pollAndSettle(r.model)
         #expect(r.sink.previews.last == "une copie…")
         #expect((r.sink.previews.last??.count ?? 99) <= 10)
         r.defaults.defaults.set(false, forKey: "clipboardHistoryMenuBarPreview")
@@ -147,22 +147,22 @@ import Testing
         r.model.stop()
     }
 
-    @Test func aConcealedCopyNeverReachesThePreview() {
+    @Test func aConcealedCopyNeverReachesThePreview() async {
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview") }
         r.model.start(); defer { r.model.stop() }
         r.pasteboard.clearContents()
         r.pasteboard.setString("secret-value", forType: .string)
         r.pasteboard.setData(Data(), forType: .init("org.nspasteboard.ConcealedType"))
-        r.model.pollNow()
+        await pollAndSettle(r.model)
         #expect(r.sink.previews.isEmpty)
         #expect(r.model.entries.isEmpty)
     }
 
-    @Test func stoppingTheFeatureClearsThePreview() {
+    @Test func stoppingTheFeatureClearsThePreview() async {
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview") }
         r.model.start()
         r.pasteboard.clearContents(); r.pasteboard.setString("visible", forType: .string)
-        r.model.pollNow()
+        await pollAndSettle(r.model)
         #expect(r.sink.previews.last == "visible")
         r.model.stop()
         #expect(r.sink.previews.last == .some(nil))
@@ -190,7 +190,7 @@ import Testing
         #expect(reloaded.pinnedCount == 1 && reloaded.recentCount == 1)
     }
 
-    @Test func retentionRunsAtLaunchAndOnCopy() throws {
+    @Test func retentionRunsAtLaunchAndOnCopy() async throws {
         let dir = makeTempDir()
         let old = ClipboardHistoryStore(directory: dir, limit: 50, now: { Date().addingTimeInterval(-40 * 86_400) })
         old.addText("forty days ago", source: nil)
@@ -198,7 +198,7 @@ import Testing
         r.model.start(); defer { r.model.stop() }
         #expect(r.model.entries.isEmpty, "purged at launch")
         r.pasteboard.clearContents(); r.pasteboard.setString("fresh", forType: .string)
-        r.model.pollNow()
+        await pollAndSettle(r.model)
         #expect(r.model.entries.map(\.text) == ["fresh"])
     }
 
@@ -216,12 +216,12 @@ import Testing
 
     // MARK: Pinned and recent counts, "Effacer non épinglés"
 
-    @Test func countsAndClearUnpinnedKeepThePinnedOnes() {
+    @Test func countsAndClearUnpinnedKeepThePinnedOnes() async {
         let r = rig()
         r.model.start(); defer { r.model.stop() }
         for t in ["a", "b", "c"] {
             r.pasteboard.clearContents(); r.pasteboard.setString(t, forType: .string)
-            r.model.pollNow()
+            await pollAndSettle(r.model)
         }
         r.model.togglePin(r.model.entries[0])
         #expect(r.model.pinnedCount == 1 && r.model.recentCount == 2)
@@ -254,7 +254,7 @@ import Testing
         }
         r.model.start(); defer { r.model.stop() }
         r.pasteboard.clearContents(); r.pasteboard.setString("keep me in the history", forType: .string)
-        r.model.pollNow()
+        await pollAndSettle(r.model)
         let triggers: [(NotificationCenter, Notification.Name)] = [
             (r.workspace, NSWorkspace.willSleepNotification),
             (r.workspace, NSWorkspace.screensDidSleepNotification),

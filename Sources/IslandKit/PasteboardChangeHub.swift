@@ -96,11 +96,10 @@ public final class PasteboardChangeHub {
 
     // MARK: - Live
 
-    private static let readQueue = DispatchQueue(label: "mac-island.pasteboard.changecount", qos: .utility)
-
-    /// The general pasteboard, read on a private serial queue.
+    /// The general pasteboard, read on the app-wide pasteboard lane (`GeneralPasteboardLane`), the same queue as every other
+    /// access: a count read beside a `types` read on another thread is how AppKit's type cache got corrupted.
     public static let generalReader: Reader = { done in
-        readQueue.async {
+        GeneralPasteboardLane.shared.async {
             let count = NSPasteboard.general.changeCount
             DispatchQueue.main.async { MainActor.assumeIsolated { done(count) } }
         }

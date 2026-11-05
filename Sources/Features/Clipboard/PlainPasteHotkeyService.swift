@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import IslandKit
 
 enum PlainPasteOutcome: Equatable {
     case pasted
@@ -90,43 +91,60 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     }
 
     /// Replace the pasteboard with its plain, normalised text, then send Cmd+V if allowed.
-    /// The plain text is on the pasteboard BEFORE `sendPaste` runs. `sendPaste` waits for the shortcut's
-    /// modifiers to be released (see `PasteKeySequencer`), so it runs on a task, not inline.
-    static func performPlainPaste(pasteboard: NSPasteboard = .general,
-                                  accessibilityTrusted: () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
-                                  postAccess: () -> Bool = { CGPreflightPostEventAccess() },
+    /// The pasteboard part (read, clear, rewrite) runs on the app-wide `GeneralPasteboardLane`, never on the main
+    /// thread, and `completion` gets the outcome on main afterwards. The plain text is on the pasteboard BEFORE
+    /// `sendPaste` runs. `sendPaste` waits for the shortcut's modifiers to be released (see `PasteKeySequencer`),
+    /// so it runs on a task, not inline.
+    /// `afterWrite` receives the change count of the rewrite (read on the lane, right after the write).
+    static func performPlainPaste(pasteboard: NSPasteboard,
+                                  lane: GeneralPasteboardLane = .shared,
+                                  accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
+                                  postAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
                                   sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
                                   didSend: @escaping @MainActor (PasteSendResult) -> Void = { _ in },
-                                  afterWrite: () -> Void = {}) -> PlainPasteOutcome {
-        guard let raw = pasteboard.string(forType: .string) else {
-            PasteLog.logger.notice("nothing to paste: no string flavour")
-            return .nothingToPaste
-        }
+                                  afterWrite: @escaping (_ changeCount: Int) -> Void = { _ in },
+                                  completion: @escaping @MainActor (PlainPasteOutcome) -> Void) {
+        lane.async({ rewritePlain(on: pasteboard) }, then: { rewrite in
+            MainActor.assumeIsolated {
+                guard let rewrite else {
+                    PasteLog.logger.notice("nothing to paste: no string flavour")
+                    completion(.nothingToPaste)
+                    return
+                }
+                // Counts only: a type identifier can name what was copied (a concealed-password marker, an app's own
+                // flavour), and the notice level is persisted.
+                PasteLog.logger.notice("\(Self.conversionLogLine(before: rewrite.before, after: rewrite.after), privacy: .public)")
+                afterWrite(rewrite.changeCount)
+                guard accessibilityTrusted() else {
+                    PasteLog.logger.notice("not posted: Accessibility not granted (AXIsProcessTrusted false)")
+                    completion(.copiedOnly)
+                    return
+                }
+                guard postAccess() else {
+                    PasteLog.logger.notice("not posted: no post-event access (CGPreflightPostEventAccess false)")
+                    completion(.copiedOnly)
+                    return
+                }
+                Task { @MainActor in
+                    let result = await sendPaste()
+                    didSend(result)
+                }
+                completion(.pasted)
+            }
+        })
+    }
+
+    /// The lane half of a plain paste: nil when there is no string flavour. Never call it off the lane.
+    nonisolated private static func rewritePlain(on pasteboard: NSPasteboard) -> (before: Int, after: Int, changeCount: Int)? {
+        guard let raw = pasteboard.string(forType: .string) else { return nil }
         // Rewriting drops every flavour, including the password-manager markers: carry them over
         // (empty data is how the convention is written) so the item stays unrecordable.
         let markers = blockedMarkers(on: pasteboard)
-        let beforeCount = pasteboard.types?.count ?? 0
+        let before = pasteboard.types?.count ?? 0
         pasteboard.clearContents()
         pasteboard.setString(PlainPaste.normalize(raw), forType: .string)
         for m in markers { pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(m)) }
-        let afterCount = pasteboard.types?.count ?? 0
-        // Counts only: a type identifier can name what was copied (a concealed-password marker, an app's own
-        // flavour), and the notice level is persisted.
-        PasteLog.logger.notice("\(Self.conversionLogLine(before: beforeCount, after: afterCount), privacy: .public)")
-        afterWrite()
-        guard accessibilityTrusted() else {
-            PasteLog.logger.notice("not posted: Accessibility not granted (AXIsProcessTrusted false)")
-            return .copiedOnly
-        }
-        guard postAccess() else {
-            PasteLog.logger.notice("not posted: no post-event access (CGPreflightPostEventAccess false)")
-            return .copiedOnly
-        }
-        Task { @MainActor in
-            let result = await sendPaste()
-            didSend(result)
-        }
-        return .pasted
+        return (before, pasteboard.types?.count ?? 0, pasteboard.changeCount)
     }
 
     /// The one line the conversion leaves in the log: how many pasteboard types there were before and after,

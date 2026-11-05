@@ -16,38 +16,35 @@ import Testing
         return (model, pb, td)
     }
 
-    @Test func markerSurvivesPlainPaste() {
+    @Test func markerSurvivesPlainPaste() async {
         let pb = makePasteboard()
         pb.clearContents()
         pb.setString("pa\u{00A0}ss", forType: .string)
         pb.setData(Data(), forType: .init(Self.concealed))
-        let outcome = PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { false },
-                                                                sendPaste: { .posted })
+        let outcome = await plainPaste(pb)
         #expect(outcome == .copiedOnly)
         #expect(pb.string(forType: .string) == "pa ss")
         #expect(pb.types?.contains(.init(Self.concealed)) == true)
     }
 
-    @Test func noMarkerIsAddedWhenThereWasNone() {
+    @Test func noMarkerIsAddedWhenThereWasNone() async {
         let pb = makePasteboard()
         pb.clearContents(); pb.setString("x", forType: .string)
-        _ = PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { false }, sendPaste: { .posted })
+        _ = await plainPaste(pb)
         #expect(pb.types?.contains(.init(Self.concealed)) != true)
     }
 
-    @Test func emptyPasteboardIsNothingToPaste() {
+    @Test func emptyPasteboardIsNothingToPaste() async {
         let pb = makePasteboard()
         pb.clearContents()
-        #expect(PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { false },
-                                                          sendPaste: { .posted }) == .nothingToPaste)
+        #expect(await plainPaste(pb) == .nothingToPaste)
     }
 
     @Test func pasteIsSentOnlyWhenTrusted() async throws {
         let pb = makePasteboard()
         pb.clearContents(); pb.setString("x", forType: .string)
         var sent = 0
-        let r = PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { true },
-                                                          sendPaste: { sent += 1; return .posted })
+        let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted })
         #expect(r == .pasted)
         #expect(await eventually { sent == 1 })
     }
@@ -60,12 +57,18 @@ import Testing
         pb.setData(Data("{\\rtf1 x}".utf8), forType: .rtf)
         var seenAtSend: (String?, Bool, Int)?
         var afterWriteCount: Int?
-        let r = PlainPasteHotkeyService.performPlainPaste(
+        var sentBeforeCompletion = true
+        var r: PlainPasteOutcome?
+        PlainPasteHotkeyService.performPlainPaste(
             pasteboard: pb, accessibilityTrusted: { true }, postAccess: { true },
             sendPaste: { seenAtSend = (pb.string(forType: .string), pb.data(forType: .rtf) == nil, pb.changeCount); return .posted },
-            afterWrite: { afterWriteCount = pb.changeCount })
+            afterWrite: { _ in afterWriteCount = pb.changeCount }) { outcome in
+                sentBeforeCompletion = seenAtSend != nil
+                r = outcome
+            }
+        #expect(await eventually { r != nil })
         #expect(r == .pasted)
-        #expect(seenAtSend == nil)                       // never inline: it waits for the modifiers on a task
+        #expect(!sentBeforeCompletion)                   // never inline: it waits for the modifiers on a task
         #expect(await eventually { seenAtSend != nil })
         #expect(seenAtSend?.0 == "pa ss")
         #expect(seenAtSend?.1 == true)                   // styles gone
@@ -76,8 +79,8 @@ import Testing
         let pb = makePasteboard()
         pb.clearContents(); pb.setString("pa\u{00A0}ss", forType: .string)
         var sent = 0
-        let r = PlainPasteHotkeyService.performPlainPaste(
-            pasteboard: pb, accessibilityTrusted: { true }, postAccess: { false },
+        let r = await plainPaste(
+            pb, accessibilityTrusted: { true }, postAccess: { false },
             sendPaste: { sent += 1; return .posted })
         #expect(r == .copiedOnly)
         try await Task.sleep(nanoseconds: 100_000_000)
@@ -95,10 +98,10 @@ import Testing
                                    accessibilityTrusted: { true }, postAccess: { false },
                                    sendPaste: { sent += 1; return .posted }, notify: { notices.append($0) })
         pb.clearContents(); pb.setString("x", forType: .string)
-        #expect(model.plainPasteTriggered() == .copiedOnly)
+        #expect(await plainPasteOutcome(model) == .copiedOnly)
         #expect(notices == [.needsPermission])
         pb.clearContents()
-        #expect(model.plainPasteTriggered() == .nothingToPaste)
+        #expect(await plainPasteOutcome(model) == .nothingToPaste)
         #expect(notices == [.needsPermission, .nothingToPaste])
         try await Task.sleep(nanoseconds: 100_000_000)
         #expect(sent == 0)
@@ -113,7 +116,7 @@ import Testing
                                    accessibilityTrusted: { true }, postAccess: { true },
                                    sendPaste: { .eventFailed }, notify: { notices.append($0) })
         pb.clearContents(); pb.setString("x", forType: .string)
-        #expect(model.plainPasteTriggered() == .pasted)
+        #expect(await plainPasteOutcome(model) == .pasted)
         #expect(await eventually { notices == [.eventFailed] })
     }
 
@@ -132,7 +135,7 @@ import Testing
         defer { model.stop() }
         pb.clearContents(); pb.setString("co\u{00A0}py", forType: .string)
         #expect(await eventually { model.entries.count == 1 })   // the original copy is recorded once
-        #expect(model.plainPasteTriggered() == .pasted)
+        #expect(await plainPasteOutcome(model) == .pasted)
         let polls = model.watcherPollCount
         #expect(await eventually { model.watcherPollCount >= polls + 3 })   // the loop ticked three more times
         #expect(model.entries.count == 1)
@@ -146,17 +149,22 @@ import Testing
         pb.setString("pa\u{00A0}ss", forType: .string)
         pb.setData(Data(), forType: .init(Self.concealed))
         let before = pb.changeCount
-        #expect(model.plainPasteTriggered() == .copiedOnly)
+        #expect(await plainPasteOutcome(model) == .copiedOnly)
         #expect(pb.changeCount != before)
         #expect(pb.types?.contains(.init(Self.concealed)) == true)
-        #expect(await eventually { pb.string(forType: .string) == nil })   // re-armed with the new count: wiped
+        var wiped = false
+        for _ in 0..<400 where !wiped {
+            wiped = await onLane { pb.string(forType: .string) } == nil
+            if !wiped { try? await Task.sleep(for: .milliseconds(10)) }
+        }
+        #expect(wiped, "re-armed with the new count: wiped")
     }
 
     @Test func copyAfterPlainPasteSurvivesTheOldTimer() async throws {
         let (model, pb, td) = fixture()
         defer { _ = td }
         pb.clearContents(); pb.setString("one", forType: .string)
-        _ = model.plainPasteTriggered()
+        _ = await plainPasteOutcome(model)
         pb.clearContents(); pb.setString("two", forType: .string)   // newer copy
         try await Task.sleep(nanoseconds: 700_000_000)
         #expect(pb.string(forType: .string) == "two")

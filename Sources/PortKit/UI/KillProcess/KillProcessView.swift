@@ -279,9 +279,12 @@ struct KillProcessView: View {
     // MARK: Helpers
 
     private func copy(_ value: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.declareVorssaintSource()
-        NSPasteboard.general.setString(value, forType: .string)
+        // Mac Island: the shared pasteboard lane, never the main thread (AppKit's type cache is not thread-safe).
+        GeneralPasteboardAccess.shared.async {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.declareVorssaintSource()
+            NSPasteboard.general.setString(value, forType: .string)
+        }
     }
 
     /// Ticks only while this page is open AND its window is key, so the

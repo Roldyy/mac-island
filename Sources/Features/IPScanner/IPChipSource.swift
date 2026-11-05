@@ -48,8 +48,10 @@ public final class IPChipSource: StatusChipSource {
                 tunnelReadings: @escaping @Sendable () -> [InterfaceReading] = { TunnelReadings.current() },
                 fetcher: any PublicIPFetching = URLSessionPublicIPFetcher(),
                 copy: @escaping @MainActor (String) -> Void = { text in
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
+                    GeneralPasteboardLane.shared.async {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
                 },
                 openScanner: (@MainActor () -> Void)? = nil,
                 scannerAvailable: @escaping @MainActor () -> Bool = { true },

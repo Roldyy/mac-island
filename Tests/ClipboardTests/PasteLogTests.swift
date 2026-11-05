@@ -13,14 +13,13 @@ import Testing
         }
     }
 
-    @Test func aPasteboardWithAConcealedMarkerStillConvertsAndItsIdentifierIsNotInTheLine() {
+    @Test func aPasteboardWithAConcealedMarkerStillConvertsAndItsIdentifierIsNotInTheLine() async {
         let pb = makePasteboard()
         pb.clearContents()
         pb.setString("pa\u{00A0}ss", forType: .string)
         pb.setData(Data(), forType: .init("org.nspasteboard.ConcealedType"))
         let before = pb.types?.count ?? 0
-        let outcome = PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: { false },
-                                                                sendPaste: { .posted })
+        let outcome = await plainPaste(pb)
         #expect(outcome == .copiedOnly)
         let line = PlainPasteHotkeyService.conversionLogLine(before: before, after: pb.types?.count ?? 0)
         #expect(!line.contains("Concealed") && !line.contains("org."))

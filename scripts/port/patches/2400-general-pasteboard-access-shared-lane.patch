@@ -1,0 +1,32 @@
+--- a/Services/GeneralPasteboardAccess.swift
++++ b/Services/GeneralPasteboardAccess.swift
+@@ -3,6 +3,7 @@
+ // Derived from Vorssaint (c) 2026 Vorssaint, GPL-3.0-or-later. Modified for Mac Island.
+ 
+ import Foundation
++import IslandKit
+ 
+ /// Serializes every access the app makes to the general pasteboard.
+ /// NSPasteboard keeps a mutable type cache on its shared instance, so reading
+@@ -12,7 +13,8 @@
+ /// main thread, and no way to wait for it — a caller waiting on the main
+ /// thread is a frozen app (issue #887).
+ final class GeneralPasteboardAccess {
+-    static let shared = GeneralPasteboardAccess()
++    /// Mac Island: the shared instance runs on the app-wide `GeneralPasteboardLane` queue, the one every other reader and writer uses.
++    static let shared = GeneralPasteboardAccess(queue: GeneralPasteboardLane.shared.queue)
+ 
+     typealias DeadlineScheduler = (_ delay: TimeInterval,
+                                    _ action: @escaping () -> Void) -> (() -> Void)
+@@ -25,8 +27,9 @@
+          now: @escaping () -> TimeInterval = {
+              TimeInterval(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+          },
+-         scheduleDeadline: DeadlineScheduler? = nil) {
+-        queue = DispatchQueue(label: label, qos: .utility)
++         scheduleDeadline: DeadlineScheduler? = nil,
++         queue: DispatchQueue? = nil) {
++        self.queue = queue ?? DispatchQueue(label: label, qos: .utility)
+         self.now = now
+         self.scheduleDeadline = scheduleDeadline ?? { delay, action in
+             let item = DispatchWorkItem(block: action)

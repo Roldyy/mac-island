@@ -191,7 +191,7 @@ import Testing
 
     final class Seen { var captures: [PasteboardCapture?] = [] }
 
-    @Test func withImagesAndFilesOffOnlyTextIsRecorded() throws {
+    @Test func withImagesAndFilesOffOnlyTextIsRecorded() async throws {
         let td = TempDefaults()
         let pb = makePasteboard()
         let seen = Seen()
@@ -205,29 +205,29 @@ import Testing
                                                 colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
         let png = try #require(rep.representation(using: .png, properties: [:]))
         pb.clearContents(); pb.setData(png, forType: .png)
-        w.poll()
+        await pollAndSettle(w)
         guard case .image? = seen.captures.last ?? nil else { Issue.record("an image is recorded by default"); return }
 
         td.defaults.set(false, forKey: "clipboardHistoryIncludeImagesFiles")
         pb.clearContents(); pb.setData(png, forType: .png)
-        w.poll()
+        await pollAndSettle(w)
         #expect(seen.captures.last == .some(nil), "no image with the toggle off")
 
         pb.clearContents(); pb.setString("plain words", forType: .string)
-        w.poll()
+        await pollAndSettle(w)
         #expect(seen.captures.last == .some(.text("plain words")), "text is still recorded")
 
         pb.clearContents(); pb.writeObjects([URL(fileURLWithPath: "/tmp/synthetic-file") as NSURL])
-        w.poll()
+        await pollAndSettle(w)
         if case .files? = seen.captures.last ?? nil { Issue.record("a file path is recorded with the toggle off") }
 
         td.defaults.set(true, forKey: "clipboardHistoryIncludeImagesFiles")
         pb.clearContents(); pb.writeObjects([URL(fileURLWithPath: "/tmp/synthetic-file") as NSURL])
-        w.poll()
+        await pollAndSettle(w)
         #expect(seen.captures.last == .some(.files(["/tmp/synthetic-file"])))
     }
 
-    @Test func aConcealedOrTransientCopyIsNeverRecordedWhateverTheToggles() {
+    @Test func aConcealedOrTransientCopyIsNeverRecordedWhateverTheToggles() async {
         let td = TempDefaults()
         let pb = makePasteboard()
         let seen = Seen()
@@ -240,7 +240,7 @@ import Testing
             pb.clearContents()
             pb.setString("synthetic secret", forType: .string)
             pb.setData(Data(), forType: .init(marker))
-            w.poll()
+            await pollAndSettle(w)
             #expect(seen.captures.last == .some(nil), "\(marker) is never stored")
         }
     }

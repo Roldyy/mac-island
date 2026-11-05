@@ -35,33 +35,39 @@ import Testing
         #expect(!w.isRunning && rig.live == 0, "the last subscriber left: the hub's timer is gone")
     }
 
-    @Test func aHubTickReportsAChangeOnce() {
+    @Test func aHubTickReportsAChangeOnce() async {
         let rig = Rig()
         let (w, pb, td, _) = make(rig); defer { _ = td }
         final class Seen { var captures: [PasteboardCapture?] = [] }
         let seen = Seen()
         w.onChange = { _, capture, _ in seen.captures.append(capture) }
         w.start()
+        #expect(await eventually { w.hasAdoptedCount })
         pb.clearContents(); pb.setString("hello", forType: .string)
         rig.count = pb.changeCount
         rig.tickHandler?()
+        #expect(await eventually { seen.captures.count == 1 })
         rig.tickHandler?()
+        try? await Task.sleep(for: .milliseconds(150))   // the second tick's look, if any, has had time to land
         #expect(seen.captures == [.text("hello")], "the second tick sees the same count: nothing new")
         w.stop()
     }
 
-    @Test func aStaleCountFromBeforeOurOwnWriteIsNotACopy() {
+    @Test func aStaleCountFromBeforeOurOwnWriteIsNotACopy() async {
         let rig = Rig()
         let (w, pb, td, _) = make(rig); defer { _ = td }
         final class Seen { var n = 0 }
         let seen = Seen()
         w.onChange = { _, _, _ in seen.n += 1 }
         w.start()
+        #expect(await eventually { w.hasAdoptedCount })
         let before = pb.changeCount
         pb.clearContents(); pb.setString("ours", forType: .string)   // the app's own write
         w.syncToCurrent()
+        #expect(await eventually { w.lastChangeCount == pb.changeCount })   // read on the lane, adopted on main
         rig.count = before                                            // a read that started before that write lands now
         rig.tickHandler?()
+        try? await Task.sleep(for: .milliseconds(150))
         #expect(seen.n == 0, "a lower count is stale, never recorded back")
         w.stop()
     }
