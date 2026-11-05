@@ -845,9 +845,13 @@ final class ScreenshotService: ObservableObject {
                     continuation.resume(returning: $0)
                 }
             }
+            // Mac Island: the lane may answer after a newer capture replaced this one. That capture owns
+            // `autoCopyTask` and its own beep: this one must not touch the shared state or the task handle.
+            guard generation == self.autoCopyGeneration else { return }
             guard copied else {
                 try? FileManager.default.removeItem(at: output.0)
                 NSSound.beep()
+                self.autoCopyTask = nil
                 return
             }
             ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)

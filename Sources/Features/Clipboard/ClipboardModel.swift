@@ -62,7 +62,7 @@ final class ClipboardModel {
          settings: @escaping () -> ClipboardSettings = { ClipboardSettings() },
          accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
          postAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
-         sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
+         sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteDispatcher.live().run() },
          notify: @escaping @MainActor (PlainPasteNotice) -> Void = { PlainPasteNotice.post($0) },
          hotkey: (any PlainPasteHotkeyRegistering)? = nil,
          historyHotkey: (any PlainPasteHotkeyRegistering)? = nil,
@@ -491,6 +491,7 @@ final class ClipboardModel {
             switch outcome {
             case .pasted: break
             case .copiedOnly: notify(.needsPermission)
+            case .stale: notify(.stale)
             case .nothingToPaste: notify(.nothingToPaste)
             }
             completion(outcome)

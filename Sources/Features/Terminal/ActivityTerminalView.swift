@@ -138,7 +138,10 @@ final class ActivityTerminalView: LocalProcessTerminalView {
         // the front, is dropped instead of typed into the shell the user has left.
         let request = StalePasteGuard(requestedAt: StalePasteGuard.uptime(), frontPID: Self.frontPID())
         GeneralPasteboardLane.shared.async({ Self.pasteText(from: .general) }, then: { [weak self] text in
-            guard !request.isStale(now: StalePasteGuard.uptime(), frontPID: Self.frontPID()) else { return }
+            guard !request.isStale(now: StalePasteGuard.uptime(), frontPID: Self.frontPID()) else {
+                NSSound.beep()   // never a silent drop: the user pressed paste and nothing happened
+                return
+            }
             self?.sendPaste(text)
         })
     }

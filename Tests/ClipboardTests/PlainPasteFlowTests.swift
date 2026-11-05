@@ -97,10 +97,27 @@ import Testing
         let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
                                  afterWrite: { _ in clock += 120 },   // the lane answered two minutes later
                                  now: { clock })
-        #expect(r == .copiedOnly)
+        #expect(r == .stale)
         try await Task.sleep(nanoseconds: 100_000_000)
         #expect(sent == 0)
         #expect(pb.string(forType: .string) == "pa ss")
+    }
+
+    /// A slow but legitimate paste (big range, Universal Clipboard) must still go through.
+    @Test func aSlowPasteWithinTheLimitStillPastes() async throws {
+        let pb = makePasteboard()
+        pb.clearContents(); pb.setString("x", forType: .string)
+        var clock: TimeInterval = 100
+        var sent = 0
+        let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
+                                 afterWrite: { _ in clock += 3 }, now: { clock })
+        #expect(r == .pasted)
+        #expect(await eventually { sent == 1 })
+    }
+
+    @Test func staleOutcomeHasItsOwnHonestNotice() {
+        #expect(PlainPasteNotice.stale.text == "Collage annulé : trop long, le texte est copié, collez avec ⌘V.")
+        #expect(PlainPasteNotice.stale.text != PlainPasteNotice.needsPermission.text)
     }
 
     @Test func anotherAppInFrontAtCompletionPostsNothing() async throws {
@@ -110,7 +127,7 @@ import Testing
         var sent = 0
         let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
                                  afterWrite: { _ in front = 222 }, frontPID: { front })
-        #expect(r == .copiedOnly)
+        #expect(r == .stale)
         try await Task.sleep(nanoseconds: 100_000_000)
         #expect(sent == 0)
     }

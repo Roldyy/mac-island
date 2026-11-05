@@ -13,6 +13,12 @@ import Testing
         #expect(!g.isStale(now: 10 + StalePasteGuard.maxAge, frontPID: 5))
     }
 
+    @Test func aSlowButLegitimatePasteIsNotStale() {
+        let g = StalePasteGuard(requestedAt: 10, frontPID: 5)
+        #expect(StalePasteGuard.maxAge == 8)
+        #expect(!g.isStale(now: 15, frontPID: 5))
+    }
+
     @Test func anotherFrontAppIsStale() {
         let g = StalePasteGuard(requestedAt: 10, frontPID: 5)
         #expect(g.isStale(now: 10.1, frontPID: 6))

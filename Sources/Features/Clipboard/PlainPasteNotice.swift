@@ -5,6 +5,7 @@ enum PlainPasteNotice: Equatable {
     case needsPermission
     case nothingToPaste
     case eventFailed
+    case stale
 
     static let noticeID = "clipboard.plainpaste.notice"
 
@@ -14,6 +15,7 @@ enum PlainPasteNotice: Equatable {
         case .needsPermission: "Autorisation requise : Surveillance de l'entrée / Accessibilité"
         case .nothingToPaste: "Collage sans style : rien à coller (pas de texte)"
         case .eventFailed: "Collage sans style impossible : événement clavier refusé"
+        case .stale: "Collage annulé : trop long, le texte est copié, collez avec ⌘V."
         }
     }
 

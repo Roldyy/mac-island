@@ -5,8 +5,10 @@ import Foundation
 /// text) must not land in whatever app is in front by then. The request records the time and the front app; the
 /// completion asks `isStale`. Pure: the clock and the pid are passed in, so tests drive both.
 public struct StalePasteGuard: Equatable, Sendable {
-    /// Older than this, the user has moved on.
-    public static let maxAge: TimeInterval = 1
+    /// Older than this, the user has moved on. Generous on purpose: a big Excel range or a Universal Clipboard item
+    /// delivers its text only at the first read, and the clock includes the rewrite's own read. "The user moved on" is
+    /// caught by the front-app check, not by the age.
+    public static let maxAge: TimeInterval = 8
 
     public let requestedAt: TimeInterval
     public let frontPID: pid_t?

@@ -6,6 +6,7 @@ import IslandKit
 enum PlainPasteOutcome: Equatable {
     case pasted
     case copiedOnly          // plain text is on the pasteboard, Cmd+V not sent (no Accessibility)
+    case stale               // plain text is on the pasteboard, Cmd+V not sent (answered too late, or another app in front)
     case nothingToPaste
 }
 
@@ -97,12 +98,12 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     /// so it runs on a task, not inline.
     /// `afterWrite` receives the change count of the rewrite (read on the lane, right after the write).
     /// A stuck lane that frees up late (older than `StalePasteGuard.maxAge`, or another app in front by then) still
-    /// gets its rewrite, but no paste key: the outcome is `.copiedOnly`.
+    /// gets its rewrite, but no paste key: the outcome is `.stale`.
     static func performPlainPaste(pasteboard: NSPasteboard,
                                   lane: GeneralPasteboardLane = .shared,
                                   accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
                                   postAccess: @escaping () -> Bool = { CGPreflightPostEventAccess() },
-                                  sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
+                                  sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteDispatcher.live().run() },
                                   didSend: @escaping @MainActor (PasteSendResult) -> Void = { _ in },
                                   afterWrite: @escaping (_ changeCount: Int) -> Void = { _ in },
                                   now: @escaping () -> TimeInterval = { StalePasteGuard.uptime() },
@@ -122,7 +123,7 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
                 afterWrite(rewrite.changeCount)
                 guard !request.isStale(now: now(), frontPID: frontPID()) else {
                     PasteLog.logger.notice("not posted: the lane answered late or another app is in front")
-                    completion(.copiedOnly)
+                    completion(.stale)
                     return
                 }
                 guard accessibilityTrusted() else {
