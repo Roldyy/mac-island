@@ -88,6 +88,43 @@ import Testing
         #expect(pb.string(forType: .string) == "pa ss")
     }
 
+    /// A lane stuck behind a hanging app frees up late: the text is rewritten, but no Cmd+V goes to the app in front now.
+    @Test func lateLaneAnswerRewritesButPostsNothing() async throws {
+        let pb = makePasteboard()
+        pb.clearContents(); pb.setString("pa\u{00A0}ss", forType: .string)
+        var clock: TimeInterval = 100
+        var sent = 0
+        let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
+                                 afterWrite: { _ in clock += 120 },   // the lane answered two minutes later
+                                 now: { clock })
+        #expect(r == .copiedOnly)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(sent == 0)
+        #expect(pb.string(forType: .string) == "pa ss")
+    }
+
+    @Test func anotherAppInFrontAtCompletionPostsNothing() async throws {
+        let pb = makePasteboard()
+        pb.clearContents(); pb.setString("x", forType: .string)
+        var front: pid_t = 111
+        var sent = 0
+        let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
+                                 afterWrite: { _ in front = 222 }, frontPID: { front })
+        #expect(r == .copiedOnly)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(sent == 0)
+    }
+
+    @Test func promptAnswerInTheSameAppStillPastes() async throws {
+        let pb = makePasteboard()
+        pb.clearContents(); pb.setString("x", forType: .string)
+        var sent = 0
+        let r = await plainPaste(pb, accessibilityTrusted: { true }, sendPaste: { sent += 1; return .posted },
+                                 frontPID: { 111 })
+        #expect(r == .pasted)
+        #expect(await eventually { sent == 1 })
+    }
+
     @Test func modelTellsTheUserWhenItCannotPaste() async throws {
         let td = TempDefaults()
         var notices: [PlainPasteNotice] = []
@@ -133,7 +170,8 @@ import Testing
                                    sendPaste: { .posted }, notify: { _ in }, hotkey: FakeHotkey())
         model.start()
         defer { model.stop() }
-        pb.clearContents(); pb.setString("co\u{00A0}py", forType: .string)
+        #expect(await eventually { model.watcherHasAdoptedCount })   // a copy before the adoption would count as pre-existing
+        await laneWrite(pb, "co\u{00A0}py")
         #expect(await eventually { model.entries.count == 1 })   // the original copy is recorded once
         #expect(await plainPasteOutcome(model) == .pasted)
         let polls = model.watcherPollCount

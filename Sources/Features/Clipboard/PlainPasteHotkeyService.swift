@@ -96,6 +96,8 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
     /// `sendPaste` runs. `sendPaste` waits for the shortcut's modifiers to be released (see `PasteKeySequencer`),
     /// so it runs on a task, not inline.
     /// `afterWrite` receives the change count of the rewrite (read on the lane, right after the write).
+    /// A stuck lane that frees up late (older than `StalePasteGuard.maxAge`, or another app in front by then) still
+    /// gets its rewrite, but no paste key: the outcome is `.copiedOnly`.
     static func performPlainPaste(pasteboard: NSPasteboard,
                                   lane: GeneralPasteboardLane = .shared,
                                   accessibilityTrusted: @escaping () -> Bool = { PlainPasteHotkeyService.accessibilityTrusted },
@@ -103,7 +105,10 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
                                   sendPaste: @escaping @MainActor () async -> PasteSendResult = { await PasteKeySequencer.live().run() },
                                   didSend: @escaping @MainActor (PasteSendResult) -> Void = { _ in },
                                   afterWrite: @escaping (_ changeCount: Int) -> Void = { _ in },
+                                  now: @escaping () -> TimeInterval = { StalePasteGuard.uptime() },
+                                  frontPID: @escaping () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier },
                                   completion: @escaping @MainActor (PlainPasteOutcome) -> Void) {
+        let request = StalePasteGuard(requestedAt: now(), frontPID: frontPID())
         lane.async({ rewritePlain(on: pasteboard) }, then: { rewrite in
             MainActor.assumeIsolated {
                 guard let rewrite else {
@@ -115,6 +120,11 @@ final class PlainPasteHotkeyService: PlainPasteHotkeyRegistering {
                 // flavour), and the notice level is persisted.
                 PasteLog.logger.notice("\(Self.conversionLogLine(before: rewrite.before, after: rewrite.after), privacy: .public)")
                 afterWrite(rewrite.changeCount)
+                guard !request.isStale(now: now(), frontPID: frontPID()) else {
+                    PasteLog.logger.notice("not posted: the lane answered late or another app is in front")
+                    completion(.copiedOnly)
+                    return
+                }
                 guard accessibilityTrusted() else {
                     PasteLog.logger.notice("not posted: Accessibility not granted (AXIsProcessTrusted false)")
                     completion(.copiedOnly)

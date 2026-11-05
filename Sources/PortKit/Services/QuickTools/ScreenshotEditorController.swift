@@ -1650,17 +1650,21 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let export = model.exportImage() else { return }
-        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
-            NSSound.beep()
-            return
+        let queued = Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) { [weak self] copied in
+            guard let self else { return }
+            guard copied else { NSSound.beep(); return }
+            self.model.markExported()
+            QuickToolHUD.show(icon: "camera.viewfinder", message: self.strings.copiedHUD)
+            self.window?.close()
         }
-        model.markExported()
-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
-        window?.close()
+        if !queued { NSSound.beep() }
     }
 
+    /// Prepares the file here, writes it to the pasteboard on the shared lane. Returns false when nothing was queued
+    /// (then `completion` is never called); otherwise `completion(copied)` runs on main after the write.
     @discardableResult
-    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
+    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String,
+                          completion: @escaping (Bool) -> Void) -> Bool {
         guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale),
               let base = FileManager.default.urls(for: .cachesDirectory,
                                                   in: .userDomainMask).first,
@@ -1673,17 +1677,28 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url, payload: clipboardPayload(from: export, png: data)) else {
-            try? FileManager.default.removeItem(at: url)
-            return false
+        copyFileOnLane(url, payload: clipboardPayload(from: export, png: data)) { copied in
+            if copied {
+                ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
+            } else {
+                try? FileManager.default.removeItem(at: url)
+            }
+            completion(copied)
         }
-        ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
         return true
+    }
+
+    /// Mac Island: `copyFile` on the shared pasteboard lane; `completion` gets the result on main.
+    static func copyFileOnLane(_ url: URL, payload: ClipboardPayload? = nil,
+                               completion: @escaping (Bool) -> Void) {
+        GeneralPasteboardAccess.shared.async({
+            copyFile(url, payload: payload, pasteboard: NSPasteboard.general)
+        }, then: completion)
     }
 
     @discardableResult
     static func copyFile(_ url: URL, payload: ClipboardPayload? = nil,
-                         pasteboard: NSPasteboard = .general) -> Bool {
+                         pasteboard: NSPasteboard) -> Bool {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
@@ -1716,7 +1731,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     @discardableResult
     static func copyClipboardPayload(_ payload: ClipboardPayload,
-                                     pasteboard: NSPasteboard = .general) -> Bool {
+                                     pasteboard: NSPasteboard) -> Bool {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         if let png = payload.png {

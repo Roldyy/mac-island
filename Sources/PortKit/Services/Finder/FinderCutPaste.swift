@@ -59,6 +59,8 @@ final class FinderCutPaste: ObservableObject {
     /// into a move while this still matches — if anything else wrote to the
     /// pasteboard since, ⌘V is left as a normal paste.
     private var markedChangeCount = 0
+    /// Mac Island: the same count as `markedChangeCount`, written and read only on the pasteboard lane.
+    private nonisolated(unsafe) var laneCutChangeCount = 0
 
     // An active keyboard tap makes the window server wait for its callback
     // before delivering the key. Keep that callback on a user-interactive
@@ -476,10 +478,21 @@ final class FinderCutPaste: ObservableObject {
         marked = urls.map { MarkedItem(url: $0, icon: NSWorkspace.shared.icon(forFile: $0.path)) }
         // Also place the files on the pasteboard so a normal ⌘V elsewhere still
         // works as a copy, and so the move guard has a change count to anchor to.
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects(urls as [NSURL])
-        markedChangeCount = pb.changeCount
+        // Mac Island: the write and the count of that very write are read in ONE block on the shared pasteboard lane,
+        // never on the main thread (AppKit's type cache is not thread-safe). `laneCutChangeCount` is only touched on
+        // the lane, so a cancel queued right behind this write still sees the count it must match.
+        GeneralPasteboardAccess.shared.async({ [weak self] in
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.writeObjects(urls as [NSURL])
+            let count = pb.changeCount
+            self?.laneCutChangeCount = count
+            return count
+        }, then: { [weak self] count in
+            // A cancel or a new cut that ran meanwhile owns the state: only anchor a cut that is still the current one.
+            guard let self, self.marked.map(\.url) == urls else { return }
+            self.markedChangeCount = count
+        })
         lastResult = nil
         refreshPanel()
     }
@@ -700,9 +713,7 @@ final class FinderCutPaste: ObservableObject {
     private func resetCutState(clearOwnedPasteboard: Bool) {
         resultDismiss?.cancel()
         resultDismiss = nil
-        let shouldClearPasteboard = clearOwnedPasteboard
-            && !marked.isEmpty
-            && NSPasteboard.general.changeCount == markedChangeCount
+        let shouldClearPasteboard = clearOwnedPasteboard && !marked.isEmpty
         operationGeneration += 1
         moveInProgress = false
         moveProgress = nil
@@ -710,7 +721,12 @@ final class FinderCutPaste: ObservableObject {
         markedChangeCount = 0
         lastResult = nil
         if shouldClearPasteboard {
-            NSPasteboard.general.clearContents()
+            // Mac Island: compare and clear in one lane block, queued behind the cut's own write.
+            GeneralPasteboardAccess.shared.async { [weak self] in
+                let pb = NSPasteboard.general
+                guard let self, pb.changeCount == self.laneCutChangeCount else { return }
+                pb.clearContents()
+            }
         }
         refreshPanel()
     }

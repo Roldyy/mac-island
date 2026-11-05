@@ -1,0 +1,228 @@
+--- a/Services/Finder/FinderCutPaste.swift
++++ b/Services/Finder/FinderCutPaste.swift
+@@ -59,6 +59,8 @@
+     /// into a move while this still matches — if anything else wrote to the
+     /// pasteboard since, ⌘V is left as a normal paste.
+     private var markedChangeCount = 0
++    /// Mac Island: the same count as `markedChangeCount`, written and read only on the pasteboard lane.
++    private nonisolated(unsafe) var laneCutChangeCount = 0
+ 
+     // An active keyboard tap makes the window server wait for its callback
+     // before delivering the key. Keep that callback on a user-interactive
+@@ -476,10 +478,21 @@
+         marked = urls.map { MarkedItem(url: $0, icon: NSWorkspace.shared.icon(forFile: $0.path)) }
+         // Also place the files on the pasteboard so a normal ⌘V elsewhere still
+         // works as a copy, and so the move guard has a change count to anchor to.
+-        let pb = NSPasteboard.general
+-        pb.clearContents()
+-        pb.writeObjects(urls as [NSURL])
+-        markedChangeCount = pb.changeCount
++        // Mac Island: the write and the count of that very write are read in ONE block on the shared pasteboard lane,
++        // never on the main thread (AppKit's type cache is not thread-safe). `laneCutChangeCount` is only touched on
++        // the lane, so a cancel queued right behind this write still sees the count it must match.
++        GeneralPasteboardAccess.shared.async({ [weak self] in
++            let pb = NSPasteboard.general
++            pb.clearContents()
++            pb.writeObjects(urls as [NSURL])
++            let count = pb.changeCount
++            self?.laneCutChangeCount = count
++            return count
++        }, then: { [weak self] count in
++            // A cancel or a new cut that ran meanwhile owns the state: only anchor a cut that is still the current one.
++            guard let self, self.marked.map(\.url) == urls else { return }
++            self.markedChangeCount = count
++        })
+         lastResult = nil
+         refreshPanel()
+     }
+@@ -700,9 +713,7 @@
+     private func resetCutState(clearOwnedPasteboard: Bool) {
+         resultDismiss?.cancel()
+         resultDismiss = nil
+-        let shouldClearPasteboard = clearOwnedPasteboard
+-            && !marked.isEmpty
+-            && NSPasteboard.general.changeCount == markedChangeCount
++        let shouldClearPasteboard = clearOwnedPasteboard && !marked.isEmpty
+         operationGeneration += 1
+         moveInProgress = false
+         moveProgress = nil
+@@ -710,7 +721,12 @@
+         markedChangeCount = 0
+         lastResult = nil
+         if shouldClearPasteboard {
+-            NSPasteboard.general.clearContents()
++            // Mac Island: compare and clear in one lane block, queued behind the cut's own write.
++            GeneralPasteboardAccess.shared.async { [weak self] in
++                let pb = NSPasteboard.general
++                guard let self, pb.changeCount == self.laneCutChangeCount else { return }
++                pb.clearContents()
++            }
+         }
+         refreshPanel()
+     }
+--- a/Services/QuickTools/ScreenshotEditorController.swift
++++ b/Services/QuickTools/ScreenshotEditorController.swift
+@@ -1650,17 +1650,21 @@
+     /// and the window's job is done, so nothing lingers to tidy up.
+     func copyToClipboard() {
+         guard let export = model.exportImage() else { return }
+-        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
+-            NSSound.beep()
+-            return
++        let queued = Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) { [weak self] copied in
++            guard let self else { return }
++            guard copied else { NSSound.beep(); return }
++            self.model.markExported()
++            QuickToolHUD.show(icon: "camera.viewfinder", message: self.strings.copiedHUD)
++            self.window?.close()
+         }
+-        model.markExported()
+-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
+-        window?.close()
++        if !queued { NSSound.beep() }
+     }
+ 
++    /// Prepares the file here, writes it to the pasteboard on the shared lane. Returns false when nothing was queued
++    /// (then `completion` is never called); otherwise `completion(copied)` runs on main after the write.
+     @discardableResult
+-    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
++    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String,
++                          completion: @escaping (Bool) -> Void) -> Bool {
+         guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale),
+               let base = FileManager.default.urls(for: .cachesDirectory,
+                                                   in: .userDomainMask).first,
+@@ -1673,17 +1677,28 @@
+                                                          directory: folder) else {
+             return false
+         }
+-        guard copyFile(url, payload: clipboardPayload(from: export, png: data)) else {
+-            try? FileManager.default.removeItem(at: url)
+-            return false
++        copyFileOnLane(url, payload: clipboardPayload(from: export, png: data)) { copied in
++            if copied {
++                ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
++            } else {
++                try? FileManager.default.removeItem(at: url)
++            }
++            completion(copied)
+         }
+-        ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
+         return true
+     }
+ 
++    /// Mac Island: `copyFile` on the shared pasteboard lane; `completion` gets the result on main.
++    static func copyFileOnLane(_ url: URL, payload: ClipboardPayload? = nil,
++                               completion: @escaping (Bool) -> Void) {
++        GeneralPasteboardAccess.shared.async({
++            copyFile(url, payload: payload, pasteboard: NSPasteboard.general)
++        }, then: completion)
++    }
++
+     @discardableResult
+     static func copyFile(_ url: URL, payload: ClipboardPayload? = nil,
+-                         pasteboard: NSPasteboard = .general) -> Bool {
++                         pasteboard: NSPasteboard) -> Bool {
+         pasteboard.clearContents()
+         let item = NSPasteboardItem()
+         guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
+@@ -1716,7 +1731,7 @@
+ 
+     @discardableResult
+     static func copyClipboardPayload(_ payload: ClipboardPayload,
+-                                     pasteboard: NSPasteboard = .general) -> Bool {
++                                     pasteboard: NSPasteboard) -> Bool {
+         pasteboard.clearContents()
+         let item = NSPasteboardItem()
+         if let png = payload.png {
+--- a/Services/QuickTools/ScreenshotPinController.swift
++++ b/Services/QuickTools/ScreenshotPinController.swift
+@@ -119,13 +119,17 @@
+     // MARK: Actions
+ 
+     func copyImage() {
+-        guard ScreenshotEditorController.copyImage(
++        let strings = strings
++        let queued = ScreenshotEditorController.copyImage(
+             ScreenshotRenderer.Export(image: image, scale: scale),
+-            fileNamePrefix: strings.fileNamePrefix) else {
+-            NSSound.beep()
+-            return
++            fileNamePrefix: strings.fileNamePrefix) { copied in
++            if copied {
++                QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
++            } else {
++                NSSound.beep()
++            }
+         }
+-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
++        if !queued { NSSound.beep() }
+     }
+ 
+     func saveImage() {
+--- a/Services/QuickTools/ScreenshotService.swift
++++ b/Services/QuickTools/ScreenshotService.swift
+@@ -840,8 +840,12 @@
+                 try? FileManager.default.removeItem(at: output.0)
+                 return
+             }
+-            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
+-            else {
++            let copied = await withCheckedContinuation { continuation in
++                ScreenshotEditorController.copyFileOnLane(output.0, payload: output.1) {
++                    continuation.resume(returning: $0)
++                }
++            }
++            guard copied else {
+                 try? FileManager.default.removeItem(at: output.0)
+                 NSSound.beep()
+                 return
+@@ -945,13 +949,19 @@
+     @discardableResult
+     private func copyDirect(_ capture: ScreenshotSelectionController.Capture) -> Bool {
+         guard let export = flatten(capture) else { return false }
+-        guard ScreenshotEditorController.copyImage(
+-            export, fileNamePrefix: strings.fileNamePrefix) else {
+-            NSSound.beep()
+-            return false
++        // Mac Island: the pasteboard write runs on the shared lane; `true` means the copy was queued, a failed write
++        // beeps in the completion.
++        let strings = strings
++        let queued = ScreenshotEditorController.copyImage(
++            export, fileNamePrefix: strings.fileNamePrefix) { copied in
++            if copied {
++                QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
++            } else {
++                NSSound.beep()
++            }
+         }
+-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
+-        return true
++        if !queued { NSSound.beep() }
++        return queued
+     }
+ 
+     private func saveDirect(_ capture: ScreenshotSelectionController.Capture) -> SaveOutcome? {
+@@ -997,13 +1007,16 @@
+             return nil
+         }
+ 
+-        let copied = ScreenshotEditorController.copyFile(
+-            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data))
+-        let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
+-        QuickToolHUD.show(icon: "camera.viewfinder",
+-                          message: String(format: format,
+-                                          url.deletingLastPathComponent().lastPathComponent))
+-        return (SaveOutcome(url: url, consumedNumber: consumedNumber), copied)
++        // Mac Island: the write runs on the shared lane, so `copied` is reported as queued and the HUD (which says
++        // whether the copy happened) is shown once the lane has answered.
++        let strings = strings
++        let folderName = url.deletingLastPathComponent().lastPathComponent
++        ScreenshotEditorController.copyFileOnLane(
++            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data)) { copied in
++            let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
++            QuickToolHUD.show(icon: "camera.viewfinder", message: String(format: format, folderName))
++        }
++        return (SaveOutcome(url: url, consumedNumber: consumedNumber), true)
+     }
+ 
+     /// Direct outputs go through the same pipeline as the editor so the 1x

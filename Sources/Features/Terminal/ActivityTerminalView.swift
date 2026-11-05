@@ -134,10 +134,16 @@ final class ActivityTerminalView: LocalProcessTerminalView {
     override func paste(_ sender: Any) {
         // The general pasteboard is read on its lane (never on main: AppKit's type cache is not thread-safe); the bytes
         // go to the shell on main afterwards.
+        // A lane stuck behind an app that hangs may answer minutes later: a paste that late, or after another app came to
+        // the front, is dropped instead of typed into the shell the user has left.
+        let request = StalePasteGuard(requestedAt: StalePasteGuard.uptime(), frontPID: Self.frontPID())
         GeneralPasteboardLane.shared.async({ Self.pasteText(from: .general) }, then: { [weak self] text in
+            guard !request.isStale(now: StalePasteGuard.uptime(), frontPID: Self.frontPID()) else { return }
             self?.sendPaste(text)
         })
     }
+
+    private static func frontPID() -> pid_t? { NSWorkspace.shared.frontmostApplication?.processIdentifier }
 
     /// A drag pasteboard is private to the drag and only valid inside the drop: read it right here.
     private func insert(fromDrag pasteboard: NSPasteboard) {

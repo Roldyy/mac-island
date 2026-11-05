@@ -137,7 +137,7 @@ import Testing
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview"); $0.set(10, forKey: "clipboardHistoryMenuBarPreviewLength") }
         r.model.start(); defer { r.model.stop() }
         #expect(r.sink.previews.isEmpty, "empty history: nothing to show")
-        r.pasteboard.clearContents(); r.pasteboard.setString("une copie vraiment tres longue", forType: .string)
+        await laneWrite(r.pasteboard, "une copie vraiment tres longue")
         await pollAndSettle(r.model)
         #expect(r.sink.previews.last == "une copie…")
         #expect((r.sink.previews.last??.count ?? 99) <= 10)
@@ -150,9 +150,7 @@ import Testing
     @Test func aConcealedCopyNeverReachesThePreview() async {
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview") }
         r.model.start(); defer { r.model.stop() }
-        r.pasteboard.clearContents()
-        r.pasteboard.setString("secret-value", forType: .string)
-        r.pasteboard.setData(Data(), forType: .init("org.nspasteboard.ConcealedType"))
+        await laneWrite(r.pasteboard, "secret-value", concealed: true)
         await pollAndSettle(r.model)
         #expect(r.sink.previews.isEmpty)
         #expect(r.model.entries.isEmpty)
@@ -161,7 +159,7 @@ import Testing
     @Test func stoppingTheFeatureClearsThePreview() async {
         let r = rig { $0.set(true, forKey: "clipboardHistoryMenuBarPreview") }
         r.model.start()
-        r.pasteboard.clearContents(); r.pasteboard.setString("visible", forType: .string)
+        await laneWrite(r.pasteboard, "visible")
         await pollAndSettle(r.model)
         #expect(r.sink.previews.last == "visible")
         r.model.stop()
@@ -197,7 +195,7 @@ import Testing
         let r = rig({ $0.set(30, forKey: "clipboardHistoryRetentionDays") }, directory: dir)
         r.model.start(); defer { r.model.stop() }
         #expect(r.model.entries.isEmpty, "purged at launch")
-        r.pasteboard.clearContents(); r.pasteboard.setString("fresh", forType: .string)
+        await laneWrite(r.pasteboard, "fresh")
         await pollAndSettle(r.model)
         #expect(r.model.entries.map(\.text) == ["fresh"])
     }
@@ -220,7 +218,7 @@ import Testing
         let r = rig()
         r.model.start(); defer { r.model.stop() }
         for t in ["a", "b", "c"] {
-            r.pasteboard.clearContents(); r.pasteboard.setString(t, forType: .string)
+            await laneWrite(r.pasteboard, t)
             await pollAndSettle(r.model)
         }
         r.model.togglePin(r.model.entries[0])
@@ -253,7 +251,7 @@ import Testing
             $0.set(true, forKey: "clipboardAutoClearOnScreenLock")
         }
         r.model.start(); defer { r.model.stop() }
-        r.pasteboard.clearContents(); r.pasteboard.setString("keep me in the history", forType: .string)
+        await laneWrite(r.pasteboard, "keep me in the history")
         await pollAndSettle(r.model)
         let triggers: [(NotificationCenter, Notification.Name)] = [
             (r.workspace, NSWorkspace.willSleepNotification),
@@ -261,10 +259,15 @@ import Testing
             (r.distributed, SystemClearObserver.screenLockName),
         ]
         for (center, name) in triggers {
-            r.pasteboard.clearContents(); r.pasteboard.setString("on the pasteboard", forType: .string)
-            #expect(r.pasteboard.string(forType: .string) != nil)
+            await laneWrite(r.pasteboard, "on the pasteboard")
+            #expect(await laneString(r.pasteboard) != nil)
             center.post(name: name, object: nil)
-            #expect(await eventually { r.pasteboard.string(forType: .string) == nil }, "\(name.rawValue)")
+            var cleared = false
+            for _ in 0..<500 where !cleared {
+                cleared = await laneString(r.pasteboard) == nil
+                if !cleared { try? await Task.sleep(for: .milliseconds(10)) }
+            }
+            #expect(cleared, "\(name.rawValue)")
         }
         #expect(r.model.entries.map(\.text) == ["keep me in the history"])
     }
@@ -272,13 +275,18 @@ import Testing
     @Test func aSystemClearThatIsOffDoesNothing() async {
         let r = rig { $0.set(true, forKey: "clipboardAutoClearOnScreenLock") }
         r.model.start(); defer { r.model.stop() }
-        r.pasteboard.clearContents(); r.pasteboard.setString("stay", forType: .string)
+        await laneWrite(r.pasteboard, "stay")
         r.workspace.post(name: NSWorkspace.willSleepNotification, object: nil)
         r.workspace.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
         await settle()
-        #expect(r.pasteboard.string(forType: .string) == "stay")
+        #expect(await laneString(r.pasteboard) == "stay")
         r.distributed.post(name: SystemClearObserver.screenLockName, object: nil)
-        #expect(await eventually { r.pasteboard.string(forType: .string) == nil })
+        var cleared = false
+        for _ in 0..<500 where !cleared {
+            cleared = await laneString(r.pasteboard) == nil
+            if !cleared { try? await Task.sleep(for: .milliseconds(10)) }
+        }
+        #expect(cleared)
     }
 
     @Test func aSwitchTurnedOffLaterRemovesItsObserver() async {
@@ -286,10 +294,10 @@ import Testing
         r.model.start(); defer { r.model.stop() }
         r.defaults.defaults.set(false, forKey: "clipboardAutoClearOnScreenLock")
         r.model.settingsChanged()
-        r.pasteboard.clearContents(); r.pasteboard.setString("stay", forType: .string)
+        await laneWrite(r.pasteboard, "stay")
         r.distributed.post(name: SystemClearObserver.screenLockName, object: nil)
         await settle()
-        #expect(r.pasteboard.string(forType: .string) == "stay")
+        #expect(await laneString(r.pasteboard) == "stay")
     }
 
     /// The observers deliver on the main queue: give them time to run before asserting that nothing happened.

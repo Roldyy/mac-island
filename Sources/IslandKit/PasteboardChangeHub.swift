@@ -97,7 +97,10 @@ public final class PasteboardChangeHub {
     // MARK: - Live
 
     /// The general pasteboard, read on the app-wide pasteboard lane (`GeneralPasteboardLane`), the same queue as every other
-    /// access: a count read beside a `types` read on another thread is how AppKit's type cache got corrupted.
+    /// access. The 1.1.0 crash reports (frames above `_updateTypeCacheIfNeeded` are `_typesAtIndex:combinesItems:`) were
+    /// all `types` reads (the watcher's, the URL cleaner's) racing each other; a bare `changeCount` read is not in any
+    /// of those frames and is not known to touch the type cache. It stays on the lane anyway, so a count is always read
+    /// in order with the writes and reads around it.
     public static let generalReader: Reader = { done in
         GeneralPasteboardLane.shared.async {
             let count = NSPasteboard.general.changeCount

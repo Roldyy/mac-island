@@ -133,6 +133,10 @@ final class PasteboardWatcher {
                 defer { self.busy -= 1 }
                 // A look that finished after `stop()` reports nothing; nil = cleared pasteboard.
                 guard self.runGeneration == generation, let outcome else { return }
+                // The app's own write (put back, paste, clear) was adopted while this look was in flight: the look
+                // is of an OLDER state. Reporting it would re-arm auto-clear on the older count and cancel the
+                // timer the write armed on the newer one.
+                guard count >= self.lastChangeCount else { return }
                 self.onChange(count, outcome, source)
             }
         })

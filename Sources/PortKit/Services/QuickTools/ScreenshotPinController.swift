@@ -119,13 +119,17 @@ private final class ScreenshotPinWindow: OverlayPanel {
     // MARK: Actions
 
     func copyImage() {
-        guard ScreenshotEditorController.copyImage(
+        let strings = strings
+        let queued = ScreenshotEditorController.copyImage(
             ScreenshotRenderer.Export(image: image, scale: scale),
-            fileNamePrefix: strings.fileNamePrefix) else {
-            NSSound.beep()
-            return
+            fileNamePrefix: strings.fileNamePrefix) { copied in
+            if copied {
+                QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
+            } else {
+                NSSound.beep()
+            }
         }
-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
+        if !queued { NSSound.beep() }
     }
 
     func saveImage() {

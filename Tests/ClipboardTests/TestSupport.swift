@@ -79,11 +79,14 @@ func plainPaste(_ pb: NSPasteboard,
                 accessibilityTrusted: @escaping () -> Bool = { false },
                 postAccess: @escaping () -> Bool = { true },
                 sendPaste: @escaping @MainActor () async -> PasteSendResult = { .posted },
-                afterWrite: @escaping (Int) -> Void = { _ in }) async -> PlainPasteOutcome {
+                afterWrite: @escaping (Int) -> Void = { _ in },
+                now: @escaping () -> TimeInterval = { StalePasteGuard.uptime() },
+                frontPID: @escaping () -> pid_t? = { nil }) async -> PlainPasteOutcome {
     await withCheckedContinuation { continuation in
         PlainPasteHotkeyService.performPlainPaste(pasteboard: pb, accessibilityTrusted: accessibilityTrusted,
                                                   postAccess: postAccess, sendPaste: sendPaste,
-                                                  afterWrite: afterWrite) { continuation.resume(returning: $0) }
+                                                  afterWrite: afterWrite, now: now,
+                                                  frontPID: frontPID) { continuation.resume(returning: $0) }
     }
 }
 
@@ -115,4 +118,22 @@ func onLane<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
     await withCheckedContinuation { continuation in
         GeneralPasteboardLane.shared.queue.async { continuation.resume(returning: work()) }
     }
+}
+
+/// `NSPasteboard` is not Sendable; the lane serialises every access, so passing it in is safe.
+private struct LanePasteboard: @unchecked Sendable { let pb: NSPasteboard }
+
+/// Writes `text` to a pasteboard the started model watches, on the lane (never beside the model's lane reads).
+func laneWrite(_ pb: NSPasteboard, _ text: String, concealed: Bool = false) async {
+    let box = LanePasteboard(pb: pb)
+    await onLane {
+        box.pb.clearContents(); box.pb.setString(text, forType: .string)
+        if concealed { box.pb.setData(Data(), forType: .init("org.nspasteboard.ConcealedType")) }
+    }
+}
+
+/// Reads the text of a pasteboard the started model watches, on the lane.
+func laneString(_ pb: NSPasteboard) async -> String? {
+    let box = LanePasteboard(pb: pb)
+    return await onLane { box.pb.string(forType: .string) }
 }

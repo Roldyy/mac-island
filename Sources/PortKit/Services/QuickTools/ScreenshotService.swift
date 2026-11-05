@@ -840,8 +840,12 @@ final class ScreenshotService: ObservableObject {
                 try? FileManager.default.removeItem(at: output.0)
                 return
             }
-            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
-            else {
+            let copied = await withCheckedContinuation { continuation in
+                ScreenshotEditorController.copyFileOnLane(output.0, payload: output.1) {
+                    continuation.resume(returning: $0)
+                }
+            }
+            guard copied else {
                 try? FileManager.default.removeItem(at: output.0)
                 NSSound.beep()
                 return
@@ -945,13 +949,19 @@ final class ScreenshotService: ObservableObject {
     @discardableResult
     private func copyDirect(_ capture: ScreenshotSelectionController.Capture) -> Bool {
         guard let export = flatten(capture) else { return false }
-        guard ScreenshotEditorController.copyImage(
-            export, fileNamePrefix: strings.fileNamePrefix) else {
-            NSSound.beep()
-            return false
+        // Mac Island: the pasteboard write runs on the shared lane; `true` means the copy was queued, a failed write
+        // beeps in the completion.
+        let strings = strings
+        let queued = ScreenshotEditorController.copyImage(
+            export, fileNamePrefix: strings.fileNamePrefix) { copied in
+            if copied {
+                QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
+            } else {
+                NSSound.beep()
+            }
         }
-        QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
-        return true
+        if !queued { NSSound.beep() }
+        return queued
     }
 
     private func saveDirect(_ capture: ScreenshotSelectionController.Capture) -> SaveOutcome? {
@@ -997,13 +1007,16 @@ final class ScreenshotService: ObservableObject {
             return nil
         }
 
-        let copied = ScreenshotEditorController.copyFile(
-            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data))
-        let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
-        QuickToolHUD.show(icon: "camera.viewfinder",
-                          message: String(format: format,
-                                          url.deletingLastPathComponent().lastPathComponent))
-        return (SaveOutcome(url: url, consumedNumber: consumedNumber), copied)
+        // Mac Island: the write runs on the shared lane, so `copied` is reported as queued and the HUD (which says
+        // whether the copy happened) is shown once the lane has answered.
+        let strings = strings
+        let folderName = url.deletingLastPathComponent().lastPathComponent
+        ScreenshotEditorController.copyFileOnLane(
+            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data)) { copied in
+            let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
+            QuickToolHUD.show(icon: "camera.viewfinder", message: String(format: format, folderName))
+        }
+        return (SaveOutcome(url: url, consumedNumber: consumedNumber), true)
     }
 
     /// Direct outputs go through the same pipeline as the editor so the 1x

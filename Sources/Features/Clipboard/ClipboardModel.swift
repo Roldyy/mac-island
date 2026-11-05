@@ -112,7 +112,12 @@ final class ClipboardModel {
 
         watcher.settings = settings
         watcher.onChange = { [weak self] count, capture, source in self?.handleChange(count, capture, source) }
-        autoClear.didClear = { [weak self] in self?.watcher.syncToCurrent() }
+        autoClear.didClear = { [weak self] count in
+            // The count of the clear itself, read in the clear's lane block. Never move the watcher backwards: a
+            // copy it already adopted is newer than our clear.
+            guard let self, count > self.watcher.lastChangeCount else { return }
+            self.watcher.syncToCurrent(count: count)
+        }
         watcher.start()
 
         hotkey.onTrigger = { [weak self] in self?.plainPasteTriggered() }
@@ -176,6 +181,8 @@ final class ClipboardModel {
 
     /// Ticks of the watcher's loop so far (tests wait on it before a negative assertion).
     var watcherPollCount: Int { watcher.pollCount }
+    /// True once the started watcher adopted the pasteboard's count: a test writes only after this.
+    var watcherHasAdoptedCount: Bool { watcher.hasAdoptedCount }
 
     /// Stops monitoring: the watcher (nothing copied from now on is recorded), a pending auto-clear and the
     /// plain-paste hotkey. The history already recorded stays in memory and on disk. `start()` arms everything

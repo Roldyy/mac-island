@@ -44,4 +44,29 @@ import Testing
         #expect(await eventually { box.captures.count == 1 })
         #expect(box.captures == [nil])
     }
+
+    /// Lane order H (hub count read), R (our own write + count), L (the look): the look belongs to a state older than
+    /// the write the model adopted meanwhile, so it must report nothing (it would re-arm auto-clear on the old count).
+    @Test func lookOvertakenByOwnWriteReportsNothing() async {
+        let (w, pb, td, box) = make(); defer { _ = td }
+        pb.clearContents(); pb.setString("older", forType: .string)
+        let older = pb.changeCount
+        w.poll(changeCount: older)                      // the look is queued on the lane
+        w.syncToCurrent(count: older + 1)               // the app's own write, adopted before the look answers
+        #expect(await eventually { w.isIdle })
+        #expect(box.captures.isEmpty)
+        #expect(w.lastChangeCount == older + 1)
+    }
+
+    /// The count of an auto-clear is adopted exactly: a copy made after the clear is a change, not the app's own write.
+    @Test func copyAfterClearCountIsRecorded() async {
+        let (w, pb, td, box) = make(); defer { _ = td }
+        pb.clearContents(); pb.setString("secret", forType: .string)
+        let clearCount = pb.changeCount                 // what the clear block read, in its own lane block
+        pb.clearContents(); pb.setString("copied between", forType: .string)   // lands before the adoption
+        w.syncToCurrent(count: clearCount)
+        w.poll()
+        #expect(await eventually { box.captures.count == 1 })
+        #expect(box.captures == [.text("copied between")])
+    }
 }
