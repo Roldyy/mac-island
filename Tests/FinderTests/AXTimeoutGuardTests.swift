@@ -10,7 +10,7 @@ import Testing
     static func sourceFiles() -> [URL] {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        return ["Finder", "Dock"].flatMap { lane -> [URL] in
+        return ["Finder", "Dock", "Clipboard"].flatMap { lane -> [URL] in
             let dir = root.appendingPathComponent("Sources/Features/\(lane)")
             let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
             return names.filter { $0.hasSuffix(".swift") }.map { dir.appendingPathComponent($0) }

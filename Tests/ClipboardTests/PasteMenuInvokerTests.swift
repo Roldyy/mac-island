@@ -134,3 +134,30 @@ struct FakeNode: PasteMenuNode {
         for l in lines { #expect(!l.contains("title") && !l.contains("pasteboard")) }
     }
 }
+
+/// Accessibility cannot run in a unit test, so the decisions inside `pressSync` that two reviews found missing are
+/// pinned in the source text: a future edit that drops one of them fails here instead of shipping.
+struct PasteMenuInvokerSourceGuardTests {
+    private var source: String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = root.appendingPathComponent("Sources/Features/Clipboard/PasteMenuInvoker.swift")
+        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+    }
+
+    @Test func theFocusCheckRunsBeforeTheSearch() {
+        let text = source
+        let focus = text.range(of: "focusAllows(front: pid, focused: focusedPID())")
+        let search = text.range(of: "kAXMenuBarAttribute")
+        #expect(focus != nil && search != nil && focus!.lowerBound < search!.lowerBound)
+    }
+
+    @Test func aPressWithoutAReplyNeverFallsBackToKeys() {
+        #expect(source.contains("case .cannotComplete, .failure: return .unconfirmed"))
+        #expect(source.contains("default: return .error"))
+    }
+
+    @Test func noMessagingTimeoutOnTheSystemWideElement() {
+        #expect(!source.contains("AXUIElementSetMessagingTimeout(systemWide"))
+    }
+}

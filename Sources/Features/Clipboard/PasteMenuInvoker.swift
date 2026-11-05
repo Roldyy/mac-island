@@ -76,7 +76,8 @@ enum PasteMenuInvoker {
 
     // MARK: - Live Accessibility
 
-    /// Every AX call is bounded by this (per element: the timeout does NOT propagate from a parent element).
+    /// Every AX call on the menu walk and the press is bounded by this (per element: the timeout does NOT propagate
+    /// from a parent element). The system-wide focus read is the one call without it, on purpose (see `focusedPID`).
     static let callTimeout: Float = 0.1
 
     /// A once-only gate between the worker and the deadline: whoever comes second finds the continuation spent. The
@@ -125,8 +126,10 @@ enum PasteMenuInvoker {
 
     /// The pid of the app that holds the keyboard focus, from the system-wide element. nil when it cannot be read.
     nonisolated private static func focusedPID() -> pid_t? {
+        // No messaging timeout here: set on the system-wide element it would apply to every AX read of the whole app
+        // (AXUIElement.h; see AXTimeoutGuardTests). This runs on a background queue and the gate's deadline still
+        // sends a slow read to the key fallback; only that background thread waits for the system default.
         let systemWide = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(systemWide, callTimeout)
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &ref) == .success,
               let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
@@ -154,7 +157,13 @@ enum PasteMenuInvoker {
             guard gate.beginPress() else { return .timedOut }
             // From here on a failure is "not confirmed", never "not performed": no key fallback.
             let r = AXUIElementPerformAction(node.element, kAXPressAction as CFString)
-            return r == .success ? .pressed : .unconfirmed
+            switch r {
+            case .success: return .pressed
+            // Only these two can mean "performed, no reply": a busy app still runs the queued press, so keys would paste twice.
+            case .cannotComplete, .failure: return .unconfirmed
+            // Anything else (invalid element, unsupported action, API disabled...) proves nothing was pressed: keys are safe.
+            default: return .error
+            }
         }
     }
 
