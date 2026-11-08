@@ -6,13 +6,18 @@ import Foundation
 /// Layout (little endian): magic "MISU", schema version (u32), payload length (u64), payload checksum (u64),
 /// then the payload: a string table (models, projects), then per file its path, size, mtime, committed offset,
 /// fingerprint, malformed counters and records. A record is a timestamp (f64), four token counts (u32),
-/// model and project indexes into the string table (u32) and the message id (u16 length, 0xFFFF = none).
+/// model and project indexes into the string table (u32), the message id (u16 length, 0xFFFF = none) and, since
+/// version 2, four attribution indexes (agent, skill, MCP server, plugin; u32, 0xFFFFFFFF = none) and the Bash
+/// binaries (u16 count, then u32 indexes). Version 3 adds, after each file's records, its hook runs (committed
+/// and tail counts, then per run: timestamp f64, name and event indexes u32, duration u32, failed u16, uuid like
+/// the message id).
 /// Anything that does not parse, check out or match the version is rejected whole: a cache is never repaired.
 enum UsageCacheCodec {
-    static let version: UInt32 = 1
+    static let version: UInt32 = 3
     private static let magic: [UInt8] = Array("MISU".utf8)
     private static let headerSize = 4 + 4 + 8 + 8
     private static let noID: UInt16 = 0xFFFF
+    private static let noName: UInt32 = .max
 
     enum DecodeError: Error { case badHeader, badVersion, badChecksum, malformed }
 
@@ -44,6 +49,10 @@ enum UsageCacheCodec {
             files.u32(UInt32(clamping: entry.parse.tail.malformedLines))
             files.u32(UInt32(committed.count))
             files.u32(UInt32(tail.count))
+            let committedHooks = entry.parse.committed.hooks.filter { keepingSince == nil || $0.timestamp >= keepingSince! }
+            let tailHooks = entry.parse.tail.hooks.filter { keepingSince == nil || $0.timestamp >= keepingSince! }
+            files.u32(UInt32(committedHooks.count))
+            files.u32(UInt32(tailHooks.count))
             for record in committed + tail {
                 files.f64(record.timestamp.timeIntervalSinceReferenceDate)
                 files.u32(UInt32(clamping: record.inputTokens))
@@ -53,6 +62,28 @@ enum UsageCacheCodec {
                 files.u32(index(record.model))
                 files.u32(index(record.project))
                 if let id = record.messageID {
+                    let utf8 = Array(id.utf8.prefix(Int(noID) - 1))
+                    files.u16(UInt16(utf8.count))
+                    files.bytes(utf8)
+                } else {
+                    files.u16(noID)
+                }
+                // v2 (MIS_0120): attribution names (string-table index, noName = none) and the Bash binaries.
+                for name in [record.attributionAgent, record.attributionSkill, record.attributionMcpServer,
+                             record.attributionPlugin] {
+                    files.u32(name.map(index) ?? noName)
+                }
+                let binaries = record.cliBinaries.prefix(Int(UInt16.max))
+                files.u16(UInt16(binaries.count))
+                for binary in binaries { files.u32(index(binary)) }
+            }
+            for hook in committedHooks + tailHooks {
+                files.f64(hook.timestamp.timeIntervalSinceReferenceDate)
+                files.u32(index(hook.name))
+                files.u32(index(hook.event))
+                files.u32(UInt32(clamping: hook.durationMs))
+                files.u16(hook.failed ? 1 : 0)
+                if let id = hook.uuid {
                     let utf8 = Array(id.utf8.prefix(Int(noID) - 1))
                     files.u16(UInt16(utf8.count))
                     files.bytes(utf8)
@@ -111,7 +142,10 @@ enum UsageCacheCodec {
                 parse.tail.malformedLines = Int(try reader.u32())
                 let committedCount = Int(try reader.u32())
                 let tailCount = Int(try reader.u32())
-                guard committedCount <= payload.count, tailCount <= payload.count else { throw DecodeError.malformed }
+                let committedHookCount = Int(try reader.u32())
+                let tailHookCount = Int(try reader.u32())
+                guard committedCount <= payload.count, tailCount <= payload.count,
+                      committedHookCount <= payload.count, tailHookCount <= payload.count else { throw DecodeError.malformed }
                 parse.committed.records.reserveCapacity(committedCount)
                 for position in 0..<(committedCount + tailCount) {
                     let stamp = Date(timeIntervalSinceReferenceDate: try reader.f64())
@@ -121,10 +155,39 @@ enum UsageCacheCodec {
                     guard model < table.count, project < table.count else { throw DecodeError.malformed }
                     let idLength = try reader.u16()
                     let id: String? = idLength == noID ? nil : try reader.string(count: Int(idLength))
+                    func name() throws -> String? {
+                        let value = try reader.u32()
+                        if value == noName { return nil }
+                        guard Int(value) < table.count else { throw DecodeError.malformed }
+                        return table[Int(value)]
+                    }
+                    let agent = try name(), skill = try name(), server = try name(), plugin = try name()
+                    let binaryCount = Int(try reader.u16())
+                    var binaries: [String] = []
+                    binaries.reserveCapacity(binaryCount)
+                    for _ in 0..<binaryCount {
+                        let value = Int(try reader.u32())
+                        guard value < table.count else { throw DecodeError.malformed }
+                        binaries.append(table[value])
+                    }
                     let record = UsageRecord(messageID: id, model: table[model], timestamp: stamp, inputTokens: input,
                                              outputTokens: output, cacheCreationTokens: created, cacheReadTokens: read,
-                                             project: table[project])
+                                             project: table[project], attributionAgent: agent, attributionSkill: skill,
+                                             attributionMcpServer: server, attributionPlugin: plugin,
+                                             cliBinaries: binaries)
                     if position < committedCount { parse.committed.records.append(record) } else { parse.tail.records.append(record) }
+                }
+                for position in 0..<(committedHookCount + tailHookCount) {
+                    let stamp = Date(timeIntervalSinceReferenceDate: try reader.f64())
+                    let name = Int(try reader.u32()), event = Int(try reader.u32())
+                    let duration = Int(try reader.u32())
+                    let failed = try reader.u16() != 0
+                    guard name < table.count, event < table.count else { throw DecodeError.malformed }
+                    let idLength = try reader.u16()
+                    let id: String? = idLength == noID ? nil : try reader.string(count: Int(idLength))
+                    let hook = HookRun(name: table[name], event: table[event], durationMs: duration, failed: failed,
+                                       timestamp: stamp, uuid: id)
+                    if position < committedHookCount { parse.committed.hooks.append(hook) } else { parse.tail.hooks.append(hook) }
                 }
                 entries[path] = UsageFileCache.Entry(key: .init(size: size, mtime: mtime), parse: parse, fingerprint: fingerprint)
             }

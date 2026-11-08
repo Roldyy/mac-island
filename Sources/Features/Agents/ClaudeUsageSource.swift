@@ -66,6 +66,7 @@ struct ClaudeUsageSource: UsageSource {
             let known = cache.merged()
             var early = UsageLoadResult()
             early.records = known.records
+            early.hooks = known.hooks
             early.malformedLines = known.malformed
             early.fileCount = known.files
             progress(UsageProgress(result: early, missingNewest: nil, pendingNewest: nil, fromCache: true))
@@ -108,6 +109,7 @@ struct ClaudeUsageSource: UsageSource {
                 var partial = UsageLoadResult()
                 let known = cache.merged()
                 partial.records = known.records
+                partial.hooks = known.hooks
                 partial.malformedLines = known.malformed
                 partial.fileCount = known.files
                 partial.parsedFileCount = cache.parseCount - parsedBefore
@@ -127,6 +129,7 @@ struct ClaudeUsageSource: UsageSource {
         }
         let known = cache.merged()
         result.records = known.records
+        result.hooks = known.hooks
         result.malformedLines = known.malformed
         result.fileCount = known.files
         result.parsedFileCount = cache.parseCount - parsedBefore

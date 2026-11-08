@@ -17,6 +17,8 @@ struct AgentsPage: View {
     /// Off in snapshots: `.task` / `.onAppear` do not run there and nothing may start polling.
     var isLive = true
     @State private var showsSettings: Bool
+    /// The breakdown card's own window (its toggle is separate from the page's period).
+    @State private var breakdownWindow: BreakdownWindow = .days7
     /// Width of the page content; the island page is 540 pt, so that is the starting assumption.
     @State private var pageWidth: CGFloat = 540
 
@@ -93,6 +95,9 @@ struct AgentsPage: View {
                 .frame(minHeight: 150)
         } else {
             glance(cards)
+            if cards.contains(.limits), let extra = model.extraUsage {
+                AgentsExtraUsageCard(extra: extra, now: model.now)
+            }
             let lower = cards.filter { $0 != .limits && $0 != .live }
             ForEach(Array(AgentsCardLayout.rows(lower, width: pageWidth).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: IslandSpacing.m) {
@@ -101,6 +106,9 @@ struct AgentsPage: View {
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
+            }
+            if model.hasLoaded {
+                AgentsBreakdownCard(breakdowns: model.snapshot.breakdowns, window: $breakdownWindow)
             }
         }
     }

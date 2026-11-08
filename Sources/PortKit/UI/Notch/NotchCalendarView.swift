@@ -66,7 +66,10 @@ struct NotchCalendarView: View {
         // Day and month names follow the app's language; the order of the
         // date and the 12/24-hour clock follow the user's region.
         .environment(\.locale, l10n.language.formattingLocale())
-        .onAppear { if ownsMonth { calendar.showMonth(focus) } }
+        .onAppear {
+            if !preview { calendar.ensureRunning() }
+            if ownsMonth { calendar.showMonth(focus) }
+        }
         .onChange(of: focus) { previous, date in
             // A month read already covers every week of that month, so
             // moving the strip within it keeps the loaded events.
@@ -290,6 +293,19 @@ struct NotchCalendarView: View {
         NotchCalendarDayLabel(day: day, now: now, text: text)
     }
 
+    /// MIS_0120: a blank list always says why. French, like the rest of the island.
+    private var emptyMessage: String {
+        switch NotchCalendarSupport.agendaState(loading: false, eventCount: 0, serviceRunning: calendar.isRunning,
+                                                readableCalendars: calendar.readableCalendars) {
+        case .serviceOff:
+            return text.serviceOff
+        case .noCalendars:
+            return text.noCalendars
+        case .empty, .events, .loading:
+            return selectedDay == nil ? text.empty : text.emptyDay
+        }
+    }
+
     private var emptyAgenda: some View {
         HStack(spacing: 12) {
             Image(systemName: "calendar.badge.checkmark")
@@ -297,7 +313,7 @@ struct NotchCalendarView: View {
                 .foregroundStyle(.white.opacity(0.45))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 8) {
-                Text(selectedDay == nil ? text.empty : text.emptyDay)
+                Text(emptyMessage)
                     .font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
                     .fixedSize(horizontal: false, vertical: true)
                 // With no card to open it from and no room for it in the row.

@@ -14,6 +14,31 @@ import Testing
         return Double(usage.ru_maxrss) / 1_048_576   // bytes on macOS
     }
 
+    /// MIS_0120: prints the breakdown (agent, MCP and binary names with whole percents) to compare with the
+    /// numbers Claude Code's own /usage screen shows for the same window. Names only, never content or paths.
+    @Test(.enabled(if: RealDataTests.enabled)) func realLogsBreakdownMatchesTheUsageScreen() {
+        let store = UsageCacheStore(url: FileManager.default.temporaryDirectory
+            .appendingPathComponent("mis-real-\(UUID().uuidString)").appendingPathComponent("usage-cache.bin"))
+        defer { try? FileManager.default.removeItem(at: store.url.deletingLastPathComponent()) }
+        let now = Date()
+        let loaded = ClaudeUsageSource(store: store).load(modifiedSince: now.addingTimeInterval(-31 * 86_400))
+        for window in BreakdownWindow.allCases {
+            let b = UsageBreakdown.build(loaded.records, hooks: loaded.hooks, now: now, window: window)
+            func line(_ rows: [BreakdownRow]) -> String {
+                rows.prefix(6).map { "\($0.name) \(Int(($0.share * 100).rounded()))% [\(AgentsBreakdownCard.modelText($0.models))]" }
+                    .joined(separator: " | ")
+            }
+            print("BREAKDOWN \(window.title) total=\(Int(b.totalWeight))")
+            print("  agents: \(line(b.subagents))")
+            print("  mcp: \(line(b.mcpServers))")
+            print("  skills: \(line(b.skills))")
+            print("  plugins: \(line(b.plugins))")
+            print("  cli: \(b.cli.prefix(8).map { "\($0.name)×\($0.calls)" }.joined(separator: " "))")
+            print("  hooks: \(b.hooks.prefix(6).map { "\($0.name) \($0.runs)x \($0.totalMs)ms err=\($0.errors)" }.joined(separator: " | "))")
+            #expect(abs(b.subagents.reduce(0) { $0 + $1.weight } - b.totalWeight) < 0.5)
+        }
+    }
+
     @Test(.enabled(if: RealDataTests.enabled)) func realLogsProduceASaneSnapshot() {
         let calendar = UsageFormat.calendar
         let now = Date()

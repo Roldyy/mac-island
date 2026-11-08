@@ -42,6 +42,9 @@ struct NotchCalendarStrings {
     let weekNumber: String
     /// Heads the per-calendar checkboxes in Settings.
     let calendars: String
+    /// Why the agenda has nothing to list (MIS_0120): the service is stopped, or no calendar is readable.
+    let serviceOff: String
+    let noCalendars: String
 }
 
 extension FeatureStrings {
@@ -78,7 +81,9 @@ extension FeatureStrings {
             timeLeftHint: "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
             weekNumbers: "Week numbers",
             weekNumber: "Week %d",
-            calendars: "Calendars shown")
+            calendars: "Calendars shown",
+            serviceOff: "The calendar is stopped. Check Settings > Island > Calendar, or reopen the island.",
+            noCalendars: "No readable calendar: all are hidden, or no account is added.")
         default: return NotchCalendarStrings(
             title: "Calendrier",
             description: "Consultez le mois et vos prochains rendez-vous dans le Dynamic Island.",
@@ -110,7 +115,9 @@ extension FeatureStrings {
             timeLeftHint: "Affiche l’événement en cours avec une heure dans l’encoche pendant l’heure qui précède sa fin. Son titre peut apparaître dans les captures d’écran.",
             weekNumbers: "Numéros de semaine",
             weekNumber: "Semaine %d",
-            calendars: "Calendriers affichés")
+            calendars: "Calendriers affichés",
+            serviceOff: "Le calendrier est arrêté. Vérifiez Réglages > Île > Calendrier, ou rouvrez l’île.",
+            noCalendars: "Aucun calendrier lisible : tous sont masqués ou aucun compte n’est ajouté.")
         }
     }
 }

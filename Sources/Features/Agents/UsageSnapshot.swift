@@ -12,6 +12,8 @@ struct UsageSnapshot: Equatable, Sendable {
     var block: UsageBlock?
     var week = UsageTotals()
     var heatmap = UsageHeatmap()
+    /// MIS_0120: who the usage went to, per rolling window (24 h, 7 d, 30 d).
+    var breakdowns: [BreakdownWindow: UsageBreakdown] = [:]
 
     func summary(for period: UsagePeriod) -> UsageSummary { summaries[period] ?? UsageSummary() }
 
@@ -22,7 +24,7 @@ struct UsageSnapshot: Equatable, Sendable {
             UsagePeriod.month.interval(now: now, calendar: calendar).start)
     }
 
-    static func build(_ records: [UsageRecord], now: Date, calendar: Calendar) -> UsageSnapshot {
+    static func build(_ records: [UsageRecord], hooks: [HookRun] = [], now: Date, calendar: Calendar) -> UsageSnapshot {
         var snapshot = UsageSnapshot()
         for period in UsagePeriod.allCases {
             snapshot.summaries[period] = UsageAggregator.summarize(records, now: now, calendar: calendar, period: period)
@@ -31,6 +33,9 @@ struct UsageSnapshot: Equatable, Sendable {
         let week = snapshot.summary(for: .week)
         snapshot.week = UsageTotals(tokens: week.totalTokens, cost: week.totalCost, estimated: week.costIsEstimated)
         snapshot.heatmap = UsageHeatmap.build(records, now: now, calendar: calendar)
+        for window in BreakdownWindow.allCases {
+            snapshot.breakdowns[window] = UsageBreakdown.build(records, hooks: hooks, now: now, window: window)
+        }
         return snapshot
     }
 }

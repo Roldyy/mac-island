@@ -146,6 +146,19 @@ final class NotchCalendarService: NSObject, ObservableObject {
         refresh()
     }
 
+    /// True while the reader exists: the agenda tells a stopped service from an empty week with it.
+    var isRunning: Bool { reader != nil }
+
+    /// How many calendars the last read could see (after the exclusions); nil until a read finished.
+    @Published private(set) var readableCalendars: Int?
+
+    /// Called by the Calendar page when it appears: restarts a service that was stopped under it.
+    func ensureRunning() {
+        if NotchCalendarSupport.shouldRestart(serviceRunning: isRunning, enabled: NotchCalendarSupport.isEnabled()) {
+            syncWithPreferences()
+        }
+    }
+
     func refresh() {
         task?.cancel()
         refreshTimer?.invalidate(); refreshTimer = nil
@@ -179,6 +192,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
                 return
             }
             self.needsGoogleAccount = CalendarAccountHint.needsGoogleAccount(known)
+            self.readableCalendars = NotchCalendarSupport.readableCalendars(known: known, excluded: self.excludedCalendars)
             // A calendar that vanished (account removed) leaves the stored selection quietly.
             let pruned = CalendarSelection.pruned(self.excludedCalendars, known: known)
             if pruned != self.excludedCalendars {
@@ -234,6 +248,6 @@ final class NotchCalendarService: NSObject, ObservableObject {
         excludedCalendars = []
         showDeclined = false
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
-        events = []; countdown = nil; loading = false; needsGoogleAccount = false
+        events = []; countdown = nil; loading = false; needsGoogleAccount = false; readableCalendars = nil
     }
 }

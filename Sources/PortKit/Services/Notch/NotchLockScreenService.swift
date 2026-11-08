@@ -181,7 +181,9 @@ final class NotchLockScreenService {
         if stopsSources, !scene.isEmpty {
             NotchMusicService.shared.stop()
             NotchDownloadService.shared.stop()
-            NotchCalendarService.shared.stop()
+            // MIS_0120: the island's own Calendar page and closed-island chip share this service; stopping it here
+            // left the page blank after every unlock. Only stop it when nothing else wants it.
+            if !NotchCalendarSupport.isEnabled() { NotchCalendarService.shared.stop() }
             AgentUsageService.shared.pause()
         }
         playbackSubscription = nil

@@ -26,6 +26,8 @@ final class AgentsUsageModel {
     private(set) var unreadableFiles = 0
     private(set) var limits = LimitsState()
     private(set) var plan: PlanTier?
+    /// MIS_0120: the extra-usage credit from Claude Code's cache (nil when the file has none).
+    private(set) var extraUsage: ExtraUsage?
     private(set) var lastRefresh: Date?
     /// Bound to the picker; `persistPeriod()` writes it back.
     var period: UsagePeriod
@@ -39,6 +41,7 @@ final class AgentsUsageModel {
     @ObservationIgnored private let settings: AgentsSettings
     @ObservationIgnored private let sources: [any UsageSource]
     @ObservationIgnored private let limitSource: PlanLimitSource
+    @ObservationIgnored private let extraSource: ExtraUsageSource
     @ObservationIgnored private let planLoader: @Sendable () -> PlanTier?
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -53,6 +56,7 @@ final class AgentsUsageModel {
     init(settings: AgentsSettings,
          sources: [any UsageSource] = [ClaudeUsageSource(), CodexUsageSource()],
          limitSource: PlanLimitSource = PlanLimitSource(),
+         extraSource: ExtraUsageSource = ExtraUsageSource(),
          planLoader: @escaping @Sendable () -> PlanTier? = { PlanTierSource.load() },
          calendar: Calendar = UsageFormat.calendar,
          clock: @escaping @Sendable () -> Date = { Date() },
@@ -67,6 +71,7 @@ final class AgentsUsageModel {
         self.dailyBudget = settings.dailyBudget
         self.sources = sources
         self.limitSource = limitSource
+        self.extraSource = extraSource
         self.planLoader = planLoader
         self.calendar = calendar
         self.clock = clock
@@ -121,7 +126,10 @@ final class AgentsUsageModel {
             lastRefresh = clock()
         }
         let sources = sources, calendar = calendar, now = clock()
-        let limitSource = limitSource, planLoader = planLoader
+        let limitSource = limitSource, planLoader = planLoader, extraSource = extraSource
+        // One small file read (the cache is as old as Claude Code's last ask): off the main actor, before the logs.
+        let extra = await Task.detached(priority: .utility) { extraSource.load() }.value
+        if extra != extraUsage { extraUsage = extra }
         // Newest state wins: a consumer that is behind never queues stale snapshots.
         let (stream, continuation) = AsyncStream.makeStream(of: UsageUpdate.self, bufferingPolicy: .bufferingNewest(1))
         let worker = Task.detached(priority: .utility) {

@@ -118,6 +118,31 @@ enum NotchCalendarSupport {
             && NotchSupport.modules(in: defaults).contains(.calendar)
     }
 
+    /// Mac Island (MIS_0120): why the agenda has nothing to list. The page never shows a bare blank: a stopped
+    /// service and a calendar-less Mac each get their own message, and only a really empty week says "no appointment".
+    enum AgendaState: Equatable { case loading, events, serviceOff, noCalendars, empty }
+
+    static func agendaState(loading: Bool, eventCount: Int, serviceRunning: Bool,
+                            readableCalendars: Int?) -> AgendaState {
+        if eventCount > 0 { return .events }
+        if loading { return .loading }
+        if !serviceRunning { return .serviceOff }
+        if readableCalendars == 0 { return .noCalendars }
+        return .empty
+    }
+
+    /// Calendars the read can see after the exclusions. An empty catalog is a failed or early read, not a Mac
+    /// without calendars (the same rule as `CalendarAccountHint`): nil, never 0.
+    static func readableCalendars(known: [NotchCalendarChoice], excluded: Set<String>) -> Int? {
+        known.isEmpty ? nil : known.filter { !excluded.contains($0.id) }.count
+    }
+
+    /// The open Calendar page is the person asking for events: a service that something else stopped (a missing
+    /// screen, a lock, a preference round trip) is started again when it is allowed to run.
+    static func shouldRestart(serviceRunning: Bool, enabled: Bool) -> Bool {
+        enabled && !serviceRunning
+    }
+
     static func showsCountdown(in defaults: UserDefaults = PortHost.defaults) -> Bool {
         showsCountdown(chosen: false, in: defaults)
     }

@@ -79,17 +79,23 @@ final class UsageFileCache: @unchecked Sendable {
 
     /// Every cached record (committed and tail) with the counts a `UsageLoadResult` carries, already merged
     /// across files. Used to show the last known numbers before the folder has even been walked.
-    func merged() -> (records: [UsageRecord], malformed: Int, files: Int) {
+    func merged() -> (records: [UsageRecord], hooks: [HookRun], malformed: Int, files: Int) {
         let all = snapshot().values
         // One pass and one array: the repeats across files (a resumed session copies its history) are folded as
         // they come, instead of building the full list and then a second deduplicated copy of it.
         var records: [UsageRecord] = []
         var best: [String: Int] = [:]
+        var hooks: [HookRun] = []
+        var seenHooks = Set<String>()
         var malformed = 0
         func add(_ record: UsageRecord) {
             guard let id = record.messageID else { records.append(record); return }
             if let index = best[id] {
+                // The same message copied into a resumed file: keep the fuller list of calls, never add them up.
+                let binaries = record.cliBinaries.count >= records[index].cliBinaries.count
+                    ? record.cliBinaries : records[index].cliBinaries
                 if record.outputTokens > records[index].outputTokens { records[index] = record }
+                records[index].cliBinaries = binaries
             } else {
                 best[id] = records.count
                 records.append(record)
@@ -98,8 +104,13 @@ final class UsageFileCache: @unchecked Sendable {
         for entry in all {
             entry.parse.committed.records.forEach(add)
             entry.parse.tail.records.forEach(add)
+            for hook in entry.parse.committed.hooks + entry.parse.tail.hooks {
+                // The same run copied into a resumed session file is one run.
+                let key = hook.uuid ?? "\(hook.name)|\(hook.timestamp.timeIntervalSinceReferenceDate)"
+                if seenHooks.insert(key).inserted { hooks.append(hook) }
+            }
             malformed += entry.parse.committed.malformedLines + entry.parse.tail.malformedLines
         }
-        return (records, malformed, all.count)
+        return (records, hooks, malformed, all.count)
     }
 }

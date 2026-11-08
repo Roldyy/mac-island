@@ -31,12 +31,14 @@ enum UsagePipeline {
 
         let since = UsageSnapshot.windowStart(now: now, calendar: calendar)
         var settled: [UsageRecord] = []
+        var settledHooks: [HookRun] = []
         var results: [UsageLoadResult] = []
         var blockSettled = false
         // Sources run one after the other; a state reported by one source carries the records of those before it.
         for source in sources {
             var loaded = source.load(modifiedSince: since, shouldContinue: shouldContinue) { progress in
                 let records = settled.isEmpty ? progress.result.records : settled + progress.result.records
+                let hooks = settledHooks.isEmpty ? progress.result.hooks : settledHooks + progress.result.hooks
                 if progress.fromCache {
                     // The open block needs only the last hours of the cache: say it before the whole snapshot
                     // (13-week heatmap and all) is built, so the session ring is right at the first paint.
@@ -47,7 +49,7 @@ enum UsagePipeline {
                                                     weekComplete: false, now: now),
                         plan: plan, coverage: .unread, results: [], recordCount: 0, isFinal: false))
                 }
-                let snapshot = UsageSnapshot.build(records, now: now, calendar: calendar)
+                let snapshot = UsageSnapshot.build(records, hooks: hooks, now: now, calendar: calendar)
                 let coverage = UsageCoverage(missingNewest: progress.missingNewest)
                 // The cache says "a block is open": trusted from then on (the live session's own log is always a
                 // changed file during the walk, and must not bring the placeholder back). It saying "none" is
@@ -69,12 +71,14 @@ enum UsagePipeline {
                     results: results + [counts(progress.result)], recordCount: records.count, isFinal: false))
             }
             settled.append(contentsOf: loaded.records)
+            settledHooks.append(contentsOf: loaded.hooks)
             loaded.records = []
+            loaded.hooks = []
             results.append(loaded)
         }
         guard shouldContinue() else { return }
         sample = limitSource.load()
-        let snapshot = UsageSnapshot.build(settled, now: now, calendar: calendar)
+        let snapshot = UsageSnapshot.build(settled, hooks: settledHooks, now: now, calendar: calendar)
         emit(UsageUpdate(
             snapshot: snapshot,
             limits: LimitsState.resolve(sample: sample, block: snapshot.block, weekTokens: snapshot.week.tokens, now: now),
@@ -84,6 +88,7 @@ enum UsagePipeline {
     private static func counts(_ result: UsageLoadResult) -> UsageLoadResult {
         var copy = result
         copy.records = []
+        copy.hooks = []
         return copy
     }
 }

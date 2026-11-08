@@ -23,6 +23,14 @@ struct UsageRecord: Equatable, Sendable {
     /// Last path component of the working directory, never a full path. Empty when the log has none.
     var project: String = ""
     var agent: UsageAgent = .claude
+    /// MIS_0120: who the request ran for, as Claude Code logs it (names only, all nil on a main-session request or
+    /// an older log). Same fields its own /usage screen groups by.
+    var attributionAgent: String?
+    var attributionSkill: String?
+    var attributionMcpServer: String?
+    var attributionPlugin: String?
+    /// First word of each Bash command the message called (git, gh, stb...). Never the command itself.
+    var cliBinaries: [String] = []
 
     var totalTokens: Int { inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens }
 
@@ -34,7 +42,10 @@ struct UsageRecord: Equatable, Sendable {
         for record in records {
             guard let id = record.messageID else { result.append(record); continue }
             if let index = best[id] {
+                // One line per content block repeats the id and the usage: every line's Bash calls count.
+                let binaries = result[index].cliBinaries + record.cliBinaries
                 if record.outputTokens > result[index].outputTokens { result[index] = record }
+                result[index].cliBinaries = binaries
             } else {
                 best[id] = result.count
                 result.append(record)
@@ -44,9 +55,22 @@ struct UsageRecord: Equatable, Sendable {
     }
 }
 
+/// One run of a Claude Code hook, as the log records it. Names and numbers only: never the command, its output or a path.
+struct HookRun: Equatable, Sendable {
+    var name: String
+    var event: String
+    var durationMs: Int
+    /// Exit code other than 0, or the hook was cancelled (timed out).
+    var failed: Bool
+    var timestamp: Date
+    /// The log line's own id: the same run copied into a resumed session file is counted once.
+    var uuid: String?
+}
+
 /// What a source hands back: records plus counts only (privacy rule: no content, no paths).
 struct UsageLoadResult: Sendable {
     var records: [UsageRecord] = []
+    var hooks: [HookRun] = []
     var malformedLines = 0
     var fileCount = 0
     /// Files actually decoded this pass (the rest came from the cache).
