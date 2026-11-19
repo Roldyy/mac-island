@@ -112,6 +112,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         live.sink = ActivityCenterSink()
         claudeLive = live
 
+        // Claude's permission questions (Autoriser / Refuser in the island). Off until the switch is on; the heartbeat that
+        // tells the hook "the island is here" runs only while the "agents" switch is on too, and stops with it.
+        let approvals = ClaudeApprovalStore.shared
+        let approvalDefaults = AppDefaults.make() ?? .standard
+        approvals.isEnabled = { ClaudeApprovalSettings.isEnabled(approvalDefaults) }
+        approvals.onNewRequest = { _ in
+            guard ClaudeApprovalSettings.soundOn(approvalDefaults), let sound = NSSound(named: "Tink") else { return }
+            sound.volume = 0.4
+            sound.play()
+        }
+
         // Each start() only arms what the user's settings and granted permissions allow; none prompts.
         // From here the registry also stops them: kill switch, safe mode and each switch call the stoppers.
         // Now Playing has a stop() since 2026-11-02 (withdraws its music activity, ends the background poll).
@@ -132,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // No "fans" here either: the bound Fans lane starts and stops the policy.
                     "monitor": { MonitorFeature.start() },
                     "nowplaying": { NowPlayingFeature.start() },
-                    "agents": { live.acquire("shell") },
+                    "agents": { live.acquire("shell"); approvals.acquire("shell") },
                     "ipscanner": { IPScannerFeature.start() },
                     "defaultapps": { DefaultAppsFeature.start() },
                 ]) { _, ours in ours },
@@ -140,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
                     "monitor": { MonitorFeature.stop() },
                     "nowplaying": { NowPlayingFeature.stop() },
-                    "agents": { live.release("shell") },  // withdraws every Claude activity through the sink
+                    "agents": { live.release("shell"); approvals.release("shell") },  // withdraws every Claude activity through the sink, and the approvals heartbeat
                     "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
                     "defaultapps": { DefaultAppsFeature.stop() },  // forgets the screen and unplugs the guard (journal stays)
                 ]) { _, ours in ours },
@@ -392,7 +403,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Cleaning mode must never outlive the app.
-    func applicationWillTerminate(_ notification: Notification) { PortCleaningMode.stop() }
+    func applicationWillTerminate(_ notification: Notification) {
+        PortCleaningMode.stop()
+        // The hook must stop waiting for an island that is gone (it also notices a stale heartbeat after 8 s).
+        ClaudeApprovalStore.shared.release("shell")
+    }
 
     /// Clicking the app again (Finder, Dock, `open`) opens Settings: the app has no other window to show.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

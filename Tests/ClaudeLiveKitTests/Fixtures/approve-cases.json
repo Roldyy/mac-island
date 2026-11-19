@@ -1,0 +1,888 @@
+[
+  {
+    "name": "Read a file in the chat folder",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/a.py"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Read a file outside the chat folder is fine (reads are not folder-bound)",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/notes.txt"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Read an ssh key",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.ssh/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read an aws credentials file",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.aws/credentials"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a dot-env file",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/.env"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a dot-env variant",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/.env.production"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a pem file",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/server.pem"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a symlink to a secret",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/link.txt"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read the root",
+    "tool": "Read",
+    "input": {
+      "file_path": "/"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read the home folder",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a tilde path to a secret",
+    "tool": "Read",
+    "input": {
+      "file_path": "~/.ssh/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Glob a source pattern",
+    "tool": "Glob",
+    "input": {
+      "pattern": "**/*.py"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Glob that hunts secrets",
+    "tool": "Glob",
+    "input": {
+      "pattern": "**/.env*"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Grep over a folder is never allowed (it can read a secret inside)",
+    "tool": "Grep",
+    "input": {
+      "pattern": "foo",
+      "path": "{CWD}"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Grep inside ssh",
+    "tool": "Grep",
+    "input": {
+      "pattern": "foo",
+      "path": "{HOME}/.ssh"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit a file in the chat folder",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/a.py",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Write a new file in the chat folder",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/new.py",
+      "content": "print(1)"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Edit outside the chat folder",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{HOME}/notes.txt",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit in a claude folder",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/.claude/hooks/x.sh",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit in a git folder",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/.git/config",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit a settings file",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/settings.json",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit a CLAUDE.md",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/CLAUDE.md",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit an mcp config",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/.mcp.json",
+      "old_string": "a",
+      "new_string": "b"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write through a dotdot path",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/../escape.py",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write over a symlink",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/link.txt",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write a very long content",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/big.py",
+      "content": "{LONG}"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write with a bidi control in the text",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/bidi.py",
+      "content": "a‮b"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "Bash git status (verb no longer on the list)",
+    "tool": "Bash",
+    "input": {
+      "command": "git status"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash ls",
+    "tool": "Bash",
+    "input": {
+      "command": "ls -la src"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Bash cat a readme",
+    "tool": "Bash",
+    "input": {
+      "command": "cat README.md"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Bash git log (verb no longer on the list)",
+    "tool": "Bash",
+    "input": {
+      "command": "git log --oneline -5"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash ripgrep (verb no longer on the list)",
+    "tool": "Bash",
+    "input": {
+      "command": "rg foo src"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash find by name (verb no longer on the list)",
+    "tool": "Bash",
+    "input": {
+      "command": "find . -name x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash git branch list (verb no longer on the list)",
+    "tool": "Bash",
+    "input": {
+      "command": "git branch -a"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash recursive delete",
+    "tool": "Bash",
+    "input": {
+      "command": "rm -rf build"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash git reset hard",
+    "tool": "Bash",
+    "input": {
+      "command": "git reset --hard"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash git branch delete",
+    "tool": "Bash",
+    "input": {
+      "command": "git branch -D x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash two commands",
+    "tool": "Bash",
+    "input": {
+      "command": "ls; rm x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash pipe to a shell",
+    "tool": "Bash",
+    "input": {
+      "command": "cat a | sh"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash redirect",
+    "tool": "Bash",
+    "input": {
+      "command": "ls > out"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash command substitution",
+    "tool": "Bash",
+    "input": {
+      "command": "cat $(echo x)"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash backticks",
+    "tool": "Bash",
+    "input": {
+      "command": "cat `echo x`"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash network",
+    "tool": "Bash",
+    "input": {
+      "command": "curl http://example.com"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash tilde ssh",
+    "tool": "Bash",
+    "input": {
+      "command": "cat ~/.ssh/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash absolute ssh",
+    "tool": "Bash",
+    "input": {
+      "command": "cat {HOME}/.ssh/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash find delete",
+    "tool": "Bash",
+    "input": {
+      "command": "find . -delete"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash find exec",
+    "tool": "Bash",
+    "input": {
+      "command": "find . -exec sh x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash ripgrep preprocessor",
+    "tool": "Bash",
+    "input": {
+      "command": "rg --pre sh foo"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash git diff to a file",
+    "tool": "Bash",
+    "input": {
+      "command": "git diff --output=x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash quotes can hide a path",
+    "tool": "Bash",
+    "input": {
+      "command": "cat 'a'"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash glob can reach a secret",
+    "tool": "Bash",
+    "input": {
+      "command": "cat .s*/id_*"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash too long",
+    "tool": "Bash",
+    "input": {
+      "command": "ls aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash multi line",
+    "tool": "Bash",
+    "input": {
+      "command": "ls\nls"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash unknown verb",
+    "tool": "Bash",
+    "input": {
+      "command": "python3 x.py"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP status",
+    "tool": "mcp__stb__stb_status",
+    "input": {},
+    "expect": "allow"
+  },
+  {
+    "name": "MCP search read",
+    "tool": "mcp__stb__odoo_search_read",
+    "input": {
+      "model": "res.partner"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "MCP email search",
+    "tool": "mcp__claude_ai_Microsoft_365__outlook_email_search",
+    "input": {
+      "query": "x"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "MCP write",
+    "tool": "mcp__stb__odoo_write",
+    "input": {},
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP call method",
+    "tool": "mcp__stb__odoo_call_method",
+    "input": {},
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP send mail",
+    "tool": "mcp__claude_ai_Microsoft_365__outlook_send_mail",
+    "input": {},
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP read that also says start",
+    "tool": "mcp__stb__stb_instance_start",
+    "input": {},
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP a query tool is not on the read list",
+    "tool": "mcp__stb__pg_query",
+    "input": {
+      "sql": "select 1"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP weird name",
+    "tool": "mcp__a b__c",
+    "input": {},
+    "expect": "deny-only"
+  },
+  {
+    "name": "AskUserQuestion is never remote",
+    "tool": "AskUserQuestion",
+    "input": {
+      "questions": [
+        {
+          "question": "Which?"
+        }
+      ]
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "ExitPlanMode is never remote",
+    "tool": "ExitPlanMode",
+    "input": {
+      "plan": "x"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "WebFetch is never remote",
+    "tool": "WebFetch",
+    "input": {
+      "url": "https://example.com"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "A request that names the channel's own folder",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.rm-board/decisions/x.json"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "A control character in a path",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/a\u0007.py"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "A zero-width character in a command",
+    "tool": "Bash",
+    "input": {
+      "command": "ls a​b"
+    },
+    "expect": "refuse"
+  },
+  {
+    "name": "An unknown tool can be denied, not allowed",
+    "tool": "Task",
+    "input": {
+      "description": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "A skill call can be denied, not allowed",
+    "tool": "Skill",
+    "input": {
+      "skill": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Grep one file",
+    "tool": "Grep",
+    "input": {
+      "pattern": "foo",
+      "path": "{CWD}/a.py"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Grep through a symlink to a key",
+    "tool": "Grep",
+    "input": {
+      "pattern": ".",
+      "path": "{CWD}/link.txt"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Grep with a glob filter is not shown in full",
+    "tool": "Grep",
+    "input": {
+      "pattern": "x",
+      "path": "{CWD}/a.py",
+      "glob": "*.py"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a key with a different case",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.SSH/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a key with mixed case name",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.Ssh/ID_RSA"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash cat .ENV in upper case",
+    "tool": "Bash",
+    "input": {
+      "command": "cat .ENV"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash head a key in upper case",
+    "tool": "Bash",
+    "input": {
+      "command": "head .SSH/ID_RSA"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash cat through a symlink",
+    "tool": "Bash",
+    "input": {
+      "command": "cat link.txt"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash cat a plain file",
+    "tool": "Bash",
+    "input": {
+      "command": "cat a.py"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Bash tail grouped follow flags",
+    "tool": "Bash",
+    "input": {
+      "command": "tail -fn5 a.py"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash tail capital F",
+    "tool": "Bash",
+    "input": {
+      "command": "tail -Fn5 a.py"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash tail plain",
+    "tool": "Bash",
+    "input": {
+      "command": "tail -n 5 a.py"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Bash that turns the sandbox off",
+    "tool": "Bash",
+    "input": {
+      "command": "ls",
+      "dangerouslyDisableSandbox": true
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash in the background",
+    "tool": "Bash",
+    "input": {
+      "command": "ls",
+      "run_in_background": true
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash with a description",
+    "tool": "Bash",
+    "input": {
+      "command": "ls",
+      "description": "List"
+    },
+    "expect": "allow"
+  },
+  {
+    "name": "Bash device file",
+    "tool": "Bash",
+    "input": {
+      "command": "cat /dev/zero"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash date set grouped",
+    "tool": "Bash",
+    "input": {
+      "command": "date -us 0101"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash find is gone from the list",
+    "tool": "Bash",
+    "input": {
+      "command": "find . -rm"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Bash grep -r is gone from the list",
+    "tool": "Bash",
+    "input": {
+      "command": "grep -r x ."
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write in a claude folder with another case",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/.CLAUDE/x.sh",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write claude.md in lower case",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/claude.md",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write over a path with a hidden folder",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/.venv/x.py",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write a .pth startup file",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/x.pth",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write to a secret name inside the folder",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/secrets.py",
+      "content": "x"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write over 60 characters in total",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/b.py",
+      "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Write a content with a newline",
+    "tool": "Write",
+    "input": {
+      "file_path": "{CWD}/b.py",
+      "content": "a\nb"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "MultiEdit is never allowed (not shown in full)",
+    "tool": "MultiEdit",
+    "input": {
+      "file_path": "{CWD}/a.py",
+      "edits": [
+        {
+          "old_string": "a",
+          "new_string": "b"
+        }
+      ]
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Edit with replace_all",
+    "tool": "Edit",
+    "input": {
+      "file_path": "{CWD}/a.py",
+      "old_string": "a",
+      "new_string": "b",
+      "replace_all": true
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "A path with a newline",
+    "tool": "Read",
+    "input": {
+      "file_path": "{CWD}/a.py\n{HOME}/.ssh/id_rsa"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read an npm token file",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.npmrc"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a docker config",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.docker/config.json"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read the OTB database",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/otb_memory/app.db"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Read a shell history",
+    "tool": "Read",
+    "input": {
+      "file_path": "{HOME}/.zsh_history"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "Glob with a dotdot",
+    "tool": "Glob",
+    "input": {
+      "pattern": "../**/*.py"
+    },
+    "expect": "deny-only"
+  },
+  {
+    "name": "MCP read with long arguments",
+    "tool": "mcp__stb__odoo_search_read",
+    "input": {
+      "model": "res.partner",
+      "domain": "[[\"name\",\"ilike\",\"x\"]]",
+      "fields": "a,b,c"
+    },
+    "expect": "deny-only"
+  }
+]

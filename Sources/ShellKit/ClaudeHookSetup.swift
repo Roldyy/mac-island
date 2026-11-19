@@ -9,6 +9,15 @@ public enum ClaudeHookSetup {
         mainExecutable?.deletingLastPathComponent().appendingPathComponent("ClaudeHook").path
     }
 
+    /// The blocking approval hook sits next to it.
+    public static func approveExecutablePath(mainExecutable: URL? = Bundle.main.executableURL) -> String? {
+        mainExecutable?.deletingLastPathComponent().appendingPathComponent("ClaudeApprove").path
+    }
+
+    public static func approvalSnippet(mainExecutable: URL? = Bundle.main.executableURL) -> String? {
+        approveExecutablePath(mainExecutable: mainExecutable).map { ClaudeHooksSnippet.approvalSettingsJSON(executablePath: $0) }
+    }
+
     public static func snippet(mainExecutable: URL? = Bundle.main.executableURL) -> String? {
         hookExecutablePath(mainExecutable: mainExecutable).map { ClaudeHooksSnippet.settingsJSON(executablePath: $0) }
     }

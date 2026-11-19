@@ -1,3 +1,4 @@
+import ClaudeLiveKit
 import IslandKit
 import AppKit
 import IslandUI
@@ -15,6 +16,9 @@ struct FeaturesHubPage: View {
     @State private var query = ""
     @State private var sheetTab: IslandTab?
     @State private var hooksCopied = false
+    @State private var approvalCopied = false
+    @AppStorage(ClaudeApprovalSettings.enabledKey, store: AppDefaults.make()) private var approvalsOn = false
+    @AppStorage(ClaudeApprovalSettings.soundKey, store: AppDefaults.make()) private var approvalSound = true
     @State private var confirmUninstallAll = false
 
     var body: some View {
@@ -29,7 +33,7 @@ struct FeaturesHubPage: View {
                         IslandHeader(section.category.title)
                     }
                 }
-                Section { claudeHooks } header: { IslandHeader("Claude") }
+                Section { claudeHooks; claudeApprovals } header: { IslandHeader("Claude") }
             }
         }
         .sheet(item: $sheetTab) { tab in
@@ -100,6 +104,41 @@ struct FeaturesHubPage: View {
             }
         }
         .padding(.vertical, 3)
+    }
+
+    /// Autoriser / Refuser from the island: two keys, like every approval channel. Off until both are done.
+    private var claudeApprovals: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Autoriser ou refuser depuis l'île (facultatif)")
+                .font(.system(size: 13, weight: .medium))
+            Text("1. Activez l'interrupteur. 2. Copiez le bloc et fusionnez-le vous-même dans la clé « hooks » existante de ~/.claude/settings.json (une seconde clé « hooks » écraserait la première). Sans réponse de l'île, Claude Code affiche sa propre fenêtre. Les actions sensibles ne peuvent jamais être autorisées d'ici.")
+                .font(.system(size: 11)).foregroundStyle(IslandPalette.textSecondary.color)
+            Toggle("Activer les demandes d'autorisation dans l'île", isOn: $approvalsOn)
+                .toggleStyle(IslandToggleStyle())
+            Toggle("Son discret à chaque demande", isOn: $approvalSound)
+                .toggleStyle(IslandToggleStyle())
+                .disabled(!approvalsOn)
+            HStack(spacing: 8) {
+                Button(approvalCopied ? "Copié" : "Copier le bloc d'autorisation") { copyApproval() }
+                    .buttonStyle(IslandButtonStyle())
+                    .disabled(ClaudeHookSetup.approvalSnippet() == nil)
+                if ClaudeHookSetup.approvalSnippet() == nil {
+                    Text("Introuvable : disponible dans l'app installée.")
+                        .font(.system(size: 11)).foregroundStyle(IslandPalette.textSecondary.color)
+                }
+            }
+        }
+        .font(.system(size: 12))
+        .padding(.vertical, 3)
+    }
+
+    private func copyApproval() {
+        guard let snippet = ClaudeHookSetup.approvalSnippet() else { return }
+        GeneralPasteboardLane.shared.async {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(snippet, forType: .string)
+        }
+        approvalCopied = true
     }
 
     private func copyHooks() {

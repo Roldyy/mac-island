@@ -62,6 +62,9 @@ struct HomeIslandContent: View {
                 case .page(let id): if isLive { HomePageView(tabID: id, context: context).transition(.identity) } else { Color.clear }
                 }
             }
+            // Claude's pending permission questions (the Agents switch and the approvals switch both on): above any page.
+            ApprovalOverlay(context: context)
+                .padding(.top, home.bandHeight + HomeGeometry.bandGap)
         }
         .clipShape(shape)
         .overlay { outline }

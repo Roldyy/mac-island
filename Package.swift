@@ -20,8 +20,10 @@ let package = Package(
         .target(name: "IslandKit", dependencies: ["IslandUI"]),
         .target(name: "IslandTestSupport"),
         .target(name: "ClaudeHookCore"),
-        .target(name: "ClaudeLiveKit", dependencies: ["IslandKit", "ClaudeHookCore"]),
+        .target(name: "ClaudeApproveCore", dependencies: ["ClaudeHookCore"]),
+        .target(name: "ClaudeLiveKit", dependencies: ["IslandKit", "ClaudeHookCore", "ClaudeApproveCore"]),
         .executableTarget(name: "ClaudeHook", dependencies: ["ClaudeHookCore"]),
+        .executableTarget(name: "ClaudeApprove", dependencies: ["ClaudeApproveCore"]),
         .target(name: "ShellKit", dependencies: ["IslandKit", "IslandUI", "SettingsKit", "ClaudeLiveKit"]),
 
         // Features: one module per lane, disjoint write surfaces.
@@ -74,7 +76,8 @@ let package = Package(
         .testTarget(name: "IslandKitTests", dependencies: ["IslandKit"]),
         .testTarget(name: "IslandUITests", dependencies: ["IslandUI", "IslandTestSupport"]),
         .testTarget(name: "ShellKitTests", dependencies: ["ShellKit", "IslandTestSupport"]),
-        .testTarget(name: "ClaudeLiveKitTests", dependencies: ["ClaudeLiveKit", "IslandTestSupport"]),
+        .testTarget(name: "ClaudeLiveKitTests", dependencies: ["ClaudeLiveKit", "ClaudeApproveCore", "IslandTestSupport"],
+                    exclude: ["Fixtures/approve-cases.json"]),
         .testTarget(name: "ActivityTests", dependencies: ["IslandKit", "IslandTestSupport"]),
         .testTarget(name: "TerminalFeatureTests", dependencies: ["TerminalFeature"], path: "Tests/TerminalTests"),
         .testTarget(name: "AgentsFeatureTests", dependencies: ["AgentsFeature"], path: "Tests/AgentsTests"),
