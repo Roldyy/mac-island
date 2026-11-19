@@ -26,6 +26,10 @@ public struct ShellTabGate: Equatable, Sendable {
         "watch": ["notchWatch"],
         "mirror": ["cameraPreview"],
         "companion": ["notchMascot"],
+        // The island extras (IslandExtrasFeature): opt-in tabs, no tile at all while their own switch is off.
+        "notesTab": ["notesTab"],
+        "colorsTab": ["colorsTab"],
+        "batteryTab": ["batteryTab"],
     ])
 
     public func isOptional(_ tabID: String) -> Bool { features[tabID] != nil }

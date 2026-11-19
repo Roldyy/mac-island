@@ -25,12 +25,14 @@ public enum AmbientChannel {
     public static let camera = "camera"
     /// A bar and a percentage for a second when the system volume changes.
     public static let volume = "volume"
+    /// "Verr. Maj": shown only while Caps Lock is on. Off until the user switches it on in Settings.
+    public static let capsLock = "capslock"
     /// The Compagnon (mascot), an opt-in indicator posted only while its feature is on. Not a user choice of the closed
     /// island list (`userChoices`): the feature's own switch in Fonctions is the opt-in, so `isEnabled` is always true.
     public static let mascot = "mascot"
 
     /// Default order of the user-facing channels.
-    public static let userChoices = [limits, claude, music, battery, keepAwake, clock, system, network, disk, mic, camera, volume]
+    public static let userChoices = [limits, claude, music, battery, keepAwake, clock, system, network, disk, mic, camera, volume, capsLock]
 
     /// On out of the box. The rest is opt-in so the pill is not cluttered.
     /// What Harold asked for and nothing else: Claude, the clock, the battery and the keep-awake cup. Music, the
@@ -51,6 +53,7 @@ public enum AmbientChannel {
         case mic: "Micro actif"
         case camera: "Caméra active"
         case volume: "Volume"
+        case capsLock: "Verrouillage majuscules"
         default: "Alertes"
         }
     }
@@ -69,6 +72,7 @@ public enum AmbientChannel {
         case mic: "Un point orange tant qu’une application utilise le micro."
         case camera: "Un point vert tant qu’une application utilise la caméra."
         case volume: "Une barre et le pourcentage pendant une seconde et demie quand le volume change."
+        case capsLock: "« Verr. Maj » tant que le verrouillage des majuscules est actif."
         default: "Toujours affichées."
         }
     }

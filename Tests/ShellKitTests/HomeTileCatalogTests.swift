@@ -26,11 +26,11 @@ import Testing
     @Test func everyFeatureAndEveryActionAppearsOnceAllEnabled() {
         let tiles = merged()
         #expect(Set(tiles.map(\.id)).count == tiles.count)
-        // 14 shortcuts of the user (with the Éveil page tile) + the 3 features no action covers.
+        // 14 shortcuts of the user (with the Éveil page tile) + the features no action covers (the island extras included).
         #expect(tiles.map(\.id) == [
             "mixer", "keepawake", "agents", "commands", "capture", "lockScreen", "cleaning", "monitor",
             "shelf", "clipboard", "terminal", "nowplaying", "awake", "settings",
-            "fans", "finder", "dock", "ipscanner", "defaultapps",
+            "fans", "finder", "dock", "ipscanner", "defaultapps", "notesTab", "colorsTab", "batteryTab", "networkNotice",
         ])
         #expect(tiles.allSatisfy { $0.isEnabled })
         // Every Explorer feature is reachable from exactly one tile, except Éveil: the one-tap toggle and its page.
@@ -76,9 +76,10 @@ import Testing
         let on = tiles.filter(\.isEnabled).map(\.id)
         let off = tiles.filter { !$0.isEnabled }.map(\.id)
         #expect(on == ["agents", "capture", "lockScreen", "cleaning", "clipboard", "terminal", "settings"])
-        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "awake", "monitor", "fans", "commands", "finder", "dock", "ipscanner", "defaultapps"])
+        #expect(off == ["shelf", "nowplaying", "mixer", "keepawake", "awake", "monitor", "fans", "commands", "finder", "dock", "ipscanner", "defaultapps",
+                        "notesTab", "colorsTab", "batteryTab", "networkNotice"])
         #expect(tiles.map(\.id) == on + off)
-        #expect(tiles.count == 19)
+        #expect(tiles.count == 23)
     }
 
     @Test func aFeatureWithNoTabCountsAsOff() {
@@ -95,7 +96,7 @@ import Testing
         let extra = HomeFeature(id: "switcher", title: "Sélecteur", systemImage: "rectangle.on.rectangle")
         let tiles = merged(features: features + [extra])
         #expect(tiles.last?.id == "switcher" && tiles.last?.source == .feature)
-        #expect(tiles.count == 20)
+        #expect(tiles.count == 24)
     }
 
     // MARK: hidden set
@@ -103,9 +104,9 @@ import Testing
     @Test func hiddenTilesLeaveTheHomeButStayInTheExplorerFlagged() {
         let home = merged(hidden: ["capture", "finder", "ghost"])
         #expect(!home.map(\.id).contains("capture") && !home.map(\.id).contains("finder"))
-        #expect(home.count == 17)
+        #expect(home.count == 21)
         let explorer = merged(hidden: ["capture", "finder"], showHidden: true)
-        #expect(explorer.count == 19)
+        #expect(explorer.count == 23)
         #expect(explorer.filter(\.isHidden).map(\.id) == ["capture", "finder"])
         // Same order either way: hiding never reshuffles the rest.
         #expect(explorer.filter { !$0.isHidden }.map(\.id) == home.map(\.id))

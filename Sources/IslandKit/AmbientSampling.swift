@@ -142,6 +142,7 @@ public enum AmbientReadings {
     public static let micID = "mic"
     public static let cameraID = "camera"
     public static let volumeID = "volume"
+    public static let capsLockID = "capslock"
 
     public static let networkIDs = [linkID, downID, upID]
 
@@ -167,6 +168,13 @@ public enum AmbientReadings {
         return AmbientIndicator(
             id: memoryID, channel: AmbientChannel.system, symbol: "circle.fill", text: used,
             status: pressure.status, label: "Mémoire utilisée \(used), pression \(pressure.word)")
+    }
+
+    /// Posted only while Caps Lock is on; the sampler withdraws it when it goes off.
+    public static func capsLock() -> AmbientIndicator {
+        AmbientIndicator(
+            id: capsLockID, channel: AmbientChannel.capsLock, symbol: "capslock.fill", text: "Verr. Maj",
+            status: .warning, label: "Verrouillage des majuscules actif")
     }
 
     public static func disk(freeBytes: UInt64) -> AmbientIndicator {

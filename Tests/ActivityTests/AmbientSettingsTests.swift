@@ -151,7 +151,7 @@ import Testing
         #expect(s.orderedChannels == [AmbientChannel.music, AmbientChannel.battery, AmbientChannel.limits,
                                       AmbientChannel.claude, AmbientChannel.keepAwake, AmbientChannel.clock, AmbientChannel.system,
                                       AmbientChannel.network, AmbientChannel.disk, AmbientChannel.mic, AmbientChannel.camera,
-                                      AmbientChannel.volume])
+                                      AmbientChannel.volume, AmbientChannel.capsLock])
     }
 
     // MARK: Preferences (the Settings-side binding)

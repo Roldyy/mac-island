@@ -23,7 +23,9 @@ import UserNotifications
             + IslandPortTabs.laneGroup2()
         #expect(panels.map(\.id) == ["music", "timer", "calendar", "notifications", "accessories",
                                      "downloads", "filetools", "watch", "mirror", "companion"])
-        #expect(Set(panels.map(\.id)) == Set(ShellTabGate.ported.features.keys))
+        // The same table also gates the three island extras (IslandExtrasFeature: Notes, Couleurs, Batterie).
+        let extras: Set<String> = ["notesTab", "colorsTab", "batteryTab"]
+        #expect(Set(panels.map(\.id)).union(extras) == Set(ShellTabGate.ported.features.keys))
         #expect(!panels.contains { $0.title.localizedCaseInsensitiveContains("bient") })
 
         let binding = PortFeatureBinding(permissions: { PortPermissionState() })
@@ -36,7 +38,7 @@ import UserNotifications
     }
 
     @Test func noPanelClashesWithTheTwelveFirstOnes() {
-        let first = Set(ShellDescriptors.all.compactMap(\.tabID))
+        let first = Set(ShellDescriptors.all.compactMap(\.tabID)).subtracting(["notesTab", "colorsTab", "batteryTab"])
         #expect(first.isDisjoint(with: ShellTabGate.ported.features.keys))
         #expect(!ShellLayout.isDailyPage("music"), "the nine daily pages stay as they are")
     }

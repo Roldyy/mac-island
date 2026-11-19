@@ -15,7 +15,7 @@ public enum AmbientWingTable {
     ]
     public static let trailing: [String] = [
         AmbientChannel.battery, AmbientChannel.keepAwake, AmbientChannel.system, AmbientChannel.mic,
-        AmbientChannel.camera, AmbientChannel.disk, AmbientChannel.volume,
+        AmbientChannel.camera, AmbientChannel.disk, AmbientChannel.volume, AmbientChannel.capsLock,
     ]
 
     /// nil for the clock and the alerts.

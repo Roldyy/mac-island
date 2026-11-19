@@ -30,15 +30,16 @@ import Testing
         #expect(ids.allSatisfy(known.contains))
     }
 
-    @Test func tabsOutsidePagesAreTheFiveSettingsOnlyOnes() {
+    @Test func tabsOutsidePagesAreTheFiveSettingsOnlyOnesAndTheThreeExtras() {
         let outside = ShellLayout.tabsOutsidePages(ShellDescriptors.all.compactMap(\.tabID))
-        #expect(Set(outside) == ["commandbar", "finder", "dock", "ipscanner", "defaultapps"])
+        #expect(Set(outside) == ["commandbar", "finder", "dock", "ipscanner", "defaultapps", "notesTab", "colorsTab", "batteryTab"])
     }
 
     @Test func descriptorIdsAreUniqueAndTabIdsMatch() {
         let ids = ShellDescriptors.all.map(\.id)
-        #expect(ids.count == 14 && Set(ids).count == 14)
-        #expect(ShellDescriptors.all.allSatisfy { $0.tabID == $0.id })
+        // 14 modules + the four island extras (the "networkNotice" notice has no tab).
+        #expect(ids.count == 18 && Set(ids).count == 18)
+        #expect(ShellDescriptors.all.allSatisfy { $0.tabID == nil ? $0.id == "networkNotice" : $0.tabID == $0.id })
     }
 
     @Test func navigationOpensEachPageDirectlyWithoutASibling() {
@@ -88,7 +89,7 @@ import Testing
     @Test func groupsByCategoryInEnumOrderAndSkipsEmptyOnes() {
         let sections = FeatureHub.sections(ShellDescriptors.all, query: "")
         #expect(sections.map(\.category) == [.daily, .claude, .sound, .windows, .monitor, .files, .tools, .media])
-        #expect(sections.flatMap(\.features).count == 14)
+        #expect(sections.flatMap(\.features).count == 18)
     }
 
     @Test func searchIgnoresCaseAndAccentsAndMatchesSummaryAndCategory() {

@@ -155,7 +155,7 @@ import Testing
             let preferences = ClosedIslandPreferences(defaults: defaults)
             let rows = preferences.rows
             #expect(rows.map(\.channel) == AmbientChannel.userChoices)
-            #expect(rows.count == 12)
+            #expect(rows.count == 13)
             #expect(Set(rows.map(\.title)).count == rows.count)
             #expect(rows.allSatisfy { !$0.title.isEmpty && !$0.hint.isEmpty && $0.hint != "Toujours affichées." })
             #expect(rows.first { $0.channel == AmbientChannel.clock }?.title == "Heure au centre")

@@ -15,7 +15,8 @@ import Testing
             .appendingPathComponent("mis-gate-marker-\(UUID().uuidString)"))
         // One registry feature per switch the gate names, plus our own descriptors.
         let switches = Set(gate.features.values.flatMap { $0 })
-        let extras = switches.sorted().map {
+        let known = Set(ShellDescriptors.all.map(\.id))  // the island extras gate on their own descriptor ids
+        let extras = switches.subtracting(known).sorted().map {
             FeatureDescriptor(id: $0, title: $0, summary: "x", systemImage: "star", category: .tools)
         }
         let descriptors = ShellDescriptors.all + extras
@@ -41,11 +42,15 @@ import Testing
         #expect(gate.isOptional("music") && !gate.isOptional("terminal"))
     }
 
-    @Test func thePortedTableNamesTenPanelsAndNoneOfThe12() {
+    @Test func thePortedTableNamesTenPanelsPlusTheThreeExtrasAndNoneOfThe14Modules() {
         let ids = Set(ShellTabGate.ported.features.keys)
-        #expect(ids == ["music", "timer", "calendar", "notifications", "accessories",
-                        "downloads", "filetools", "watch", "mirror", "companion"])
-        let own = Set(ShellDescriptors.all.compactMap(\.tabID))
+        let extras: Set<String> = ["notesTab", "colorsTab", "batteryTab"]
+        let ported: Set<String> = ["music", "timer", "calendar", "notifications", "accessories",
+                                   "downloads", "filetools", "watch", "mirror", "companion"]
+        #expect(ids == ported.union(extras))
+        // The extras are gated by their own feature id; the ten ported panels by other switches.
+        for id in extras { #expect(ShellTabGate.ported.features[id] == [id], Comment(rawValue: id)) }
+        let own = Set(ShellDescriptors.all.compactMap(\.tabID)).subtracting(extras)
         #expect(ids.isDisjoint(with: own))
         for id in ids { #expect(ShellLayout.openHeights[id] != nil, Comment(rawValue: id)) }
     }

@@ -49,6 +49,9 @@ let package = Package(
         .target(name: "IPScannerFeature", dependencies: ["IslandKit", "IslandUI", "ShellKit"], path: "Sources/Features/IPScanner"),
         // Default apps: LaunchServices (NSWorkspace) + Info.plist reading only; every write goes through one facade, nothing depends on it but the app.
         .target(name: "DefaultAppsFeature", dependencies: ["IslandKit", "IslandUI"], path: "Sources/Features/DefaultApps"),
+        // Island extras: Notes, Couleurs and Batterie tabs plus the "Réseau perdu / rétabli" notice. AppKit, IOKit and
+        // Network.framework public APIs only; ShellKit joins for `BatteryReading`. Nothing depends on it but the app.
+        .target(name: "IslandExtrasFeature", dependencies: ["IslandKit", "IslandUI", "ShellKit"], path: "Sources/Features/IslandExtras"),
 
         // Vorssaint port (GPL-3.0-or-later): one target, upstream layout kept, inert until a Bridge lane binds it.
         .systemLibrary(name: "HIDEventSystem", path: "Sources/HIDEventSystem"),
@@ -65,7 +68,7 @@ let package = Package(
             "IslandKit", "IslandUI", "ShellKit", "ClaudeLiveKit", "SettingsKit", "TerminalFeature", "AgentsFeature", "ClipboardFeature",
             "ShelfFeature", "KeepAwakeFeature", "NowPlayingFeature",
             "FansFeature", "MonitorFeature", "CommandBarFeature",
-            "FinderFeature", "DockFeature", "AudioFeature", "IPScannerFeature", "DefaultAppsFeature",
+            "FinderFeature", "DockFeature", "AudioFeature", "IPScannerFeature", "DefaultAppsFeature", "IslandExtrasFeature",
         ]),
         .executableTarget(name: "mac-island-migrate", dependencies: ["SettingsKit"]),
 
@@ -96,5 +99,7 @@ let package = Package(
         .testTarget(name: "IPScannerFeatureTests", dependencies: ["IPScannerFeature", "ShellKit", "IslandKit", "IslandTestSupport"], path: "Tests/IPScannerTests"),
         // ShellKit joins only to check the registration (descriptor off by default, kill switch stops the feature, page and tile exist).
         .testTarget(name: "DefaultAppsFeatureTests", dependencies: ["DefaultAppsFeature", "ShellKit", "SettingsKit", "IslandKit", "IslandTestSupport"], path: "Tests/DefaultAppsTests"),
+        // ShellKit joins only to check the registration (descriptors off by default, kill switch stops the feature).
+        .testTarget(name: "IslandExtrasFeatureTests", dependencies: ["IslandExtrasFeature", "ShellKit", "IslandKit", "IslandTestSupport"], path: "Tests/IslandExtrasTests"),
     ]
 )

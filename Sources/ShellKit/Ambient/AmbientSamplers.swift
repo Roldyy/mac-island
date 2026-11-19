@@ -13,6 +13,7 @@ public enum AmbientSamplers {
             MicSampler(center: center),
             CameraSampler(center: center),
             VolumeSampler(center: center),
+            CapsLockSampler(center: center),
         ]
     }
 }

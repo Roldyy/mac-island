@@ -8,6 +8,7 @@ import FansFeature
 import MonitorFeature
 import FinderFeature
 import IPScannerFeature
+import IslandExtrasFeature
 import DefaultAppsFeature
 import DockFeature
 import AudioFeature
@@ -146,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "agents": { live.acquire("shell"); approvals.acquire("shell") },
                     "ipscanner": { IPScannerFeature.start() },
                     "defaultapps": { DefaultAppsFeature.start() },
+                    "networkNotice": { IslandExtrasFeature.start(IslandExtrasFeature.networkNoticeID) },
                 ]) { _, ours in ours },
                 stoppers: ported.stoppers.merging([
                     "shelf": { ShelfFeature.stop() },  // the ported shelf's own stop, then the Downloads watcher
@@ -154,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     "agents": { live.release("shell"); approvals.release("shell") },  // withdraws every Claude activity through the sink, and the approvals heartbeat
                     "ipscanner": { IPScannerFeature.stop() },  // cancels any scan and forgets the results
                     "defaultapps": { DefaultAppsFeature.stop() },  // forgets the screen and unplugs the guard (journal stays)
+                    "networkNotice": { IslandExtrasFeature.stop(IslandExtrasFeature.networkNoticeID) },  // cancels the path monitor
                 ]) { _, ours in ours },
                 activitySources: ["agents": ClaudeActivityMapper.source])
         }
@@ -358,7 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let battery = BatterySource(center: ambient)
         battery.start()
         self.battery = battery
-        // Clock, system, network, disk, mic, camera, volume: each runs only while its channel is on and the closed
+        // Clock, system, network, disk, mic, camera, volume, caps lock: each runs only while its channel is on and the closed
         // strip is on screen (the hub starts and stops them from the center's demand).
         let hub = AmbientSamplerHub(center: ambient, samplers: AmbientSamplers.standard(center: ambient))
         hub.start()
@@ -490,7 +493,7 @@ enum ShellTabs {
         FinderFeature.tab(), DockFeature.tab(), AudioFeature.tab(),
         FansFeature.tab(), MonitorFeature.tab(), CommandBarFeature.tab(),
         IPScannerFeature.tab(), DefaultAppsFeature.tab(),
-    ]
+    ] + IslandExtrasFeature.tabs()
 
     static let ported: [IslandTab] = [
         PortIslandMusic.tab(),

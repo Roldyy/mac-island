@@ -37,5 +37,15 @@ public enum ShellDescriptors {
         // Off until the user switches it on; nothing is scanned or written by itself (module DefaultAppsFeature).
         .init(id: "defaultapps", title: "Apps par défaut", summary: "Remplace l’app qui ouvre un type de fichier (TextEdit par Sublime Text, par exemple), avec aperçu et annulation.",
               systemImage: "app.badge.checkmark", category: .tools, enabledByDefault: false, tabID: "defaultapps"),
+        // The island extras (module IslandExtrasFeature): all off until switched on, none asks for a permission.
+        // The Caps Lock indicator has no descriptor: its own switch is the "Verrouillage majuscules" row of Settings > Île.
+        .init(id: "notesTab", title: "Notes", summary: "Une note courte, gardée sur ce Mac, dans un onglet de l’île.",
+              systemImage: "note.text", category: .tools, enabledByDefault: false, tabID: "notesTab"),
+        .init(id: "colorsTab", title: "Couleurs", summary: "Pipette de l’écran, dernières couleurs prélevées, un clic copie le code.",
+              systemImage: "eyedropper", category: .tools, enabledByDefault: false, tabID: "colorsTab"),
+        .init(id: "batteryTab", title: "Batterie", summary: "Niveau, état de charge, autonomie restante et santé de la batterie.",
+              systemImage: "battery.100percent", category: .tools, enabledByDefault: false, tabID: "batteryTab"),
+        .init(id: "networkNotice", title: "Alerte réseau", summary: "Un avis de trois secondes dans l’île quand le réseau est perdu ou rétabli.",
+              systemImage: "wifi.exclamationmark", category: .tools, enabledByDefault: false),
     ]
 }

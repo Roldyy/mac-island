@@ -548,6 +548,56 @@ private func controlLoopHasTicked() async -> Bool {
         let channels = AmbientSamplers.standard(center: rig.center).map(\.channel)
         #expect(Set(channels).count == channels.count)
         #expect(Set(channels) == [AmbientChannel.clock, AmbientChannel.system, AmbientChannel.network, AmbientChannel.disk,
-                                  AmbientChannel.mic, AmbientChannel.camera, AmbientChannel.volume])
+                                  AmbientChannel.mic, AmbientChannel.camera, AmbientChannel.volume, AmbientChannel.capsLock])
+    }
+}
+
+// MARK: - Caps Lock indicator
+
+@MainActor
+@Suite struct CapsLockSamplerTests {
+    private final class Flag: @unchecked Sendable { var on = false }
+
+    @Test func theIndicatorIsPostedWhileOnAndWithdrawnWhenOff() {
+        let rig = SamplerRig(); defer { rig.cleanUp() }
+        rig.preferences.setEnabled(AmbientChannel.capsLock, true)  // off by default, so the center hides it otherwise
+        let flag = Flag()
+        let sampler = CapsLockSampler(center: rig.center, read: { flag.on })
+        func shown() -> AmbientIndicator? { rig.center.content.all.first { $0.id == AmbientReadings.capsLockID } }
+        sampler.poll()
+        #expect(shown() == nil, "off at start: nothing to show")
+        flag.on = true; sampler.poll()
+        #expect(shown()?.text == "Verr. Maj")
+        sampler.poll()
+        flag.on = false; sampler.poll()
+        #expect(shown() == nil)
+    }
+
+    @Test func itPollsFourTimesASecondAndStopsWithdrawing() async {
+        let rig = SamplerRig(); defer { rig.cleanUp() }
+        rig.preferences.setEnabled(AmbientChannel.capsLock, true)
+        let sleep = HandSleep(), flag = Flag()
+        flag.on = true
+        let sampler = CapsLockSampler(center: rig.center, sleep: { try await sleep.sleep($0) }, read: { flag.on })
+        sampler.start(settings: .standard)
+        #expect(await waitUntil { sleep.requests == 1 })
+        #expect(sleep.durations == [.milliseconds(250)])
+        #expect(await waitUntil { rig.center.content.all.contains { $0.id == AmbientReadings.capsLockID } })
+        sampler.stop()
+        sleep.fire()
+        #expect(!sampler.isRunning)
+        #expect(!rig.center.content.all.contains { $0.id == AmbientReadings.capsLockID })
+    }
+
+    @Test func theHubRunsItOnlyWhenTheChannelIsOn() async {
+        let rig = SamplerRig(); defer { rig.cleanUp() }
+        let sleep = HandSleep()
+        let sampler = CapsLockSampler(center: rig.center, sleep: { try await sleep.sleep($0) }, read: { false })
+        let hub = AmbientSamplerHub(center: rig.center, samplers: [sampler])
+        hub.start()
+        #expect(!hub.runningChannels.contains(AmbientChannel.capsLock), "off by default")
+        rig.preferences.setEnabled(AmbientChannel.capsLock, true)
+        #expect(await waitUntil { hub.runningChannels.contains(AmbientChannel.capsLock) })
+        hub.stop(); sleep.fire()
     }
 }

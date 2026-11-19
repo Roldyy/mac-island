@@ -118,6 +118,7 @@ public enum SettingsLive {
                 flag("notchIdleShowMic", false, title: AmbientChannel.title("mic"), hint: AmbientChannel.hint("mic")),
                 flag("notchIdleShowCamera", false, title: AmbientChannel.title("camera"), hint: AmbientChannel.hint("camera")),
                 flag("notchIdleShowVolume", false, title: AmbientChannel.title("volume"), hint: AmbientChannel.hint("volume")),
+                flag("notchIdleShowCapslock", false, title: AmbientChannel.title("capslock"), hint: AmbientChannel.hint("capslock")),
                 flag("notchIdleRotates", true, title: "Faire défiler les indicateurs"),
                 flag("notchRememberLastTrack", true, title: "Mémoriser la dernière lecture",
                      hint: "Garde le dernier morceau pour le rouvrir depuis l’accueil. Reste sur ce Mac et n’est jamais envoyé. Désactivé, il est effacé."),
